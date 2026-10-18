@@ -1,7 +1,7 @@
 # ChatTalk — speak, record, translate
 
-Records speech and shows it line by line with its translation. Languages: Mandarin, Cantonese,
-Indonesian and English, translated in any direction between Mandarin, Indonesian and English
+Records speech and shows it line by line with its translation. Languages: Mandarin, Cantonese, Malay, Vietnamese,
+Indonesian and English, translated in any direction between Mandarin, Indonesian, Malay, Vietnamese and English
 (pinyin shown whenever Chinese is on either side). The phone web page has a language switcher with
 a swap button for two-way conversations. The Expo app in `mobile/` is the earlier Chinese→English version. A small Python server does the AI work.
 
@@ -51,7 +51,7 @@ Two bubbles at the bottom of the Record page:
 - **Live subtitles**: listens continuously and shows each sentence with its translation a few seconds later
   (Spoken → Translate into, as chosen above).
 - **Live conversation**: the two chosen languages form a pair; each sentence's language is detected
-  (Whisper language ID, with Malay/Javanese counted as Indonesian) and translated into the other one.
+  (Whisper language ID, with Indonesian and Malay treated as one family) and translated into the other one.
 
 The page captures 16 kHz audio, cuts it at pauses (3–12 s chunks), and calls
 `POST /api/live/transcribe` per chunk and `POST /api/live/translate` for batches of lines, so lines appear

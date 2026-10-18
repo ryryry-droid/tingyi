@@ -5,11 +5,18 @@ from pydantic import BaseModel, Field, computed_field, model_validator
 Script = Literal["simplified", "traditional"]
 Style = Literal["natural", "literal"]
 # Spoken languages: Mandarin, Cantonese, Indonesian, English
-Source = Literal["zh", "yue", "id", "en"]
+Source = Literal["zh", "yue", "id", "ms", "vi", "en"]
 # Languages to translate into
-Target = Literal["en", "zh", "id"]
+Target = Literal["en", "zh", "id", "ms", "vi"]
 
-LANG_NAMES = {"zh": "Mandarin Chinese", "yue": "Cantonese", "id": "Indonesian (Bahasa Indonesia)", "en": "English"}
+LANG_NAMES = {
+    "zh": "Mandarin Chinese",
+    "yue": "Cantonese",
+    "id": "Indonesian (Bahasa Indonesia)",
+    "ms": "Malay (Bahasa Melayu)",
+    "vi": "Vietnamese",
+    "en": "English",
+}
 CHINESE = {"zh", "yue"}
 
 
@@ -127,7 +134,7 @@ class LookupRequest(BaseModel):
 
     word: str = Field(min_length=1, max_length=40)
     sentence: str = Field(default="", max_length=600)
-    lang: Literal["zh", "yue", "id"]
+    lang: Literal["zh", "yue", "id", "ms", "vi"]
     script: Script = "simplified"
 
 

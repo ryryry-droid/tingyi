@@ -396,6 +396,8 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
           <option value="zh">Mandarin 普通话</option>
           <option value="yue">Cantonese 粤语</option>
           <option value="id">Indonesian</option>
+          <option value="ms">Malay</option>
+          <option value="vi">Vietnamese</option>
           <option value="en">English</option>
         </select>
       </label>
@@ -405,6 +407,8 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
           <option value="en">English</option>
           <option value="zh">Mandarin 中文</option>
           <option value="id">Indonesian</option>
+          <option value="ms">Malay</option>
+          <option value="vi">Vietnamese</option>
         </select>
       </label>
     </div>
@@ -452,9 +456,7 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
       </div>
       <input id="w-search" type="search" placeholder="Search your words" autocomplete="off">
       <div class="filter" id="w-filter">
-        <button type="button" data-f="all" aria-pressed="true">All</button>
-        <button type="button" data-f="zh" aria-pressed="false">Chinese</button>
-        <button type="button" data-f="id" aria-pressed="false">Indonesian</button>
+        <span id="w-langs" style="display:contents"></span>
         <span class="grow"></span>
         <button type="button" id="w-copy">Copy list</button>
       </div>
@@ -524,7 +526,11 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
 
   // ---------- settings ----------
   const DEFAULTS = { token: '', theme: 'dark', vibrate: true, source: 'zh', target: 'en', script: 'simplified', style: 'natural', pinyin: true, glossary: '' };
-  const LANGS = { zh: 'Mandarin', yue: 'Cantonese', id: 'Indonesian', en: 'English' };
+  const LANGS = { zh: 'Mandarin', yue: 'Cantonese', id: 'Indonesian', ms: 'Malay', vi: 'Vietnamese', en: 'English' };
+  // Languages you can look words up in, save and test (Cantonese words are saved as Chinese)
+  const WORD_LANGS = [['zh', 'Chinese'], ['id', 'Indonesian'], ['ms', 'Malay'], ['vi', 'Vietnamese']];
+  const WORD_EXAMPLE = { zh: '周末', id: 'belajar', ms: 'makan', vi: 'cảm ơn' };
+  const SPEECH_LANG = { id: 'id-ID', ms: 'ms-MY', vi: 'vi-VN' };
   const isHan = (code) => code === 'zh' || code === 'yue';
   const hasHan = (text) => /[\u3400-\u9fff]/.test(text || '');
   let settings = { ...DEFAULTS };
@@ -1209,7 +1215,7 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
   $('live-conv').onclick = () => startLive('conversation');
 
   // ---------- word lookup ----------
-  const LOOKUP_LANGS = ['zh', 'yue', 'id'];
+  const LOOKUP_LANGS = ['zh', 'yue', 'id', 'ms', 'vi'];
   const segmenters = {};
   /** Splits text into tokens; word tokens can be tapped. */
   function tokenize(text, lang) {
@@ -1381,7 +1387,10 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
         || (w.pinyin || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().includes(q)));
   }
   function renderWords() {
-    $('w-filter').querySelectorAll('[data-f]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.f === wordFilter)));
+    const have = WORD_LANGS.filter(([code]) => words.some((w) => w.lang === code));
+    if (wordFilter !== 'all' && !have.some(([c]) => c === wordFilter)) wordFilter = 'all';
+    $('w-langs').innerHTML = [['all', 'All'], ...(have.length > 1 ? have : [])]
+      .map(([code, label]) => `<button type="button" data-f="${code}" aria-pressed="${wordFilter === code}">${label}</button>`).join('');
     const list = filteredWords();
     $('w-test').disabled = !words.length;
     $('w-test-sub').textContent = words.length >= 4 ? `${words.length} words saved` : words.length ? `Save ${4 - words.length} more to test yourself` : 'Save some words first';
@@ -1438,7 +1447,8 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
   const cleanWord = (t) => String(t || '').replace(/[。，！？、；：,.!?;:"“”'‘’()（）]/g, ' ').replace(/\s+/g, ' ').trim();
 
   function openAddWord() {
-    const lang = settings.source === 'id' ? 'id' : settings.target === 'id' && !isHan(settings.source) ? 'id' : 'zh';
+    const codes = WORD_LANGS.map(([c]) => c), src = isHan(settings.source) ? 'zh' : settings.source;
+    const lang = codes.includes(src) ? src : codes.includes(settings.target) ? settings.target : 'zh';
     addState = { lang, text: '', entry: null, loading: false, error: '', recording: false };
     renderAddWord();
     setTimeout(() => $('add-input')?.focus(), 50);
@@ -1468,11 +1478,10 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
     openPanel(`
       <h2>Add a word</h2>
       <div class="seg" role="group" aria-label="Language">
-        <button type="button" data-aw="lang" data-v="zh" aria-pressed="${a.lang === 'zh'}">Chinese 中文</button>
-        <button type="button" data-aw="lang" data-v="id" aria-pressed="${a.lang === 'id'}">Indonesian</button>
+        ${WORD_LANGS.map(([c, l]) => `<button type="button" data-aw="lang" data-v="${c}" aria-pressed="${a.lang === c}">${l}</button>`).join('')}
       </div>
       <div class="addrow">
-        <input id="add-input" type="text" autocomplete="off" autocapitalize="off" placeholder="${han ? 'Type or say a word, e.g. 周末' : 'Type or say a word, e.g. belajar'}" value="${esc(a.text)}" lang="${han ? 'zh' : 'id'}">
+        <input id="add-input" type="text" autocomplete="off" autocapitalize="off" placeholder="Type or say a word, e.g. ${WORD_EXAMPLE[a.lang]}" value="${esc(a.text)}" lang="${a.lang}">
         <button class="mic${a.recording ? ' on' : ''}" type="button" data-aw="mic" aria-label="${a.recording ? 'Stop listening' : 'Say the word'}">${a.recording ? '■' : '🎙'}</button>
       </div>
       ${!e && !a.loading && !a.recording ? `<button class="primary" type="button" data-aw="lookup" ${a.text.trim() ? '' : 'disabled'}>Look it up</button>` : ''}
@@ -1518,7 +1527,7 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
     try {
       const form = new FormData();
       form.append('file', blob, `word.${extFor(blob.type)}`);
-      form.append('options', JSON.stringify({ ...options(), source: a.lang, target: a.lang === 'id' ? 'en' : 'en' }));
+      form.append('options', JSON.stringify({ ...options(), source: a.lang, target: 'en' }));
       const res = await fetch('/api/live/transcribe', { method: 'POST', headers: authHeaders(), body: form });
       if (!res.ok) throw new Error(await apiError(res));
       const text = cleanWord((await res.json()).segments.map((x) => x.text).join(' '));
@@ -1556,21 +1565,22 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
     { id: 'meaning', title: 'Word → meaning', hint: 'See the word, pick what it means' },
     { id: 'word', title: 'Meaning → word', hint: 'See the meaning, pick the word' },
     { id: 'gap', title: 'Fill the gap', hint: 'Pick the missing word in an example sentence' },
-    { id: 'type', title: 'Type it', hint: 'Type the pinyin or Indonesian word yourself' },
+    { id: 'type', title: 'Type it', hint: 'Type the word yourself (pinyin is fine for Chinese)' },
   ];
   let testSetup = { group: 'all', count: 10, kinds: ['meaning', 'word', 'gap'] };
   try { testSetup = { ...testSetup, ...JSON.parse(localStorage.getItem('tingyi.testSetup') || '{}') }; } catch {}
   let test = null;
   const shuffle = (xs) => { const a = xs.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
-  const toneless = (t) => String(t || '').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/ü/g, 'v').toLowerCase().replace(/[^a-z0-9㐀-鿿]/g, '');
+  const toneless = (t) => String(t || '').replace(/[đĐ]/g, 'd').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/ü/g, 'v').toLowerCase().replace(/[^a-z0-9㐀-鿿]/g, '');
 
   function testPool(group) {
-    if (group === 'zh' || group === 'id') return words.filter((w) => w.lang === group);
+    if (WORD_LANGS.some(([c]) => c === group)) return words.filter((w) => w.lang === group);
     if (group === 'weak') return words.slice().sort((a, b) => (a.level || 0) - (b.level || 0) || (b.wrong || 0) - (a.wrong || 0) || (a.lastTested || 0) - (b.lastTested || 0));
     return words;
   }
 
   function openTestSetup() {
+    if (!['all', 'weak'].includes(testSetup.group) && !words.some((w) => w.lang === testSetup.group)) testSetup.group = 'all';
     if (words.length < 4) { toast(words.length ? `Save ${4 - words.length} more words to start a test` : 'Save some words first'); return; }
     const pool = testPool(testSetup.group);
     const counts = [5, 10, 20].filter((n) => n < pool.length);
@@ -1578,7 +1588,7 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
       <h2>New test</h2>
       <p class="label" style="margin-top:6px">Words</p>
       <div class="seg" role="group" aria-label="Words">
-        ${[['all', 'All'], ['zh', 'Chinese'], ['id', 'Indonesian'], ['weak', 'Weakest']].map(([v, l]) => `<button type="button" data-ts="group" data-v="${v}" aria-pressed="${testSetup.group === v}" ${v !== 'all' && v !== 'weak' && !words.some((w) => w.lang === v) ? 'disabled' : ''}>${l}</button>`).join('')}
+        ${[['all', 'All'], ...WORD_LANGS.filter(([c]) => words.some((w) => w.lang === c)), ['weak', 'Weakest']].map(([v, l]) => `<button type="button" data-ts="group" data-v="${v}" aria-pressed="${testSetup.group === v}">${l}</button>`).join('')}
       </div>
       <p class="label">Questions</p>
       <div class="seg" role="group" aria-label="Number of questions">
@@ -1630,7 +1640,7 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
   function speak(w) {
     try {
       const u = new SpeechSynthesisUtterance(w.word);
-      u.lang = w.lang === 'zh' ? (settings.script === 'traditional' ? 'zh-TW' : 'zh-CN') : 'id-ID'; u.rate = 0.85;
+      u.lang = w.lang === 'zh' ? (settings.script === 'traditional' ? 'zh-TW' : 'zh-CN') : SPEECH_LANG[w.lang] || 'id-ID'; u.rate = 0.85;
       speechSynthesis.cancel(); speechSynthesis.speak(u);
     } catch {}
   }
@@ -1649,13 +1659,13 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
       const parts = w.example.text.split(w.word);
       card = `<div class="qcard gap"><div class="s${han ? ' han' : ''}">${parts.map(esc).join('<span class="blank"></span>')}</div><div class="t">${esc(w.example.translation)}</div></div>`;
     } else {
-      prompt = q.kind === 'type' ? (han ? 'Type this word, in characters or pinyin' : 'Type this word in Indonesian') : 'Which word means this?';
+      prompt = q.kind === 'type' ? (han ? 'Type this word, in characters or pinyin' : `Type this word in ${LANGS[w.lang] || 'the language'}`) : 'Which word means this?';
       card = `<div class="qcard"><div class="mean">${esc(w.meaning)}</div></div>`;
     }
     let answers;
     const a = t.answer;
     if (q.kind === 'type') {
-      answers = `<div class="qtype"><input id="q-type" type="text" autocomplete="off" autocapitalize="off" placeholder="${han ? 'e.g. 周末 or zhoumo' : 'Type the word'}" ${a ? 'disabled' : ''} value="${a ? esc(a.typed) : ''}">
+      answers = `<div class="qtype"><input id="q-type" type="text" autocomplete="off" autocapitalize="off" placeholder="${han ? 'e.g. 周末 or zhoumo' : 'Type the word (accents optional)'}" ${a ? 'disabled' : ''} value="${a ? esc(a.typed) : ''}">
         ${a ? '' : `<button class="primary" type="button" data-q="check">Check</button>`}</div>`;
     } else {
       answers = `<div class="qopts">${q.choices.map((c, k) => {

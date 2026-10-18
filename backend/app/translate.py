@@ -33,12 +33,18 @@ SOURCE_NOTES = {
     "yue": "The speaker is speaking Cantonese; the transcript may contain Cantonese characters (嘅, 咗, 唔, 係).",
     "id": "The speech may be casual or colloquial Indonesian (e.g. gak/nggak, udah, banget, aja, gimana) with particles "
     "like sih, dong, kok, deh, lho, and possibly Jakarta slang or regional words. Convey their tone, not just the words.",
+    "ms": "The speech may be casual Malay (e.g. tak, dah, nak, je, kot, lah) as spoken in Malaysia or Singapore, possibly mixed "
+    "with English. Convey the tone of particles like lah, kan, kot.",
+    "vi": "Spoken Vietnamese may drop pronouns and use kinship terms (anh, chị, em, cô, chú) as pronouns; choose natural "
+    "English pronouns from context. Particles like nhé, nha, ạ, à, đấy carry tone and politeness.",
     "en": "Spoken English may include fillers (um, like, you know) which should be dropped.",
 }
 TARGET_NOTES = {
     "en": "Write natural English.",
     "zh": "Write standard written Mandarin Chinese in {script} characters, with Chinese punctuation.",
     "id": "Write natural, standard Indonesian (Bahasa Indonesia) that is polite but not stiff, as people actually speak.",
+    "ms": "Write natural, standard Malay (Bahasa Melayu, Malaysian usage) that is polite but not stiff.",
+    "vi": "Write natural Vietnamese with full diacritics, polite but not stiff; choose pronouns that fit the context.",
 }
 SCRIPT_NAMES = {"simplified": "Simplified (简体)", "traditional": "Traditional (繁體)"}
 
@@ -152,7 +158,7 @@ def translate_all(segments: list[Segment], opts: Options) -> list[Segment]:
     return segments
 
 
-TITLE_LANG = {"en": "English", "zh": "Simplified Chinese", "id": "Indonesian"}
+TITLE_LANG = {"en": "English", "zh": "Simplified Chinese", "id": "Indonesian", "ms": "Malay", "vi": "Vietnamese"}
 
 
 def make_title(segments: list[Segment], opts: Options) -> str:
@@ -199,7 +205,7 @@ def _complete_simple(prompt: str, max_tokens: int = 200) -> str:
     return response.choices[0].message.content or ""
 
 
-LOOKUP_LANG = {"zh": "Mandarin Chinese", "yue": "Cantonese", "id": "Indonesian"}
+LOOKUP_LANG = {"zh": "Mandarin Chinese", "yue": "Cantonese", "id": "Indonesian", "ms": "Malay", "vi": "Vietnamese"}
 
 
 def lookup_word(word: str, sentence: str, lang: str, script: str) -> dict:
@@ -211,9 +217,14 @@ def lookup_word(word: str, sentence: str, lang: str, script: str) -> dict:
     )
     root_note = (
         ' If the word has affixes (me-, di-, ber-, ter-, -kan, -nya, -an...), put its base word in "root", else "".'
-        if lang == "id"
+        if lang in ("id", "ms")
         else ' Set "root" to "".'
     )
+    if lang == "vi":
+        root_note += (
+            " Vietnamese words are often several syllables written separately (e.g. cảm ơn, học sinh): if the tapped"
+            " syllable is part of a longer word in the sentence, look up the whole word."
+        )
     prompt = (
         f"You are a {language}–English learner's dictionary. The learner tapped the {language} word "
         f"\"{word}\" in this sentence:\n{sentence or word}\n\n"

@@ -10,8 +10,8 @@ from . import config
 from .models import Options, RawSegment
 
 # Whisper language codes. Hosted APIs don't accept "yue", so Cantonese is sent as "zh" there.
-_LANG = {"zh": "zh", "yue": "yue", "id": "id", "en": "en"}
-_LANG_HOSTED = {"zh": "zh", "yue": "zh", "id": "id", "en": "en"}
+_LANG = {"zh": "zh", "yue": "yue", "id": "id", "ms": "ms", "vi": "vi", "en": "en"}
+_LANG_HOSTED = {"zh": "zh", "yue": "zh", "id": "id", "ms": "ms", "vi": "vi", "en": "en"}
 
 # A short prompt in the spoken language nudges Whisper toward that language, the right
 # script, and punctuated output; glossary terms are appended to bias recognition of names.
@@ -21,6 +21,8 @@ _PROMPT = {
     ("yue", "simplified"): "以下系广东话嘅句子，请加上标点符号。",
     ("yue", "traditional"): "以下係廣東話嘅句子，請加上標點符號。",
     ("id", None): "Berikut adalah percakapan dalam bahasa Indonesia, dengan tanda baca yang benar.",
+    ("ms", None): "Berikut ialah perbualan dalam bahasa Melayu, dengan tanda baca yang betul.",
+    ("vi", None): "Sau đây là một cuộc hội thoại bằng tiếng Việt, có dấu câu đầy đủ.",
     ("en", None): "The following is a conversation in English, with proper punctuation.",
 }
 
@@ -30,7 +32,9 @@ _HALLUCINATIONS = re.compile(
     r"please subscribe|subtitles? by|字幕|请不吝点赞|謝謝觀看|谢谢观看|明镜与点点栏目|优优独播剧场|"
     # echoes of our own hint to Whisper, which it can repeat back on silence
     r"以下[是系](普通[话話]|广东话|廣東話)|[请請]加上[标標][点點]符[号號]|Berikut adalah percakapan|"
-    r"The following is a conversation|with proper punctuation|词汇：|Kosakata:)",
+    r"The following is a conversation|with proper punctuation|词汇：|Kosakata:|"
+    r"Berikut ialah perbualan|Sau đây là một cuộc hội thoại|Istilah:|Từ vựng:|"
+    r"terima kasih kerana menonton|cảm ơn các bạn đã (theo dõi|xem)|hãy (subscribe|đăng ký) (cho )?kênh)",
     re.I,
 )
 
@@ -40,7 +44,8 @@ def _prompt(opts: Options) -> str:
     prompt = _PROMPT[key]
     terms = [g.split("=")[0].strip() for g in opts.glossary if g.strip()]
     if terms:
-        joiner = ("词汇：", "、", "。") if opts.source_is_chinese else (" Kosakata: " if opts.source == "id" else " Terms: ", ", ", ".")
+        lead = {"id": " Kosakata: ", "ms": " Istilah: ", "vi": " Từ vựng: "}.get(opts.source, " Terms: ")
+        joiner = ("词汇：", "、", "。") if opts.source_is_chinese else (lead, ", ", ".")
         prompt += joiner[0] + joiner[1].join(terms[:50]) + joiner[2]
     return prompt
 
@@ -66,14 +71,18 @@ _DETECTED = {
     "chinese": "zh", "mandarin": "zh", "zh": "zh",
     "cantonese": "yue", "yue": "yue",
     "indonesian": "id", "id": "id",
-    # Indonesian is often detected as a close neighbour
-    "malay": "id", "ms": "id", "javanese": "id", "jw": "id", "sundanese": "id", "su": "id",
+    "malay": "ms", "ms": "ms",
+    "vietnamese": "vi", "vi": "vi",
+    # often reported for Indonesian speech
+    "javanese": "id", "jw": "id", "sundanese": "id", "su": "id",
 }
+# Indonesian and Malay are close enough that Whisper mixes them up; treat them as one family
+_FAMILY = {"id": "idms", "ms": "idms"}
 _HAN = re.compile(r"[\u3400-\u9fff]")
 
 
 def _base(lang: str) -> str:
-    return "zh" if lang == "yue" else lang
+    return "zh" if lang == "yue" else _FAMILY.get(lang, lang)
 
 
 def transcribe_detect(path: str, opts: Options) -> tuple[list[RawSegment], float, str]:

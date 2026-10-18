@@ -321,3 +321,44 @@ def test_prompt_echo_filtered():
     assert not asr._keep("以下是普通话的句子，请加上标点符号。")
     assert not asr._keep("Berikut adalah percakapan dalam bahasa Indonesia, dengan tanda baca yang benar.")
     assert asr._keep("请加上你的名字。")
+
+
+def test_malay_and_vietnamese_detection(monkeypatch):
+    setup(monkeypatch)
+    # pair Malay <-> Chinese: "malay" stays Malay
+    run, calls = _fake_run("malay", "Nak pergi mana?")
+    monkeypatch.setattr(asr, "_run", run)
+    r = client.post("/api/live/transcribe", files={"file": ("c.wav", b"x", "audio/wav")},
+                    data={"options": json.dumps({"source": "zh", "target": "ms"}), "detect": "true"})
+    assert r.json()["segments"][0]["lang"] == "ms" and r.json()["segments"][0]["target"] == "zh"
+    # pair Indonesian <-> English: Whisper saying "malay" counts as Indonesian
+    run, calls = _fake_run("malay", "Mau ke mana?")
+    monkeypatch.setattr(asr, "_run", run)
+    r = client.post("/api/live/transcribe", files={"file": ("c.wav", b"x", "audio/wav")},
+                    data={"options": json.dumps({"source": "id", "target": "en"}), "detect": "true"})
+    assert r.json()["segments"][0]["lang"] == "id" and calls == [None]
+    # Vietnamese
+    run, calls = _fake_run("vietnamese", "Cảm ơn bạn")
+    monkeypatch.setattr(asr, "_run", run)
+    r = client.post("/api/live/transcribe", files={"file": ("c.wav", b"x", "audio/wav")},
+                    data={"options": json.dumps({"source": "vi", "target": "en"}), "detect": "true"})
+    assert r.json()["segments"][0]["lang"] == "vi" and r.json()["segments"][0]["target"] == "en"
+
+
+def test_vietnamese_and_malay_translation_prompts(monkeypatch):
+    fake = setup(monkeypatch)
+    client.post("/api/retranslate", json={"text": "Cảm ơn anh nhé", "options": {"source": "vi", "target": "ms"}})
+    assert "from Vietnamese into Malay" in fake.prompts[0] and "nhé" in fake.prompts[0]
+
+
+def test_lookup_malay_root(monkeypatch):
+    setup(monkeypatch)
+    monkeypatch.setattr(translate, "_complete_simple", lambda p, max_tokens=200: '{"word": "makanan", "root": "makan", "meaning": "food"}')
+    r = client.post("/api/lookup", json={"word": "makanan", "lang": "ms"})
+    assert r.status_code == 200 and r.json()["root"] == "makan"
+
+
+def test_new_language_hallucinations():
+    assert not asr._keep("Terima kasih kerana menonton!")
+    assert not asr._keep("Cảm ơn các bạn đã theo dõi")
+    assert asr._keep("Cảm ơn bạn nhiều")

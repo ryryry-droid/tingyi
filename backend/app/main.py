@@ -155,7 +155,7 @@ async def lookup(req: LookupRequest) -> LookupResponse:
         word=looked_up,
         lang=req.lang,
         pinyin=to_pinyin(looked_up) if chinese else None,
-        root=clean(entry.get("root")) if req.lang == "id" else "",
+        root=clean(entry.get("root")) if req.lang in ("id", "ms") else "",
         part_of_speech=clean(entry.get("part_of_speech")),
         meaning=clean(entry.get("meaning")) or "No meaning found",
         in_context=clean(entry.get("in_context")),
