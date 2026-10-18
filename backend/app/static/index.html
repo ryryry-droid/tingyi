@@ -226,7 +226,8 @@ header { flex-wrap: nowrap; gap: 8px; }
 .brand .wm-light { display: none; }
 :root[data-theme="light"] .brand .wm-light { display: block; }
 :root[data-theme="light"] .brand .wm-dark { display: none; }
-nav { background: var(--surface); border: 1px solid var(--line); }
+nav { background: var(--surface); border: 1px solid var(--line); flex: 1 1 auto; min-width: 0; max-width: 420px; margin-left: 10px; }
+nav button { flex: 1 1 auto; min-width: 0; padding-inline: 4px; }
 nav button { font-weight: 600; padding: 6px 9px; font-size: 13px; }
 nav button[aria-selected="true"] { background: var(--accent); color: var(--accent-ink); font-weight: 700; }
 .label, .meta { font-weight: 600; }
