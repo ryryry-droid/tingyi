@@ -150,3 +150,50 @@ def translate_all(segments: list[Segment], opts: Options) -> list[Segment]:
             seg.translation = translations.get(seg.id, "")
         done.extend(batch)
     return segments
+
+
+TITLE_LANG = {"en": "English", "zh": "Simplified Chinese", "id": "Indonesian"}
+
+
+def make_title(segments: list[Segment], opts: Options) -> str:
+    """A short, descriptive title for the whole recording ("" if it can't be made)."""
+    lines = [s.translation or s.text for s in segments if (s.translation or s.text) and s.translation != "[inaudible]"]
+    if not lines:
+        return ""
+    transcript = "\n".join(lines)[:4000]  # the opening is plenty for a title, and keeps it cheap
+    lang = "en" if "en" in (opts.source, opts.target) else opts.target
+    language = TITLE_LANG[lang]
+    if lang == "zh" and opts.script == "traditional":
+        language = "Traditional Chinese"
+    prompt = (
+        f"Write a short title (3 to 6 words) in {language} that says what this conversation is about, "
+        "like a note title: specific, no quotation marks, no ending punctuation, not starting with "
+        '"Conversation about" or "Discussion of".\n\n'
+        f"Transcript:\n{transcript}\n\n"
+        'Reply with JSON only: {"title": "..."}'
+    )
+    try:
+        text = _complete_simple(prompt)
+        match = re.search(r"\{.*\}", text, re.S)
+        title = json.loads(match.group(0)).get("title", "") if match else ""
+    except Exception:
+        return ""
+    return str(title).strip().strip("\"'“”「」。.!").strip()[:80]
+
+
+def _complete_simple(prompt: str) -> str:
+    if config.TRANSLATE_PROVIDER == "anthropic":
+        response = _client().messages.create(
+            model=config.ANTHROPIC_MODEL, max_tokens=200, messages=[{"role": "user", "content": prompt}]
+        )
+        return "".join(b.text for b in response.content if getattr(b, "type", "") == "text")
+    args = dict(
+        model=config.OPENAI_TRANSLATE_MODEL,
+        messages=[{"role": "user", "content": prompt}],
+        response_format={"type": "json_object"},
+        temperature=0.3,
+    )
+    if "gpt-oss" in config.OPENAI_TRANSLATE_MODEL:
+        args["reasoning_effort"] = "low"
+    response = _openai_client().chat.completions.create(**args)
+    return response.choices[0].message.content or ""

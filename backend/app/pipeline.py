@@ -1,6 +1,6 @@
 """The full record-then-translate pipeline, built from per-chunk steps.
 
-    audio -> asr.transcribe -> clean_segments -> translate.translate_all -> finish_translations
+    audio -> asr.transcribe -> clean_segments -> translate.translate_all -> finish_translation -> make_title
 
 Live mode (later) reuses the same steps on small chunks:
     every ~pause: asr on the new chunk -> clean_segments -> translate_lines(new, context=recent)
@@ -40,6 +40,14 @@ def process_recording(path: str, opts: Options) -> TranslateResponse:
     translate.translate_all(segments, opts)
     for seg in segments:
         seg.translation, seg.translation_pinyin = finish_translation(seg.translation, opts)
+    title = translate.make_title(segments, opts) if segments else ""
+    if title and opts.target_is_chinese and "en" not in (opts.source, opts.target):
+        title = to_script(title, opts.script)
     return TranslateResponse(
-        source=opts.source, target=opts.target, language=opts.source, duration=round(duration, 2), segments=segments
+        source=opts.source,
+        target=opts.target,
+        language=opts.source,
+        title=title,
+        duration=round(duration, 2),
+        segments=segments,
     )

@@ -91,6 +91,7 @@ class TranslateResponse(BaseModel):
     source: str
     target: str
     language: str  # same as source; kept for older clients
+    title: str = ""  # short summary title; empty if it couldn't be made
     duration: float
     segments: list[Segment]
 

@@ -29,6 +29,8 @@ class FakeAnthropic:
     def create(self, **kwargs):
         prompt = kwargs["messages"][0]["content"]
         self.prompts.append(prompt)
+        if "Write a short title" in prompt:
+            return SimpleNamespace(content=[SimpleNamespace(type="text", text='{"title": "Meeting Wang Xiaoming."}')])
         lines = json.loads(prompt.split("Translate these lines:\n", 1)[1])
         out = {"translations": [{"id": l["id"], "en": f"EN<{l['text']}>"} for l in lines]}
         return SimpleNamespace(content=[SimpleNamespace(type="text", text="```json\n" + json.dumps(out) + "\n```")])
@@ -62,6 +64,7 @@ def test_batches_carry_context(monkeypatch):
     monkeypatch.setattr(config, "TRANSLATE_BATCH_SIZE", 1)
     r = client.post("/api/translate", files={"file": ("a.m4a", b"x", "audio/m4a")}, data={"options": "{}"})
     assert r.status_code == 200
+    fake.prompts = [p for p in fake.prompts if "Write a short title" not in p]
     assert len(fake.prompts) == 2
     assert "Context (already translated" in fake.prompts[1] and "我是王小明" in fake.prompts[1]
 
@@ -125,6 +128,8 @@ def test_groq_style_translator(monkeypatch):
 
         def create(self, **kwargs):
             calls.append(kwargs)
+            if "Write a short title" in kwargs["messages"][-1]["content"]:
+                return SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content='{"title": "Hi"}'))])
             prompt = kwargs["messages"][1]["content"]
             lines = json.loads(prompt.split("Translate these lines:\n", 1)[1])
             out = {"translations": [{"id": l["id"], "en": f"G<{l['text']}>"} for l in lines]}
@@ -184,3 +189,18 @@ def test_hallucination_filter():
     assert not asr._keep("谢谢观看")
     assert not asr._keep("Hmm", no_speech_prob=0.9, avg_logprob=-1.5)
     assert asr._keep("Terima kasih banyak ya")
+
+
+def test_summary_title(monkeypatch):
+    fake = setup(monkeypatch)
+    r = client.post("/api/translate", files={"file": ("a.m4a", b"x", "audio/m4a")}, data={"options": "{}"})
+    assert r.json()["title"] == "Meeting Wang Xiaoming"  # trailing punctuation removed
+    title_prompt = [p for p in fake.prompts if "Write a short title" in p][0]
+    assert "in English" in title_prompt and "EN<你好，我是王小明。>" in title_prompt
+
+
+def test_title_failure_is_harmless(monkeypatch):
+    setup(monkeypatch)
+    monkeypatch.setattr(translate, "_complete_simple", lambda p: (_ for _ in ()).throw(RuntimeError("rate limited")))
+    r = client.post("/api/translate", files={"file": ("a.m4a", b"x", "audio/m4a")}, data={"options": "{}"})
+    assert r.status_code == 200 and r.json()["title"] == ""

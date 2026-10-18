@@ -218,6 +218,7 @@ nav button[aria-selected="true"] { background: var(--surface); color: var(--ink)
   const DEFAULTS = { token: '', source: 'zh', target: 'en', script: 'simplified', style: 'natural', pinyin: true, glossary: '' };
   const LANGS = { zh: 'Mandarin', yue: 'Cantonese', id: 'Indonesian', en: 'English' };
   const isHan = (code) => code === 'zh' || code === 'yue';
+  const hasHan = (text) => /[\u3400-\u9fff]/.test(text || '');
   let settings = { ...DEFAULTS };
   try { settings = { ...DEFAULTS, ...JSON.parse(localStorage.getItem('tingyi.settings') || '{}') }; } catch {}
   if (settings.dialect) { if (settings.dialect === 'cantonese') settings.source = 'yue'; delete settings.dialect; }
@@ -411,7 +412,8 @@ nav button[aria-selected="true"] { background: var(--surface); color: var(--ink)
       s.duration = data.duration || s.duration;
       s.status = 'done';
       const first = segText(s.segments[0]);
-      if (first) s.title = first.length > 24 ? first.slice(0, 24) + '…' : first;
+      if (data.title) s.title = data.title;
+      else if (first) s.title = first.length > 24 ? first.slice(0, 24) + '…' : first;
     } catch (e) {
       s.status = 'error';
       s.error = e instanceof TypeError ? 'Couldn’t reach the server. Check your connection and try again.' : e.message;
@@ -504,7 +506,7 @@ nav button[aria-selected="true"] { background: var(--surface); color: var(--ink)
     const han = s.script === 'traditional' ? 'zh-Hant' : 'zh-Hans';
     const src = s.source || 'zh', tgt = s.target || 'en';
     const srcLang = isHan(src) ? han : src, tgtLang = isHan(tgt) ? han : tgt;
-    $('s-title').style.fontFamily = isHan(src) ? 'var(--han)' : 'var(--f-ui)';
+    $('s-title').style.fontFamily = hasHan(s.title) ? 'var(--han)' : 'var(--f-ui)';
     $('s-body').innerHTML = `<p class="tip">Tap the time to replay a line. Tap Edit to fix a misheard line.</p><ol class="lines">${s.segments.map((seg, i) => `
       <li class="line${playingId === seg.id ? ' playing' : ''}" data-id="${seg.id}">
         <button class="time" type="button" data-act="play" data-i="${i}" aria-label="Play line ${i + 1}">${fmtTime(seg.start)}</button>
@@ -525,7 +527,7 @@ nav button[aria-selected="true"] { background: var(--surface); color: var(--ink)
 
   function renderHistory() {
     $('history').innerHTML = sessions.length ? sessions.map((s) => `<li><button type="button" data-open="${esc(s.id)}">
-      <span class="t"${isHan(s.source || 'zh') ? '' : ' style="font-family:var(--f-ui)"'}>${esc(s.title)}</span><span class="d">${fmtDate(s.createdAt)}</span>
+      <span class="t"${hasHan(s.title) ? '' : ' style="font-family:var(--f-ui)"'}>${esc(s.title)}</span><span class="d">${fmtDate(s.createdAt)}</span>
       <span class="e ${s.status === 'error' ? 'bad' : ''}">${s.status === 'processing' ? 'Translating…' : s.status === 'error' ? 'Failed. Tap to retry.' : esc(segTr(s.segments[0]) || 'No speech found')}</span>
     </button></li>`).join('') : `<li class="empty">Recordings you translate are saved here, on this phone.</li>`;
   }
