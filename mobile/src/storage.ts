@@ -3,15 +3,15 @@ import { File } from 'expo-file-system';
 
 import { DEFAULT_SETTINGS, Session, Settings } from './types';
 
-const SESSIONS_KEY = 'tingyi.sessions.v1';
-const SETTINGS_KEY = 'tingyi.settings.v1';
+const SESSIONS_KEY = 'tingyi.sessions.v2';
+const SETTINGS_KEY = 'tingyi.settings.v2';
 
 export async function loadSessions(): Promise<Session[]> {
   const raw = await AsyncStorage.getItem(SESSIONS_KEY);
   const sessions: Session[] = raw ? JSON.parse(raw) : [];
   // A session left "processing" means the app was closed mid-upload.
   return sessions.map((s) =>
-    s.status === 'processing' ? { ...s, status: 'error', error: 'Interrupted. Tap retry.' } : s,
+    s.status === 'processing' ? { ...s, status: 'error', error: 'Interrupted before it finished. Tap Try again.' } : s,
   );
 }
 

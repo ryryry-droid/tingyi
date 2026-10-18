@@ -42,6 +42,20 @@ when unused, so the first request after a break can take about a minute.
 To use Claude for translation instead (paid, best quality), add `ANTHROPIC_API_KEY` on Render; the server
 switches to it automatically and keeps Groq for Whisper.
 
+
+## Android app (records with the screen off)
+
+The `mobile/` folder is a native Android app (Expo / React Native) with the same languages, titles
+and history as the web page, plus recording that keeps going when the phone is locked.
+GitHub builds it automatically (`.github/workflows/android.yml`) whenever `mobile/` changes.
+
+- **Install:** on your phone open
+  `https://github.com/ryryry-droid/tingyi/releases/latest/download/tingyi.apk`, then allow installing from your browser.
+- **First-time setup for builds:** add a repository secret `KEYSTORE_PASSWORD` (a long passphrase you keep).
+  The first build creates the app's signing key, encrypted with it, so updates install over each other.
+  If you lose the passphrase, delete `mobile/signing/` and uninstall the app before installing a new build.
+- In the app's Settings, enter your Render address and access code.
+
 ## 1. Run the server on your computer
 
 Needs Python 3.10+, an Anthropic API key, and an OpenAI API key (for Whisper speech recognition).

@@ -1,22 +1,24 @@
 {
   "expo": {
-    "name": "听译 Tingyi",
+    "name": "Tingyi",
     "slug": "tingyi",
-    "version": "0.1.0",
+    "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "userInterfaceStyle": "light",
+    "userInterfaceStyle": "automatic",
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#EDF1EE"
+    },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.example.tingyi",
-      "infoPlist": {
-        "NSAppTransportSecurity": { "NSAllowsLocalNetworking": true }
-      }
+      "bundleIdentifier": "io.github.ryryrydroid.tingyi"
     },
     "android": {
-      "package": "com.example.tingyi",
+      "package": "io.github.ryryrydroid.tingyi",
       "adaptiveIcon": {
-        "backgroundColor": "#F7F3EC",
+        "backgroundColor": "#2D6A5C",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
@@ -27,7 +29,9 @@
       [
         "expo-audio",
         {
-          "microphonePermission": "Tingyi uses the microphone to record Chinese speech so it can be transcribed and translated."
+          "microphonePermission": "Tingyi records speech so it can be transcribed and translated.",
+          "enableBackgroundRecording": true,
+          "enableBackgroundPlayback": false
         }
       ]
     ],

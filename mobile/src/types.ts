@@ -1,10 +1,29 @@
+export type Source = 'zh' | 'yue' | 'id' | 'en';
+export type Target = 'en' | 'zh' | 'id';
+
+export const LANGS: Record<Source, string> = { zh: 'Mandarin', yue: 'Cantonese', id: 'Indonesian', en: 'English' };
+export const SOURCE_OPTIONS: { value: Source; label: string }[] = [
+  { value: 'zh', label: 'Mandarin 普通话' },
+  { value: 'yue', label: 'Cantonese 粤语' },
+  { value: 'id', label: 'Indonesian' },
+  { value: 'en', label: 'English' },
+];
+export const TARGET_OPTIONS: { value: Target; label: string }[] = [
+  { value: 'en', label: 'English' },
+  { value: 'zh', label: 'Mandarin 中文' },
+  { value: 'id', label: 'Indonesian' },
+];
+export const isChinese = (code?: string) => code === 'zh' || code === 'yue';
+export const baseOf = (code: Source): Target | 'yue' => (code === 'yue' ? 'zh' : code) as Target;
+
 export type Segment = {
   id: number;
   start: number; // seconds into the recording
   end: number;
-  zh: string;
+  text: string; // what was said
   pinyin?: string | null;
-  en: string;
+  translation: string;
+  translation_pinyin?: string | null;
 };
 
 export type SessionStatus = 'processing' | 'done' | 'error';
@@ -15,6 +34,9 @@ export type Session = {
   createdAt: number;
   duration: number; // seconds
   audioUri: string;
+  source: Source;
+  target: Target;
+  script: 'simplified' | 'traditional';
   status: SessionStatus;
   error?: string;
   segments: Segment[];
@@ -23,18 +45,20 @@ export type Session = {
 export type Settings = {
   serverUrl: string;
   apiToken: string;
+  source: Source;
+  target: Target;
   script: 'simplified' | 'traditional';
-  dialect: 'mandarin' | 'cantonese';
   style: 'natural' | 'literal';
   pinyin: boolean;
   glossary: string; // one term per line, e.g. "王小明 = Wang Xiaoming"
 };
 
 export const DEFAULT_SETTINGS: Settings = {
-  serverUrl: 'http://192.168.1.10:8000',
+  serverUrl: '',
   apiToken: '',
+  source: 'zh',
+  target: 'en',
   script: 'simplified',
-  dialect: 'mandarin',
   style: 'natural',
   pinyin: true,
   glossary: '',
