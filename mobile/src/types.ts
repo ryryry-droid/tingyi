@@ -4,7 +4,6 @@ export type Target = 'en' | 'zh' | 'id';
 export const LANGS: Record<Source, string> = { zh: 'Mandarin', yue: 'Cantonese', id: 'Indonesian', en: 'English' };
 export const SOURCE_OPTIONS: { value: Source; label: string }[] = [
   { value: 'zh', label: 'Mandarin 普通话' },
-  { value: 'yue', label: 'Cantonese 粤语' },
   { value: 'id', label: 'Indonesian' },
   { value: 'en', label: 'English' },
 ];

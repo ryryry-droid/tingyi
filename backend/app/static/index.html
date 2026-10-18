@@ -394,7 +394,6 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
       <label for="src">Spoken
         <select id="src">
           <option value="zh">Mandarin 普通话</option>
-          <option value="yue">Cantonese 粤语</option>
           <option value="id">Indonesian</option>
           <option value="ms">Malay</option>
           <option value="vi">Vietnamese</option>
@@ -535,7 +534,10 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
   const hasHan = (text) => /[\u3400-\u9fff]/.test(text || '');
   let settings = { ...DEFAULTS };
   try { settings = { ...DEFAULTS, ...JSON.parse(localStorage.getItem('tingyi.settings') || '{}') }; } catch {}
-  if (settings.dialect) { if (settings.dialect === 'cantonese') settings.source = 'yue'; delete settings.dialect; }
+  delete settings.dialect;
+  // Cantonese was removed as a choice; old recordings keep their label
+  if (settings.source === 'yue') settings.source = 'zh';
+  if (settings.target === 'yue') settings.target = 'en';
   const saveSettings = () => { try { localStorage.setItem('tingyi.settings', JSON.stringify(settings)); } catch {} };
   const options = () => ({
     source: settings.source, target: settings.target, script: settings.script, style: settings.style, pinyin: settings.pinyin,
