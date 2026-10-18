@@ -1,11 +1,11 @@
 {
-  "name": "听译 Tingyi",
-  "short_name": "Tingyi",
-  "description": "Record Chinese speech and read it in English",
+  "name": "ChatTalk",
+  "short_name": "ChatTalk",
+  "description": "Record speech and read it in another language",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#0F1513",
-  "theme_color": "#0F1513",
+  "background_color": "#1C1D25",
+  "theme_color": "#1C1D25",
   "icons": [
     {
       "src": "/icon-192.png?v=2",

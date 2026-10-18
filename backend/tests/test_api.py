@@ -104,7 +104,7 @@ def test_empty_upload(monkeypatch):
 def test_web_app_served(monkeypatch):
     setup(monkeypatch)
     r = client.get("/")
-    assert r.status_code == 200 and "听译" in r.text and "MediaRecorder" in r.text
+    assert r.status_code == 200 and "ChatTalk" in r.text and "MediaRecorder" in r.text
     assert client.get("/manifest.webmanifest").status_code == 200
     assert client.get("/icon-192.png").headers["content-type"] == "image/png"
     assert client.get("/health").json()["token_required"] is False

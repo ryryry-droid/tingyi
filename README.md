@@ -1,4 +1,4 @@
-# 听译 Tingyi — speak, record, translate
+# ChatTalk — speak, record, translate
 
 Records speech and shows it line by line with its translation. Languages: Mandarin, Cantonese,
 Indonesian and English, translated in any direction between Mandarin, Indonesian and English

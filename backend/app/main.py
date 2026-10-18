@@ -10,6 +10,7 @@ from pathlib import Path
 from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, UploadFile
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 
 from . import config, translate
 from .models import (
@@ -33,7 +34,7 @@ from .pipeline import clean_segments, finish_translation, process_recording
 from . import asr
 from .textproc import to_pinyin, to_script
 
-app = FastAPI(title="Tingyi speech translator")
+app = FastAPI(title="ChatTalk speech translator")
 
 
 def check_token(authorization: str = Header(default="")) -> None:
@@ -42,6 +43,7 @@ def check_token(authorization: str = Header(default="")) -> None:
 
 
 STATIC = Path(__file__).parent / "static"
+app.mount("/assets", StaticFiles(directory=STATIC / "assets"), name="assets")
 AUDIO_EXTS = {".m4a", ".mp4", ".mp3", ".mpeg", ".mpga", ".wav", ".webm", ".ogg", ".oga", ".flac", ".aac"}
 
 

@@ -3,37 +3,40 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>听译 Tingyi</title>
-<meta name="theme-color" content="#0F1513">
+<title>ChatTalk</title>
+<meta name="theme-color" content="#1C1D25">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="Tingyi">
+<meta name="apple-mobile-web-app-title" content="ChatTalk">
 <link rel="manifest" href="/manifest.webmanifest">
 <script>let t = 'dark'; try { if (JSON.parse(localStorage.getItem('tingyi.settings') || '{}').theme === 'light') t = 'light'; } catch {} document.documentElement.dataset.theme = t;</script>
 <link rel="apple-touch-icon" href="/icon-192.png?v=2">
 <link rel="icon" href="/icon-192.png?v=2">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600&family=Noto+Serif+SC:wght@400;600&family=Noto+Serif+TC:wght@400;600&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800&family=Noto+Serif+SC:wght@400;600&family=Noto+Serif+TC:wght@400;600&display=swap">
 <style>
+/* ChatTalk theme: colours sampled from the logo (charcoal head, blue body and "A" bubble, yellow wing and "文" bubble, pink beak) */
 :root {
-  --bg: #EDF1EE; --surface: #F8FAF8; --line: #D3DCD6; --ink: #16201B; --muted: #5D6B64; --faint: #8D9A93;
-  --accent: #2D6A5C; --accent-ink: #FFFFFF; --accent-soft: #DCE9E3; --rec: #B4442C; --warn: #8A5A12; --warn-soft: #F3E8D3;
-  --t1: #B4442C; --t2: #3F7D3A; --t3: #3460A8; --t4: #7B4597;
+  --bg: #F7F5F6; --surface: #FFFFFF; --surface2: #EFEDF2; --line: #E2DFE6; --ink: #2B2C37; --muted: #666879; --faint: #9A9CAB;
+  --accent: #3078C4; --accent-ink: #FFFFFF; --accent-soft: #E3EEFB; --rec: #E75474; --warn: #8A5A00; --warn-soft: #FFF3D1;
+  --sky: #4F95E8; --sky-ink: #FFFFFF; --yellow: #FBC73B; --yellow-ink: #3A2C05; --yellow-soft: #FFF5D9; --yellow-text: #9A6B00;
+  --t1: #D2405F; --t2: #B57F00; --t3: #2C6FB8; --t4: #7B56C9;
   --f-han-sc: "Noto Serif SC", "Songti SC", "SimSun", serif;
   --f-han-tc: "Noto Serif TC", "Songti TC", "PMingLiU", serif;
-  --f-ui: "Figtree", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --f-ui: "Nunito", system-ui, -apple-system, "Segoe UI", sans-serif;
   --han: var(--f-han-sc);
   color-scheme: light;
 }
-/* Dark: follows the phone unless a theme is chosen in Settings */
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
-  --bg: #0F1513; --surface: #161E1B; --line: #27332E; --ink: #E2EAE6; --muted: #9AAAA2; --faint: #6E7D76;
-  --accent: #7DBBA8; --accent-ink: #0C1714; --accent-soft: #1D2E28; --rec: #F08A70; --warn: #E2B566; --warn-soft: #2C2516;
-  --t1: #F08A70; --t2: #8CCB7E; --t3: #8FB2F0; --t4: #C79BE0; color-scheme: dark; } }
+  --bg: #1C1D25; --surface: #272833; --surface2: #30323F; --line: #3A3C4B; --ink: #F4F3F6; --muted: #A4A7B9; --faint: #6F7285;
+  --accent: #4F95E8; --accent-ink: #FFFFFF; --accent-soft: #22324A; --rec: #E75474; --warn: #FBC73B; --warn-soft: #3A3322;
+  --sky: #4F95E8; --sky-ink: #FFFFFF; --yellow: #FBC73B; --yellow-ink: #3A2C05; --yellow-soft: #3A3322; --yellow-text: #FBC73B;
+  --t1: #F07A92; --t2: #FBC73B; --t3: #6FB0F5; --t4: #B7A3F5; color-scheme: dark; } }
 :root[data-theme="dark"] {
-  --bg: #0F1513; --surface: #161E1B; --line: #27332E; --ink: #E2EAE6; --muted: #9AAAA2; --faint: #6E7D76;
-  --accent: #7DBBA8; --accent-ink: #0C1714; --accent-soft: #1D2E28; --rec: #F08A70; --warn: #E2B566; --warn-soft: #2C2516;
-  --t1: #F08A70; --t2: #8CCB7E; --t3: #8FB2F0; --t4: #C79BE0; color-scheme: dark; }
+  --bg: #1C1D25; --surface: #272833; --surface2: #30323F; --line: #3A3C4B; --ink: #F4F3F6; --muted: #A4A7B9; --faint: #6F7285;
+  --accent: #4F95E8; --accent-ink: #FFFFFF; --accent-soft: #22324A; --rec: #E75474; --warn: #FBC73B; --warn-soft: #3A3322;
+  --sky: #4F95E8; --sky-ink: #FFFFFF; --yellow: #FBC73B; --yellow-ink: #3A2C05; --yellow-soft: #3A3322; --yellow-text: #FBC73B;
+  --t1: #F07A92; --t2: #FBC73B; --t3: #6FB0F5; --t4: #B7A3F5; color-scheme: dark; }
 * { box-sizing: border-box; }
 html, body { margin: 0; }
 body { background: var(--bg); color: var(--ink); font: 16px/1.55 var(--f-ui); -webkit-tap-highlight-color: transparent; }
@@ -202,12 +205,87 @@ nav button[aria-selected="true"] { background: var(--surface); color: var(--ink)
 .wcard .src { font-size: 12px; color: var(--faint); display: flex; justify-content: space-between; gap: 10px; align-items: center; }
 .toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(96px + env(safe-area-inset-bottom, 0px)); background: var(--ink); color: var(--bg); padding: 8px 16px; border-radius: 999px; font-size: 14px; display: flex; gap: 14px; align-items: center; white-space: nowrap; z-index: 40; }
 .toast button { border: 0; background: none; color: var(--accent-soft); font-weight: 700; font-size: 14px; padding: 2px 0; text-decoration: underline; text-underline-offset: 3px; }
+
+/* ===== ChatTalk theme ===== */
+body { font-weight: 500; }
+:root[data-theme="light"] body {
+  background-color: var(--bg);
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 .2  0 0 0 0 .2  0 0 0 0 .26  0 0 0 .55 0'/></filter><rect width='100%' height='100%' filter='url(%23n)' opacity='.16'/></svg>"),
+    radial-gradient(120% 60% at 0% 0%, rgba(79,149,232,.12), transparent 60%),
+    radial-gradient(110% 55% at 100% 100%, rgba(251,199,59,.12), transparent 60%),
+    linear-gradient(180deg, #FBFAFC 0%, #F3F1F4 100%);
+  background-attachment: fixed;
+}
+header { flex-wrap: nowrap; gap: 8px; }
+.brand { flex-shrink: 0; }
+.brand img { height: 46px; width: auto; display: block; }
+.brand .wm-light { display: none; }
+:root[data-theme="light"] .brand .wm-light { display: block; }
+:root[data-theme="light"] .brand .wm-dark { display: none; }
+nav { background: var(--surface); border: 1px solid var(--line); }
+nav button { font-weight: 600; padding: 6px 9px; font-size: 13px; }
+nav button[aria-selected="true"] { background: var(--accent); color: var(--accent-ink); font-weight: 700; }
+.label, .meta { font-weight: 600; }
+/* language pickers as the logo's two speech bubbles */
+.langbar { margin-top: 14px; grid-template-columns: minmax(0, 1fr) 40px minmax(0, 1fr); align-items: center; }
+.langbar label { position: relative; border-radius: 18px; padding: 9px 12px 8px; font-weight: 800; font-size: 11px; letter-spacing: .1em; gap: 0; }
+.langbar label[for="src"] { background: var(--sky); color: var(--sky-ink); }
+.langbar label[for="tgt"] { background: var(--yellow); color: var(--yellow-ink); }
+.langbar label::after { content: ""; position: absolute; bottom: -8px; border: 8px solid transparent; border-bottom: 0; }
+.langbar label[for="src"]::after { left: 20px; border-top-color: var(--sky); transform: skewX(20deg); }
+.langbar label[for="tgt"]::after { right: 20px; border-top-color: var(--yellow); transform: skewX(-20deg); }
+.langbar select { border: 0; background: transparent; color: inherit; padding: 1px 0 2px; font-weight: 800; font-size: 16px; letter-spacing: 0; }
+.langbar select option { color: #2B2C37; background: #fff; }
+.swap { width: 40px; height: 40px; background: var(--surface); color: var(--ink); }
+/* record button: the bird in a beak-pink ring */
+.recbtn { position: relative; width: 120px; height: 120px; border: 5px solid var(--rec); background: #fff; padding: 0;
+  box-shadow: 0 0 0 9px color-mix(in srgb, var(--rec) 16%, transparent); transition: box-shadow .3s; }
+.recbtn img { width: 100%; height: 100%; border-radius: 50%; object-fit: contain; padding: 6px; display: block; }
+.recbtn .stopbadge { display: none; position: absolute; right: -6px; bottom: -6px; width: 40px; height: 40px; border-radius: 50%; background: var(--rec); place-items: center; border: 3px solid var(--bg); }
+.recbtn .stopbadge i { display: block; width: 13px; height: 13px; border-radius: 3px; background: #fff; }
+.recording .recbtn { box-shadow: 0 0 0 9px color-mix(in srgb, var(--rec) 26%, transparent), 0 0 0 18px color-mix(in srgb, var(--rec) 10%, transparent); }
+.recording .recbtn .stopbadge { display: grid; }
+@media (prefers-reduced-motion: no-preference) { .recording .recbtn { animation: recglow 1.6s ease-in-out infinite; } }
+@keyframes recglow { 50% { box-shadow: 0 0 0 12px color-mix(in srgb, var(--rec) 22%, transparent), 0 0 0 24px color-mix(in srgb, var(--rec) 7%, transparent); } }
+.timer { font-weight: 300; }
+.upload { border-width: 1.5px; border-radius: 14px; font-weight: 600; }
+/* buttons */
+.primary { border-radius: 14px; font-weight: 800; }
+.primary.stop { background: var(--rec); }
+.secondary { border-radius: 14px; background: var(--surface2); border-color: transparent; font-weight: 700; }
+.small-primary { font-weight: 800; }
+/* live bubbles: blue and yellow, like the logo's speech bubbles */
+.bubble-btn { border-width: 1.5px; font-weight: 800; }
+#live-sub { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
+#live-conv { border-color: var(--yellow); background: var(--yellow-soft); color: var(--yellow-text); }
+.bubble { border-radius: 18px; }
+.bubble.a { background: var(--sky); color: var(--sky-ink); border: 0; border-bottom-left-radius: 5px; }
+.bubble.b { background: var(--yellow); color: var(--yellow-ink); border-bottom-right-radius: 5px; }
+.bubble .who, .bubble .o, .bubble .pending { color: inherit !important; opacity: .8; }
+.bubble .who { font-weight: 800; }
+.bubble .t { font-weight: 800; }
+.bubble .py span { color: inherit !important; opacity: .85; }
+/* recordings: round replay buttons */
+.line { grid-template-columns: 46px minmax(0, 1fr); }
+.line.playing { border-radius: 16px; }
+.time { display: grid; justify-items: center; gap: 3px; padding-top: 2px; font-size: 11px; }
+.time::before { content: "▶"; display: grid; place-items: center; width: 30px; height: 30px; border-radius: 50%; background: var(--surface2); color: var(--accent); font-size: 11px; vertical-align: 0; }
+.playing .time::before { content: "■"; background: var(--accent); color: #fff; }
+.session-head h1 { font-weight: 800; }
+.w:hover { background: var(--yellow-soft); }
+.w.sel { background: var(--yellow-soft); box-shadow: 0 2px 0 var(--yellow); }
+.pos { font-weight: 700; }
+.sheet { border-radius: 26px 26px 0 0; }
+.wc-ex { background: var(--bg); border-radius: 14px; }
+.wc-meaning { font-weight: 700; }
+.filter button[aria-pressed="true"] { font-weight: 700; }
+.hrow .hdel { font-weight: 800; }
 </style>
 </head>
 <body>
 <div class="wrap">
   <header>
-    <div class="brand"><b>听译</b></div>
+    <div class="brand"><img class="wm-dark" src="/assets/wordmark-dark.png" alt="ChatTalk"><img class="wm-light" src="/assets/wordmark-light.png" alt="ChatTalk"></div>
     <nav aria-label="Views">
       <button id="tab-record" data-view="record" aria-selected="true">Record</button>
       <button id="tab-history" data-view="history" aria-selected="false">History</button>
@@ -240,7 +318,7 @@ nav button[aria-selected="true"] { background: var(--surface); color: var(--ink)
     <div class="recorder" id="recorder">
       <div class="timer" id="timer">0:00</div>
       <div class="meter" id="meter" aria-hidden="true"></div>
-      <button class="recbtn" id="recbtn" type="button" aria-label="Start recording"><span></span></button>
+      <button class="recbtn" id="recbtn" type="button" aria-label="Start recording"><img src="/assets/bird.png" alt=""><span class="stopbadge"><i></i></span></button>
       <div class="rechint" id="rechint"></div>
     </div>
     <div class="or">
@@ -651,7 +729,7 @@ nav button[aria-selected="true"] { background: var(--surface); color: var(--ink)
     if (settings.theme !== 'light') settings.theme = 'dark'; // dark is the default (older 'system' setting becomes dark)
     root.dataset.theme = settings.theme;
     const dark = settings.theme === 'dark';
-    document.querySelectorAll('meta[name="theme-color"]').forEach((m) => { m.content = dark ? '#0F1513' : '#EDF1EE'; m.removeAttribute('media'); });
+    document.querySelectorAll('meta[name="theme-color"]').forEach((m) => { m.content = dark ? '#1C1D25' : '#F7F5F6'; m.removeAttribute('media'); });
   }
 
   function rerender() {
