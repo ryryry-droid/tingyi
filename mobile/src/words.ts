@@ -42,18 +42,6 @@ export function tokenize(text: string, lang: string): Token[] {
 
 export const isTappable = (tk: Token) => tk.w && !/^\d+$/.test(tk.t);
 
-const STOP = /[。，！？、；：,.!?;:]/;
-
-/** Index of the next word token in a direction, or -1 (stops at punctuation). */
-export function nextWord(tokens: Token[], from: number, dir: 1 | -1): number {
-  let j = from + dir;
-  while (j >= 0 && j < tokens.length && !tokens[j].w) {
-    if (STOP.test(tokens[j].t)) return -1;
-    j += dir;
-  }
-  return j >= 0 && j < tokens.length ? j : -1;
-}
-
 export const joinTokens = (tokens: Token[], a: number, b: number) =>
   tokens
     .slice(a, b + 1)
@@ -93,3 +81,77 @@ export const cleanWord = (t: string) =>
     .replace(/[。，！？、；：,.!?;:"“”'‘’()（）]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
+
+// ---------- choosing what to look up ----------
+// The lookup card shows the sentence as characters (Chinese/Japanese/Thai/Khmer) or words; tapping them
+// changes the selection. Selections are kept as indexes into these "pick" tokens.
+const PICK_CHAR_LANGS = ['zh', 'yue', 'ja', 'th', 'km'];
+const PUNCT_ONLY = new RegExp(`^[${PUNCT}]+$`);
+
+export function pickTokens(text: string, lang: string): Token[] {
+  if (!PICK_CHAR_LANGS.includes(lang)) return tokenize(text, lang);
+  const out: Token[] = [];
+  for (const ch of text) {
+    const prev = out[out.length - 1];
+    if (prev && /^[ัิ-ฺ็-๎឴-៓̀-ͯ]$/.test(ch)) prev.t += ch; // Thai/Khmer marks
+    else if (prev && /^[A-Za-z0-9]$/.test(ch) && /^[A-Za-z0-9]+$/.test(prev.t)) prev.t += ch; // keep Latin words whole
+    else out.push({ t: ch, w: !PUNCT_ONLY.test(ch) });
+  }
+  return out;
+}
+export const pickByChar = (lang: string) => PICK_CHAR_LANGS.includes(lang);
+
+export function offsets(tokens: Token[]): number[] {
+  let o = 0;
+  return tokens.map((x) => {
+    const s = o;
+    o += x.t.length;
+    return s;
+  });
+}
+
+/** Pick range covering main token k. */
+export function picksFor(mains: Token[], k: number, picks: Token[]): [number, number] {
+  const mo = offsets(mains);
+  const po = offsets(picks);
+  const from = mo[k];
+  const to = mo[k] + mains[k].t.length;
+  let a = po.findIndex((s, j) => s + picks[j].t.length > from);
+  if (a < 0) a = 0;
+  let b = a;
+  while (b + 1 < picks.length && po[b + 1] < to) b++;
+  return [a, b];
+}
+
+/** Main tokens overlapping the picked range (for highlighting the transcript). */
+export function mainsFor(mains: Token[], picks: Token[], a: number, b: number): [number, number] | null {
+  const mo = offsets(mains);
+  const po = offsets(picks);
+  const from = po[a];
+  const to = po[b] + picks[b].t.length;
+  let first = -1;
+  let last = -1;
+  mains.forEach((m, k) => {
+    if (mo[k] < to && mo[k] + m.t.length > from) {
+      if (first < 0) first = k;
+      last = k;
+    }
+  });
+  return first < 0 ? null : [first, last];
+}
+
+/** Tapping a pick token: extend to it, trim an end, or start again from it. Returns the new range. */
+export function tapPick(picks: Token[], a: number, b: number, k: number): [number, number] {
+  if (!picks[k]?.w) return [a, b];
+  if (k < a) a = k;
+  else if (k > b) b = k;
+  else if (a === b) return [a, b];
+  else if (k === a) a++;
+  else if (k === b) b--;
+  else a = b = k;
+  while (joinTokens(picks, a, b).length > 30 && a < b) {
+    if (k <= a) b--;
+    else a++;
+  }
+  return [a, b];
+}

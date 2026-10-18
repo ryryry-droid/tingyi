@@ -7,7 +7,7 @@ import { lookupWord, retranslate } from '../api';
 import { Btn, Pinyin, Sheet, sheetStyles, TextBtn, WordText, Working } from '../components';
 import { formatDate, formatTime, HAN_FONT, useColors } from '../theme';
 import { hasHan, isChinese, LANGS, LookupEntry, LOOKUP_LANGS, Segment, Session, Settings, Word, wordId, wordLangOf } from '../types';
-import { joinTokens, nextWord, rangeFor, Token, tokenize } from '../words';
+import { joinTokens, mainsFor, pickByChar, picksFor, pickTokens, rangeFor, tapPick, Token, tokenize } from '../words';
 
 type Props = {
   session: Session;
@@ -29,8 +29,9 @@ type Lookup = {
   side: 's' | 't';
   lang: string;
   text: string;
-  tokens: Token[];
-  a: number;
+  tokens: Token[]; // words in the transcript
+  picks: Token[]; // characters (or words) shown in the card
+  a: number; // selection, as indexes into picks
   b: number;
   query: string;
   entry: LookupEntry | null;
@@ -115,11 +116,13 @@ export default function SessionScreen(p: Props) {
     const lang = side === 's' ? srcOf(seg) : tgtOf(seg);
     const text = side === 's' ? seg.text : seg.translation;
     const tk = side === 's' ? tokens[i].s : tokens[i].t;
-    fetchLookup({ i, side, lang, text, tokens: tk, a: k, b: k, query: '', entry: null, error: '', loading: true });
+    const picks = pickTokens(text, lang);
+    const [a, b] = picksFor(tk, k, picks);
+    fetchLookup({ i, side, lang, text, tokens: tk, picks, a, b, query: '', entry: null, error: '', loading: true });
   }
 
   async function fetchLookup(base: Lookup, override?: string) {
-    const word = override || joinTokens(base.tokens, base.a, base.b);
+    const word = override || joinTokens(base.picks, base.a, base.b);
     const next = { ...base, query: word, entry: null, error: '', loading: true };
     setLookup(next);
     const key = `${base.lang}|${settings.script}|${word}|${base.text}`;
@@ -132,7 +135,7 @@ export default function SessionScreen(p: Props) {
       const cur = lookupRef.current;
       if (!cur || cur.query !== word) return; // a newer lookup replaced this one
       // The dictionary may return the whole word (e.g. 周末 for 周): grow the highlight to match
-      const [a, b] = override ? [cur.a, cur.b] : rangeFor(cur.tokens, cur.a, cur.b, entry.word);
+      const [a, b] = override ? [cur.a, cur.b] : rangeFor(cur.picks, cur.a, cur.b, entry.word);
       setLookup({ ...cur, a, b, entry, loading: false });
     } catch (e: any) {
       const cur = lookupRef.current;
@@ -140,14 +143,23 @@ export default function SessionScreen(p: Props) {
     }
   }
 
-  function widen(dir: 1 | -1) {
+  // Tap characters in the card to look up more or fewer; wait for a pause in tapping before looking up
+  const pickTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => {
+    if (pickTimer.current) clearTimeout(pickTimer.current);
+  }, []);
+  function pick(k: number) {
     if (!lookup) return;
-    const j = nextWord(lookup.tokens, dir < 0 ? lookup.a : lookup.b, dir);
-    if (j < 0) return;
-    fetchLookup({ ...lookup, a: dir < 0 ? j : lookup.a, b: dir > 0 ? j : lookup.b });
+    const [a, b] = tapPick(lookup.picks, lookup.a, lookup.b, k);
+    if (a === lookup.a && b === lookup.b) return;
+    const next = { ...lookup, a, b, query: joinTokens(lookup.picks, a, b), entry: null, error: '', loading: true };
+    setLookup(next);
+    if (pickTimer.current) clearTimeout(pickTimer.current);
+    pickTimer.current = setTimeout(() => {
+      const cur = lookupRef.current;
+      if (cur && cur.a === a && cur.b === b && cur.i === next.i && cur.side === next.side) fetchLookup(cur);
+    }, 700);
   }
-  const canWiden = (dir: 1 | -1) =>
-    !!lookup && nextWord(lookup.tokens, dir < 0 ? lookup.a : lookup.b, dir) >= 0 && joinTokens(lookup.tokens, lookup.a, lookup.b).length < 30;
 
   function saveWord() {
     const e = lookup?.entry;
@@ -247,7 +259,7 @@ export default function SessionScreen(p: Props) {
             const src = srcOf(item);
             const tgt = tgtOf(item);
             const sel = (side: 's' | 't'): [number, number] | null =>
-              lookup && lookup.i === index && lookup.side === side ? [lookup.a, lookup.b] : null;
+              lookup && lookup.i === index && lookup.side === side ? mainsFor(lookup.tokens, lookup.picks, lookup.a, lookup.b) : null;
             return (
               <View style={[styles.line, { borderBottomColor: c.line }, active && { backgroundColor: c.accentSoft, borderBottomColor: 'transparent', borderRadius: 16 }]}>
                 <Pressable onPress={() => playSegment(item)} style={styles.time} accessibilityLabel={`Play line ${index + 1}`}>
@@ -316,9 +328,25 @@ export default function SessionScreen(p: Props) {
                 {lookHan && settings.pinyin && e?.pinyin ? <Pinyin value={e.pinyin} size={16} /> : null}
                 {e?.part_of_speech ? <Text style={ss.pos}>{e.part_of_speech}</Text> : null}
               </View>
-              <View style={{ flexDirection: 'row', gap: 6 }}>
-                <WidenBtn title="＋ before" disabled={!canWiden(-1)} onPress={() => widen(-1)} />
-                <WidenBtn title="after ＋" disabled={!canWiden(1)} onPress={() => widen(1)} />
+            </View>
+            <View style={[styles.picker, { backgroundColor: c.bg }]}>
+              <Text style={ss.k}>{pickByChar(lookup.lang) ? 'Tap characters to look up more or fewer' : 'Tap words to look up more or fewer'}</Text>
+              <View style={styles.picks}>
+                {lookup.picks.map((x, k) => {
+                  if (!x.w) return x.t.trim() ? <Text key={k} style={[styles.pickPunct, { color: c.faint }]}>{x.t.trim()}</Text> : null;
+                  const on = k >= lookup.a && k <= lookup.b;
+                  return (
+                    <Pressable
+                      key={k}
+                      onPress={() => pick(k)}
+                      accessibilityRole="button"
+                      accessibilityState={{ selected: on }}
+                      style={[styles.pick, on && { backgroundColor: c.yellow }]}
+                    >
+                      <Text style={[{ fontSize: 20, color: on ? c.yellowInk : c.ink }, lookHan && { fontFamily: HAN_FONT, fontSize: 22 }]}>{x.t}</Text>
+                    </Pressable>
+                  );
+                })}
               </View>
             </View>
             {lookup.loading ? (
@@ -420,15 +448,6 @@ export default function SessionScreen(p: Props) {
   );
 }
 
-function WidenBtn({ title, disabled, onPress }: { title: string; disabled: boolean; onPress: () => void }) {
-  const c = useColors();
-  return (
-    <Pressable onPress={onPress} disabled={disabled} style={[styles.widen, { borderColor: c.line }, disabled && { opacity: 0.35 }]}>
-      <Text style={{ color: c.muted, fontSize: 13, fontWeight: '600' }}>{title}</Text>
-    </Pressable>
-  );
-}
-
 export function ExampleBox({ ex, han, pinyin }: { ex?: LookupEntry['example']; han: boolean; pinyin: boolean }) {
   const c = useColors();
   const ss = sheetStyles(c);
@@ -460,7 +479,10 @@ const styles = StyleSheet.create({
   actions: { flexDirection: 'row', gap: 10, paddingHorizontal: 16, paddingTop: 10, paddingBottom: 14 },
   wcHead: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
   wcWord: { fontSize: 32, lineHeight: 40 },
-  widen: { borderWidth: 1, borderRadius: 8, paddingHorizontal: 9, paddingVertical: 5 },
+  picker: { borderRadius: 14, paddingHorizontal: 12, paddingVertical: 10, gap: 6 },
+  picks: { flexDirection: 'row', flexWrap: 'wrap', rowGap: 4, columnGap: 2, alignItems: 'center' },
+  pick: { borderRadius: 8, paddingHorizontal: 4, paddingVertical: 4, minWidth: 30, alignItems: 'center' },
+  pickPunct: { fontSize: 20, paddingHorizontal: 1 },
   wcActions: { flexDirection: 'row', gap: 10, alignItems: 'center', marginTop: 4 },
   input: { minHeight: 80, borderWidth: 1.5, borderRadius: 12, padding: 12, fontSize: 19, textAlignVertical: 'top' },
 });
