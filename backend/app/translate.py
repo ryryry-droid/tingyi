@@ -231,7 +231,8 @@ def lookup_word(word: str, sentence: str, lang: str, script: str) -> dict:
         f"You are a {language}–English learner's dictionary. The learner tapped the {language} word "
         f"\"{word}\" in this sentence:\n{sentence or word}\n\n"
         "Reply with JSON only, in this shape:\n"
-        '{"word": "<the word as it should be looked up>", "root": "", "part_of_speech": "<noun, verb, ...>", '
+        '{"word": "<the word as it should be looked up, written as in a dictionary: lowercase unless it is a proper noun>", '
+        '"root": "", "part_of_speech": "<noun, verb, ..., or proper noun for names of people, places, brands>", '
         '"meaning": "<its common English meanings, 12 words max>", '
         '"in_context": "<what it means in this sentence, 15 words max>", '
         '"notes": "<one short usage note (register, slang, measure word, tone of a particle), or empty>", '

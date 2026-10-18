@@ -1306,7 +1306,12 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
   let lookup = null; // { i, side, lang, tokens, a, b, entry, error, loading }
   const lookupCache = new Map();
   let words = [];
-  const wordId = (lang, word) => `${isHan(lang) ? 'zh' : lang}:${word}`;
+  // Saved words are kept in lowercase ("Makan" at the start of a sentence is saved as "makan"),
+  // except proper nouns: names of people, places, brands
+  const lower = (t) => String(t || '').toLocaleLowerCase();
+  const isProper = (pos) => /proper|name|place/i.test(pos || '');
+  const caseFor = (t, pos) => (isProper(pos) ? String(t || '') : lower(t));
+  const wordId = (lang, word) => `${isHan(lang) ? 'zh' : lang}:${lower(word)}`;
 
   // The sheet shows the sentence split into characters (Chinese/Japanese/Thai/Khmer) or words, and you tap
   // them to choose exactly what to look up. lookup.a/b index into lookup.picks; mains are the tappable
@@ -1471,8 +1476,8 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
     else if (act === 'root') fetchLookup(e.root);
     else if (act === 'save') {
       const w = {
-        id: wordId(lookup.lang, e.word), word: e.word, lang: isHan(lookup.lang) ? 'zh' : lookup.lang, pinyin: e.pinyin || '',
-        root: e.root || '', part_of_speech: e.part_of_speech || '', meaning: e.meaning, in_context: e.in_context || '',
+        id: wordId(lookup.lang, e.word), word: caseFor(e.word, e.part_of_speech), lang: isHan(lookup.lang) ? 'zh' : lookup.lang, pinyin: e.pinyin || '',
+        root: caseFor(e.root, e.part_of_speech), part_of_speech: e.part_of_speech || '', meaning: e.meaning, in_context: e.in_context || '',
         notes: e.notes || '', example: e.example || null, sentence: lookup.text,
         sessionId: current?.id || '', sessionTitle: current?.title || '', createdAt: Date.now(),
       };
@@ -1659,7 +1664,7 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
       const e = a.entry, meaning = $('add-meaning').value.trim() || e.meaning;
       const existing = words.find((w) => w.id === wordId(a.lang, e.word));
       const w = {
-        ...(existing || {}), id: wordId(a.lang, e.word), word: e.word, lang: a.lang, pinyin: e.pinyin || '', root: e.root || '',
+        ...(existing || {}), id: wordId(a.lang, e.word), word: caseFor(e.word, e.part_of_speech), lang: a.lang, pinyin: e.pinyin || '', root: caseFor(e.root, e.part_of_speech),
         part_of_speech: e.part_of_speech || '', meaning, in_context: '', notes: e.notes || '', example: e.example || null,
         sentence: existing?.sentence || '', sessionId: existing?.sessionId || '', sessionTitle: existing?.sessionTitle || 'Added by you',
         createdAt: existing?.createdAt || Date.now(),
@@ -1959,6 +1964,17 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
   (async () => {
     sessions = await allSessions();
     words = await allWords();
+    // Words saved before lowercase: convert them once (merging any that become the same word)
+    const seen = new Set(), fixed = [];
+    for (const w of words) {
+      const id = wordId(w.lang, w.word);
+      if (w.word === caseFor(w.word, w.part_of_speech) && w.id === id && (w.root || '') === caseFor(w.root, w.part_of_speech)) { if (!seen.has(id)) { seen.add(id); fixed.push(w); } continue; }
+      await deleteWord(w.id).catch(() => {});
+      if (seen.has(id)) continue;
+      const nw = { ...w, id, word: caseFor(w.word, w.part_of_speech), root: caseFor(w.root, w.part_of_speech) };
+      seen.add(id); fixed.push(nw); await putWord(nw).catch(() => {});
+    }
+    words = fixed;
     fixPair(); saveSettings();
     sessions.forEach((s) => { if (s.status === 'processing') { s.status = 'error'; s.error = 'Interrupted before it finished. Tap Try again.'; } });
     try {
