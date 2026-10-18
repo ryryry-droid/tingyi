@@ -97,7 +97,13 @@ nav button[aria-selected="true"] { background: var(--surface); color: var(--ink)
 @media (prefers-reduced-motion: reduce) { .dot { animation: none; } .meter i { transition: none; } }
 
 .history { list-style: none; margin: 0; padding: 0; }
-.history button { width: 100%; text-align: left; border: 0; background: none; padding: 14px 0; border-bottom: 1px solid var(--line); display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 12px; align-items: baseline; }
+.history li.hrow { position: relative; overflow: hidden; border-bottom: 1px solid var(--line); touch-action: pan-y; }
+.history .hdel { position: absolute; inset: 0 auto 0 0; width: 96px; border: 0; background: var(--rec); color: #fff; font-weight: 600; font-size: 15px; display: grid; place-items: center; }
+.history .hrow > button[data-open] { position: relative; background: var(--bg); transition: transform .2s ease; will-change: transform; }
+.history .hrow.dragging > button[data-open] { transition: none; }
+.history .hrow.open > button[data-open] { transform: translateX(96px); }
+@media (prefers-reduced-motion: reduce) { .history .hrow > button[data-open] { transition: none; } }
+.history button[data-open] { width: 100%; text-align: left; border: 0; padding: 14px 0; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 12px; align-items: baseline; }
 .history .t { font-family: var(--han); font-size: 17px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .history .d { font-size: 13px; color: var(--faint); font-variant-numeric: tabular-nums; }
 .history .e { grid-column: 1 / -1; font-size: 14px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -157,7 +163,8 @@ nav button[aria-selected="true"] { background: var(--surface); color: var(--ink)
 .wcard .ex { margin: 2px 0 0; color: var(--muted); font-size: 14px; }
 .wcard .ex .han { font-family: var(--han); }
 .wcard .src { font-size: 12px; color: var(--faint); display: flex; justify-content: space-between; gap: 10px; align-items: center; }
-.toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(96px + env(safe-area-inset-bottom, 0px)); background: var(--ink); color: var(--bg); padding: 8px 16px; border-radius: 999px; font-size: 14px; }
+.toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(96px + env(safe-area-inset-bottom, 0px)); background: var(--ink); color: var(--bg); padding: 8px 16px; border-radius: 999px; font-size: 14px; display: flex; gap: 14px; align-items: center; white-space: nowrap; z-index: 40; }
+.toast button { border: 0; background: none; color: var(--accent-soft); font-weight: 700; font-size: 14px; padding: 2px 0; text-decoration: underline; text-underline-offset: 3px; }
 </style>
 </head>
 <body>
@@ -212,6 +219,7 @@ nav button[aria-selected="true"] { background: var(--surface); color: var(--ink)
 
   <section id="view-history" hidden>
     <p class="label">Your recordings</p>
+    <p class="tip" id="swipe-tip">Swipe a recording right to delete it.</p>
     <ul class="history" id="history"></ul>
   </section>
 
@@ -640,7 +648,8 @@ nav button[aria-selected="true"] { background: var(--surface); color: var(--ink)
   }
 
   function renderHistory() {
-    $('history').innerHTML = sessions.length ? sessions.map((s) => `<li><button type="button" data-open="${esc(s.id)}">
+    $('swipe-tip').hidden = !sessions.length;
+    $('history').innerHTML = sessions.length ? sessions.map((s) => `<li class="hrow" data-id="${esc(s.id)}"><button class="hdel" type="button" data-del="${esc(s.id)}" tabindex="-1">Delete</button><button type="button" data-open="${esc(s.id)}">
       <span class="t"${hasHan(s.title) ? '' : ' style="font-family:var(--f-ui)"'}>${esc(s.title)}</span><span class="d">${fmtDate(s.createdAt)}</span>
       <span class="e ${s.status === 'error' ? 'bad' : ''}">${s.status === 'processing' ? 'Translating…' : s.status === 'error' ? 'Failed. Tap to retry.' : esc(segTr(s.segments[0]) || 'No speech found')}</span>
     </button></li>`).join('') : `<li class="empty">Recordings you translate are saved here, on this phone.</li>`;
@@ -655,7 +664,13 @@ nav button[aria-selected="true"] { background: var(--surface); color: var(--ink)
   }
 
   function showNotice(msg) { $('notice').textContent = msg; $('notice').hidden = !msg; }
-  function toast(msg) { const t = $('toast'); t.textContent = msg; t.hidden = false; clearTimeout(toast.t); toast.t = setTimeout(() => (t.hidden = true), 2000); }
+  function toast(msg, action) {
+    const t = $('toast');
+    t.innerHTML = `<span>${esc(msg)}</span>${action ? `<button type="button">${esc(action.label)}</button>` : ''}`;
+    if (action) t.querySelector('button').onclick = () => { t.hidden = true; clearTimeout(toast.t); action.run(); };
+    t.hidden = false; clearTimeout(toast.t);
+    toast.t = setTimeout(() => (t.hidden = true), action ? 5000 : 2000);
+  }
 
   async function copyTranscript() {
     const text = current.segments.map((s) => `[${fmtTime(s.start)}] ${segText(s)}\n${segTr(s)}`).join('\n\n');
@@ -904,11 +919,68 @@ nav button[aria-selected="true"] { background: var(--surface); color: var(--ink)
       } catch (e) { showNotice(e.message); b.disabled = false; b.textContent = 'Re-translate'; }
     }
   });
-  $('history').addEventListener('click', (ev) => {
+  // ---------- history: swipe right to reveal Delete ----------
+  const REVEAL = 96;
+  let swipe = null, justSwiped = false;
+  const closeRows = (except) => $('history').querySelectorAll('.hrow.open').forEach((r) => { if (r !== except) r.classList.remove('open'); });
+  $('history').addEventListener('pointerdown', (ev) => {
+    const row = ev.target.closest('.hrow'); if (!row || ev.target.closest('.hdel')) return;
+    swipe = { row, x: ev.clientX, y: ev.clientY, dx: 0, start: row.classList.contains('open') ? REVEAL : 0, active: false, id: ev.pointerId };
+  });
+  $('history').addEventListener('pointermove', (ev) => {
+    if (!swipe || ev.pointerId !== swipe.id) return;
+    const dx = ev.clientX - swipe.x, dy = ev.clientY - swipe.y;
+    if (!swipe.active) {
+      if (Math.abs(dy) > 10 && Math.abs(dy) > Math.abs(dx)) { swipe = null; return; } // vertical scroll
+      if (Math.abs(dx) < 10) return;
+      swipe.active = true; swipe.row.classList.add('dragging'); closeRows(swipe.row);
+      try { swipe.row.setPointerCapture(ev.pointerId); } catch {}
+    }
+    swipe.dx = dx;
+    const pos = Math.max(0, Math.min(REVEAL + 24, swipe.start + dx));
+    swipe.row.querySelector('button[data-open]').style.transform = `translateX(${pos}px)`;
+  });
+  function endSwipe() {
+    if (!swipe) return;
+    const { row, active, start, dx } = swipe; swipe = null;
+    if (!active) return;
+    justSwiped = true; setTimeout(() => (justSwiped = false), 50);
+    row.classList.remove('dragging');
+    row.querySelector('button[data-open]').style.transform = '';
+    row.classList.toggle('open', start + dx > REVEAL / 2);
+  }
+  $('history').addEventListener('pointerup', endSwipe);
+  $('history').addEventListener('pointercancel', endSwipe);
+
+  $('history').addEventListener('click', async (ev) => {
+    if (justSwiped) return;
+    const del = ev.target.closest('button[data-del]');
+    if (del) { await deleteWithUndo(del.dataset.del); return; }
     const b = ev.target.closest('button[data-open]'); if (!b) return;
+    const row = b.closest('.hrow');
+    if (row.classList.contains('open')) { row.classList.remove('open'); return; } // tap closes an open row
+    if ($('history').querySelector('.hrow.open')) { closeRows(); return; }
     current = sessions.find((s) => s.id === b.dataset.open);
     if (current) setView('session');
   });
+  document.addEventListener('pointerdown', (ev) => { if (!ev.target.closest('#history')) closeRows(); });
+
+  async function deleteWithUndo(id) {
+    const idx = sessions.findIndex((s) => s.id === id); if (idx < 0) return;
+    const removed = sessions[idx];
+    if (current?.id === id) { stopPlayback(); current = null; }
+    sessions = sessions.filter((s) => s.id !== id);
+    await deleteSession(id).catch(() => {});
+    renderHistory();
+    toast('Recording deleted', {
+      label: 'Undo',
+      run: async () => {
+        sessions.splice(Math.min(idx, sessions.length), 0, removed);
+        await putSession(removed);
+        if (view === 'history') renderHistory();
+      },
+    });
+  }
   document.querySelectorAll('nav button').forEach((b) => (b.onclick = () => { if (!rec) setView(b.dataset.view); }));
   $('back').onclick = () => setView('history');
   document.querySelectorAll('.seg').forEach((g) => (g.onclick = (ev) => {
