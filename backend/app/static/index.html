@@ -9,6 +9,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Tingyi">
 <link rel="manifest" href="/manifest.webmanifest">
+<script>try { const t = JSON.parse(localStorage.getItem('tingyi.settings') || '{}').theme; if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t; } catch {}</script>
 <link rel="apple-touch-icon" href="/icon-192.png">
 <link rel="icon" href="/icon-192.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -25,10 +26,15 @@
   --han: var(--f-han-sc);
   color-scheme: light;
 }
-@media (prefers-color-scheme: dark) { :root {
+/* Dark: follows the phone unless a theme is chosen in Settings */
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
   --bg: #0F1513; --surface: #161E1B; --line: #27332E; --ink: #E2EAE6; --muted: #9AAAA2; --faint: #6E7D76;
   --accent: #7DBBA8; --accent-ink: #0C1714; --accent-soft: #1D2E28; --rec: #F08A70; --warn: #E2B566; --warn-soft: #2C2516;
   --t1: #F08A70; --t2: #8CCB7E; --t3: #8FB2F0; --t4: #C79BE0; color-scheme: dark; } }
+:root[data-theme="dark"] {
+  --bg: #0F1513; --surface: #161E1B; --line: #27332E; --ink: #E2EAE6; --muted: #9AAAA2; --faint: #6E7D76;
+  --accent: #7DBBA8; --accent-ink: #0C1714; --accent-soft: #1D2E28; --rec: #F08A70; --warn: #E2B566; --warn-soft: #2C2516;
+  --t1: #F08A70; --t2: #8CCB7E; --t3: #8FB2F0; --t4: #C79BE0; color-scheme: dark; }
 * { box-sizing: border-box; }
 html, body { margin: 0; }
 body { background: var(--bg); color: var(--ink); font: 16px/1.55 var(--f-ui); -webkit-tap-highlight-color: transparent; }
@@ -298,6 +304,15 @@ nav button[aria-selected="true"] { background: var(--surface); color: var(--ink)
       </div>
     </div>
     <div class="field">
+      <p class="label">Appearance</p>
+      <div class="seg" data-setting="theme">
+        <button type="button" data-value="system">Automatic</button>
+        <button type="button" data-value="light">Light</button>
+        <button type="button" data-value="dark">Dark</button>
+      </div>
+      <p class="hint">Automatic follows your phone’s setting.</p>
+    </div>
+    <div class="field">
       <p class="label">Translation style</p>
       <div class="seg" data-setting="style">
         <button type="button" data-value="natural">Natural</button>
@@ -333,7 +348,7 @@ nav button[aria-selected="true"] { background: var(--surface); color: var(--ink)
   const MAX_SECONDS = 60 * 60;
 
   // ---------- settings ----------
-  const DEFAULTS = { token: '', vibrate: true, source: 'zh', target: 'en', script: 'simplified', style: 'natural', pinyin: true, glossary: '' };
+  const DEFAULTS = { token: '', theme: 'system', vibrate: true, source: 'zh', target: 'en', script: 'simplified', style: 'natural', pinyin: true, glossary: '' };
   const LANGS = { zh: 'Mandarin', yue: 'Cantonese', id: 'Indonesian', en: 'English' };
   const isHan = (code) => code === 'zh' || code === 'yue';
   const hasHan = (text) => /[\u3400-\u9fff]/.test(text || '');
@@ -634,7 +649,16 @@ nav button[aria-selected="true"] { background: var(--surface); color: var(--ink)
     window.scrollTo(0, 0);
   }
 
+  function applyTheme() {
+    const root = document.documentElement;
+    if (settings.theme === 'light' || settings.theme === 'dark') root.dataset.theme = settings.theme; else delete root.dataset.theme;
+    const dark = settings.theme === 'dark' || (settings.theme !== 'light' && matchMedia('(prefers-color-scheme: dark)').matches);
+    document.querySelectorAll('meta[name="theme-color"]').forEach((m) => { m.content = dark ? '#0F1513' : '#EDF1EE'; m.removeAttribute('media'); });
+  }
+  matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change', applyTheme);
+
   function rerender() {
+    applyTheme();
     document.documentElement.style.setProperty('--han', settings.script === 'traditional' ? 'var(--f-han-tc)' : 'var(--f-han-sc)');
     renderLangbar();
     if (view === 'live') renderLive();
