@@ -5,6 +5,7 @@ import { ActivityIndicator, BackHandler, Image, ImageBackground, Pressable, Styl
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 
 import { translateRecording } from './src/api';
+import { preloadSounds } from './src/sounds';
 import HistoryScreen from './src/screens/HistoryScreen';
 import LiveScreen, { LiveResult } from './src/screens/LiveScreen';
 import RecordScreen, { StopReason } from './src/screens/RecordScreen';
@@ -60,6 +61,7 @@ export default function App() {
   const c = PALETTES[settings.theme] || PALETTES.dark;
 
   useEffect(() => {
+    preloadSounds();
     Promise.all([loadSessions(), loadSettings(), loadWords(), loadTestSetup()]).then(([sess, sett, w, t]) => {
       setSessions(sess);
       setSettings(sett);

@@ -15,6 +15,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Alert, Animated, Image, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { LangBubble } from '../components';
+import { playCry } from '../sounds';
 import { formatTime, useColors } from '../theme';
 import { baseOf, fixPair, LANGS, Settings, sourceOptions, Source, Target, targetOptions } from '../types';
 
@@ -131,6 +132,11 @@ export default function RecordScreen({ settings, onLanguages, onRecorded, onStop
         try {
           await requestNotificationPermissionsAsync();
         } catch {}
+      }
+      if (settings.cry) {
+        // play the cry before the microphone starts, so it isn't recorded
+        await setAudioModeAsync({ allowsRecording: false, playsInSilentMode: true }).catch(() => {});
+        await playCry();
       }
       await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true, allowsBackgroundRecording: true });
       await recorder.prepareToRecordAsync();

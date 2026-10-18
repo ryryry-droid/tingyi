@@ -2,6 +2,7 @@ import { useMemo, useRef, useState } from 'react';
 import { Pressable, ScrollView, ScrollViewInstance, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { Btn, Label } from '../components';
+import { playCry, playWrong } from '../sounds';
 import { speakWord } from '../speech';
 import { formatTime, HAN_FONT, toneless, useColors } from '../theme';
 import { LANGS, Settings, TestKind, TestSetup, Word } from '../types';
@@ -90,6 +91,8 @@ export default function TestScreen({ settings, words, setup, only, onUpdateWord,
       wrong: (cur.wrong || 0) + (ok ? 0 : 1),
       lastTested: Date.now(),
     });
+    if (ok) playCry();
+    else playWrong();
     buzzAnswer(ok);
     setTimeout(() => scroller.current?.scrollToEnd({ animated: true }), 100);
   }

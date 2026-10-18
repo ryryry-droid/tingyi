@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 
 import { checkServer } from '../api';
+import { playCry } from '../sounds';
 import { Label, Segmented } from '../components';
 import { useColors } from '../theme';
 import { CATALOG, distinctLangs, fixPair, LANGS, Settings } from '../types';
@@ -135,6 +136,19 @@ export default function SettingsScreen({ settings: s, onChange, toast, buzzPrevi
           { value: 'literal', label: 'Literal' },
         ]}
       />
+
+      <View style={styles.switchRow}>
+        <Text style={{ fontSize: 16, color: c.ink, fontWeight: '600', flex: 1 }}>Chatot cry when you tap record</Text>
+        <Switch
+          value={s.cry}
+          onValueChange={(v) => {
+            set('cry', v);
+            if (v) playCry();
+          }}
+          trackColor={{ true: c.accent }}
+        />
+      </View>
+      <Text style={hint}>Plays just before recording starts. You'll still hear it for right answers in tests.</Text>
 
       <View style={styles.switchRow}>
         <Text style={{ fontSize: 16, color: c.ink, fontWeight: '600', flex: 1 }}>Vibrate when a recording stops</Text>

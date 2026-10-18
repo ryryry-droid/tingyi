@@ -83,6 +83,7 @@ export type Settings = {
   glossary: string; // one term per line, e.g. "王小明 = Wang Xiaoming"
   theme: 'dark' | 'light';
   vibrate: boolean;
+  cry: boolean; // Chatot's cry when you tap record
   langs: string[]; // the languages shown in the pickers
 };
 
@@ -97,6 +98,7 @@ export const DEFAULT_SETTINGS: Settings = {
   glossary: '',
   theme: 'dark',
   vibrate: true,
+  cry: true,
   langs: DEFAULT_LANGS,
 };
 
