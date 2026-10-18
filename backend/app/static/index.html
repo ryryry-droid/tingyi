@@ -212,6 +212,13 @@ nav button[aria-selected="true"] { background: var(--surface); color: var(--ink)
 .wcard .ex .han { font-family: var(--han); }
 .wspk { border: 0; background: var(--surface2); color: var(--accent); width: 30px; height: 30px; border-radius: 50%; font-size: 13px; display: inline-grid; place-items: center; align-self: center; flex-shrink: 0; }
 .seg.wrap { flex-wrap: wrap; }
+.aw-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.tgl { border: 0; background: none; display: inline-flex; align-items: center; gap: 8px; color: var(--muted); font-weight: 700; font-size: 14px; padding: 4px 0; }
+.tgl i { position: relative; width: 44px; height: 26px; border-radius: 13px; background: var(--line); transition: background .15s; }
+.tgl i::after { content: ""; position: absolute; top: 3px; left: 3px; width: 20px; height: 20px; border-radius: 50%; background: #fff; transition: transform .15s; }
+.tgl[aria-checked="true"] { color: var(--accent); }
+.tgl[aria-checked="true"] i { background: var(--accent); }
+.tgl[aria-checked="true"] i::after { transform: translateX(18px); }
 .seg.wrap button { flex: 1 0 auto; }
 .langs { display: flex; flex-wrap: wrap; gap: 8px; }
 .langs button { border: 1.5px solid var(--line); background: var(--surface); color: var(--muted); border-radius: 999px; padding: 6px 12px; font-size: 14px; font-weight: 700; }
@@ -1594,13 +1601,10 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
         <button class="secondary" type="button" data-aw="close">Cancel</button>
       </div>`;
     openPanel(`
-      <h2>Add a word</h2>
+      <div class="aw-head"><h2>Add a word</h2>
+        <button type="button" class="tgl" data-aw="from" role="switch" aria-checked="${a.fromEn}" aria-label="Type in English"><span>English</span><i></i></button></div>
       <div class="seg wrap" role="group" aria-label="Language">
         ${wordLangs().map(([c, l]) => `<button type="button" data-aw="lang" data-v="${c}" aria-pressed="${a.lang === c}">${l}</button>`).join('')}
-      </div>
-      <div class="seg" role="group" aria-label="I'm typing in">
-        <button type="button" data-aw="from" data-v="word" aria-pressed="${!a.fromEn}">Type in ${esc(langName(a.lang))}</button>
-        <button type="button" data-aw="from" data-v="en" aria-pressed="${a.fromEn}">Type in English</button>
       </div>
       <div class="addrow">
         <input id="add-input" type="text" autocomplete="off" autocapitalize="off" placeholder="${a.fromEn ? 'Type or say an English word, e.g. weekend' : `Type or say a word${WORD_EXAMPLE[a.lang] ? `, e.g. ${WORD_EXAMPLE[a.lang]}` : ''}`}" value="${esc(a.text)}" lang="${a.fromEn ? 'en' : a.lang}">
@@ -1663,7 +1667,7 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
     const b = ev.target.closest('[data-aw]'); if (!b || !addState) return;
     const act = b.dataset.aw, a = addState;
     if (act === 'lang') { a.lang = b.dataset.v; a.entry = null; a.error = ''; renderAddWord(); }
-    else if (act === 'from') { a.fromEn = b.dataset.v === 'en'; a.entry = null; a.error = ''; a.text = ''; renderAddWord(); $('add-input')?.focus(); }
+    else if (act === 'from') { a.fromEn = !a.fromEn; a.entry = null; a.error = ''; a.text = ''; renderAddWord(); $('add-input')?.focus(); }
     else if (act === 'lookup') addLookup();
     else if (act === 'mic') { if (a.recording) stopWordMic(true); else startWordMic(); }
     else if (act === 'close') closePanel();
