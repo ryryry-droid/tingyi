@@ -52,22 +52,64 @@ def _keep(text: str, no_speech_prob: float = 0.0, avg_logprob: float = 0.0) -> b
 
 
 def transcribe(path: str, opts: Options) -> tuple[list[RawSegment], float]:
-    """Returns (segments, duration_seconds)."""
+    """Returns (segments, duration_seconds), transcribing in opts.source."""
+    segments, duration, _ = _run(path, opts.source, _prompt(opts))
+    return segments, duration
+
+
+# Whisper reports detected languages by name or code; map the ones we care about.
+_DETECTED = {
+    "english": "en", "en": "en",
+    "chinese": "zh", "mandarin": "zh", "zh": "zh",
+    "cantonese": "yue", "yue": "yue",
+    "indonesian": "id", "id": "id",
+    # Indonesian is often detected as a close neighbour
+    "malay": "id", "ms": "id", "javanese": "id", "jw": "id", "sundanese": "id", "su": "id",
+}
+_HAN = re.compile(r"[\u3400-\u9fff]")
+
+
+def _base(lang: str) -> str:
+    return "zh" if lang == "yue" else lang
+
+
+def transcribe_detect(path: str, opts: Options) -> tuple[list[RawSegment], float, str]:
+    """For conversations: work out which of the two languages (opts.source, opts.target) was spoken.
+
+    Returns (segments, duration, spoken_language) where spoken_language is one of the pair.
+    """
+    pair = [opts.source, opts.target]
+    terms = [g.split("=")[0].strip() for g in opts.glossary if g.strip()]
+    segments, duration, detected = _run(path, None, ", ".join(terms[:30]) or None)
+    lang = _DETECTED.get((detected or "").lower().strip())
+    text = " ".join(s.text for s in segments)
+    chosen = next((p for p in pair if lang and _base(p) == _base(lang)), None)
+    if chosen is None:
+        # Detection picked something outside the pair (e.g. Japanese for Chinese, Malay variants):
+        # decide by script, then transcribe again in that language so the text is right.
+        han_side = next((p for p in pair if _base(p) == "zh"), None)
+        other = next((p for p in pair if _base(p) != "zh"), pair[0])
+        chosen = han_side if (han_side and _HAN.search(text)) else other
+        if segments:
+            segments, duration, _ = _run(path, chosen, _prompt(opts.model_copy(update={"source": chosen})))
+    return segments, duration, chosen
+
+
+def _run(path: str, language: str | None, prompt: str | None) -> tuple[list[RawSegment], float, str | None]:
     if config.ASR_PROVIDER == "local":
-        return _transcribe_local(path, opts)
-    return _transcribe_openai(path, opts)
+        return _run_local(path, language, prompt)
+    return _run_openai(path, language, prompt)
 
 
-def _transcribe_openai(path: str, opts: Options) -> tuple[list[RawSegment], float]:
+def _run_openai(path: str, language: str | None, prompt: str | None):
     from openai import OpenAI
 
     client = OpenAI(base_url=config.OPENAI_BASE_URL, api_key=config.OPENAI_API_KEY or None, max_retries=4)
-    args = dict(
-        model=config.OPENAI_TRANSCRIBE_MODEL,
-        language=_LANG_HOSTED[opts.source],
-        prompt=_prompt(opts),
-        response_format="verbose_json",
-    )
+    args = dict(model=config.OPENAI_TRANSCRIBE_MODEL, response_format="verbose_json")
+    if language:
+        args["language"] = _LANG_HOSTED[language]
+    if prompt:
+        args["prompt"] = prompt
     try:
         with open(path, "rb") as f:
             result = client.audio.transcriptions.create(file=f, timestamp_granularities=["segment"], **args)
@@ -85,7 +127,7 @@ def _transcribe_openai(path: str, opts: Options) -> tuple[list[RawSegment], floa
     if not raw.get("segments") and _keep(raw.get("text", "")):  # model without segment timestamps
         segments = [RawSegment(start=0, end=float(raw.get("duration") or 0), text=raw["text"].strip())]
     duration = float(raw.get("duration") or (segments[-1].end if segments else 0))
-    return segments, duration
+    return segments, duration, raw.get("language")
 
 
 @lru_cache(maxsize=1)
@@ -95,11 +137,11 @@ def _local_model():
     return WhisperModel(config.LOCAL_WHISPER_MODEL, device="auto", compute_type="auto")
 
 
-def _transcribe_local(path: str, opts: Options) -> tuple[list[RawSegment], float]:
+def _run_local(path: str, language: str | None, prompt: str | None):
     segments_iter, info = _local_model().transcribe(
         path,
-        language=_LANG[opts.source],
-        initial_prompt=_prompt(opts),
+        language=_LANG[language] if language else None,
+        initial_prompt=prompt,
         vad_filter=True,  # skip silence
     )
     segments = [
@@ -107,4 +149,4 @@ def _transcribe_local(path: str, opts: Options) -> tuple[list[RawSegment], float
         for s in segments_iter
         if _keep(s.text, s.no_speech_prob, s.avg_logprob)
     ]
-    return segments, float(info.duration)
+    return segments, float(info.duration), info.language

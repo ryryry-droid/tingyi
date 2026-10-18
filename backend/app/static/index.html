@@ -119,6 +119,39 @@ nav button[aria-selected="true"] { background: var(--surface); color: var(--ink)
 .field input[type=password], .field textarea { width: 100%; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); padding: 10px 12px; font-size: 16px; }
 .field textarea { min-height: 110px; }
 .hint { font-size: 13px; color: var(--muted); margin: 0; }
+/* live mode */
+.live-bubbles { display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; margin-top: 26px; }
+.bubble-btn { border: 1px solid var(--accent); background: var(--surface); color: var(--accent); border-radius: 999px; padding: 9px 16px; font-size: 14px; font-weight: 600; display: inline-flex; gap: 7px; align-items: center; }
+.bubble-btn:active { background: var(--accent-soft); }
+.live-note { text-align: center; font-size: 12px; color: var(--faint); margin: 8px 0 0; }
+.live-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 2px 0 12px; border-bottom: 1px solid var(--line); }
+.live-mode { font-weight: 600; font-size: 17px; }
+.live-status { display: flex; align-items: center; gap: 8px; font-variant-numeric: tabular-nums; color: var(--muted); }
+.live-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--rec); animation: pulse 1.2s ease-in-out infinite; }
+.live-status.done .live-dot { animation: none; background: var(--faint); }
+.live-feed { display: grid; gap: 4px; padding: 10px 0 8px; }
+.live-empty { color: var(--muted); text-align: center; padding: 40px 10px; font-size: 15px; }
+.lv-line { padding: 10px 0; border-bottom: 1px solid var(--line); }
+.lv-line .o { margin: 0; font-size: 18px; line-height: 1.55; color: var(--muted); overflow-wrap: anywhere; }
+.lv-line .o.han { font-family: var(--han); font-size: 20px; color: var(--ink); }
+.lv-line .t { margin: 6px 0 0; font-size: 20px; line-height: 1.45; font-weight: 500; overflow-wrap: anywhere; }
+.lv-line .t.han { font-family: var(--han); font-weight: 600; }
+.pending { color: var(--faint); font-weight: 400 !important; font-size: 15px !important; font-family: var(--f-ui) !important; }
+.chat { display: grid; gap: 10px; padding: 12px 0; }
+.bubble { max-width: 86%; padding: 10px 14px; border-radius: 16px; display: grid; gap: 4px; }
+.bubble.a { justify-self: start; background: var(--surface); border: 1px solid var(--line); border-bottom-left-radius: 4px; }
+.bubble.b { justify-self: end; background: var(--accent-soft); border-bottom-right-radius: 4px; }
+.bubble .who { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--faint); }
+.bubble .o { margin: 0; font-size: 15px; color: var(--muted); overflow-wrap: anywhere; }
+.bubble .o.han { font-family: var(--han); font-size: 17px; }
+.bubble .t { margin: 0; font-size: 19px; line-height: 1.4; font-weight: 500; overflow-wrap: anywhere; }
+.bubble .t.han { font-family: var(--han); font-weight: 600; }
+.bubble .py { font-size: 13px; }
+.listening { display: flex; justify-content: center; align-items: center; gap: 10px; color: var(--faint); font-size: 13px; padding: 10px 0 4px; }
+.mini-meter { display: flex; gap: 2px; align-items: center; height: 18px; }
+.mini-meter i { display: block; width: 3px; height: 3px; border-radius: 2px; background: var(--rec); }
+.primary.stop { background: var(--rec); }
+.lang-tag { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--faint); margin: 0 0 2px; }
 /* tappable words */
 .w { cursor: pointer; border-radius: 4px; transition: background .15s; -webkit-touch-callout: none; }
 .w:hover { background: var(--accent-soft); }
@@ -209,6 +242,20 @@ nav button[aria-selected="true"] { background: var(--surface); color: var(--ink)
     <div class="or">
       <label class="upload" for="file">Or translate an audio file from your phone<input id="file" type="file" accept="audio/*,.m4a,.mp3,.wav,.webm,.ogg,.aac" hidden></label>
     </div>
+    <div class="live-bubbles">
+      <button class="bubble-btn" id="live-sub" type="button"><span aria-hidden="true">◉</span> Live subtitles</button>
+      <button class="bubble-btn" id="live-conv" type="button"><span aria-hidden="true">⇄</span> Live conversation</button>
+    </div>
+    <p class="live-note" id="live-note"></p>
+  </section>
+
+  <section id="view-live" hidden>
+    <div class="live-head">
+      <div><div class="live-mode" id="live-mode"></div><div class="meta" id="live-dir"></div></div>
+      <div class="live-status" id="live-status"><span class="live-dot"></span><span id="live-timer">0:00</span></div>
+    </div>
+    <div id="live-feed"></div>
+    <div class="listening" id="live-listening"><span class="mini-meter" id="live-meter"></span><span id="live-state">Listening…</span></div>
   </section>
 
   <section id="view-session" hidden>
@@ -491,7 +538,7 @@ nav button[aria-selected="true"] { background: var(--surface); color: var(--ink)
     fixPair(); saveSettings(); renderLangbar();
   };
 
-  $('recbtn').onclick = () => (rec ? stopRecording() : startRecording());
+  $('recbtn').onclick = () => (live ? null : rec ? stopRecording() : startRecording());
   $('file').onchange = async (e) => {
     const f = e.target.files[0]; e.target.value = '';
     if (!f) return;
@@ -545,7 +592,7 @@ nav button[aria-selected="true"] { background: var(--surface); color: var(--ink)
     const context = current.segments.slice(Math.max(0, i - 6), i);
     const res = await fetch('/api/retranslate', {
       method: 'POST', headers: { ...authHeaders(), 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text: zh, context: context.map((c) => ({ ...c, text: segText(c), translation: segTr(c) })), options: { ...options(), source: current.source || 'zh', target: current.target || 'en' } }),
+      body: JSON.stringify({ text: zh, context: context.map((c) => ({ ...c, text: segText(c), translation: segTr(c) })), options: { ...options(), source: current.segments[i]?.lang || current.source || 'zh', target: current.segments[i]?.target || current.target || 'en' } }),
     });
     if (!res.ok) throw new Error(await apiError(res));
     return res.json();
@@ -582,8 +629,8 @@ nav button[aria-selected="true"] { background: var(--surface); color: var(--ink)
   function setView(v) {
     if (v !== 'session') stopPlayback();
     view = v; editing = null; confirmDelete = false;
-    ['record', 'history', 'words', 'settings'].forEach((n) => $('tab-' + n).setAttribute('aria-selected', String(n === v || (v === 'session' && n === 'history'))));
-    ['record', 'session', 'history', 'words', 'settings'].forEach((n) => ($('view-' + n).hidden = n !== v));
+    ['record', 'history', 'words', 'settings'].forEach((n) => $('tab-' + n).setAttribute('aria-selected', String(n === v || (v === 'session' && n === 'history') || (v === 'live' && n === 'record'))));
+    ['record', 'live', 'session', 'history', 'words', 'settings'].forEach((n) => ($('view-' + n).hidden = n !== v));
     closeSheet();
     rerender();
     window.scrollTo(0, 0);
@@ -592,6 +639,8 @@ nav button[aria-selected="true"] { background: var(--surface); color: var(--ink)
   function rerender() {
     document.documentElement.style.setProperty('--han', settings.script === 'traditional' ? 'var(--f-han-tc)' : 'var(--f-han-sc)');
     renderLangbar();
+    renderLiveNote();
+    if (view === 'live') renderLive();
     if (view === 'session') renderSession();
     if (view === 'history') renderHistory();
     if (view === 'words') renderWords();
@@ -600,6 +649,14 @@ nav button[aria-selected="true"] { background: var(--surface); color: var(--ink)
   }
 
   function renderActions() {
+    if (view === 'live' && live) {
+      $('actionbar').hidden = false;
+      $('actions').innerHTML = live.stopping
+        ? `<button class="primary" type="button" disabled>Finishing…</button>`
+        : `<button class="primary stop" id="live-stop" type="button">Stop</button>`;
+      if (!live.stopping) $('live-stop').onclick = () => stopLive('user');
+      return;
+    }
     const show = view === 'session' && current?.status === 'done';
     $('actionbar').hidden = !show;
     if (!show) return;
@@ -611,7 +668,7 @@ nav button[aria-selected="true"] { background: var(--surface); color: var(--ink)
   function renderSession() {
     const s = current; if (!s) return;
     $('s-title').textContent = s.status === 'done' ? s.title : s.status === 'processing' ? 'Translating…' : 'Translation failed';
-    $('s-meta').textContent = `${LANGS[s.source || 'zh']} → ${LANGS[s.target || 'en']} · ${fmtDate(s.createdAt)}${s.duration ? ' · ' + fmtTime(s.duration) : ''}${s.status === 'done' ? ` · ${s.segments.length} ${s.segments.length === 1 ? 'line' : 'lines'}` : ''}`;
+    $('s-meta').textContent = `${s.mode === 'conversation' ? `Conversation · ${LANGS[s.source]} ⇄ ${LANGS[s.target]}` : `${LANGS[s.source || 'zh']} → ${LANGS[s.target || 'en']}`}${s.mode === 'subtitles' ? ' · Live' : ''} · ${fmtDate(s.createdAt)}${s.duration ? ' · ' + fmtTime(s.duration) : ''}${s.status === 'done' ? ` · ${s.segments.length} ${s.segments.length === 1 ? 'line' : 'lines'}` : ''}`;
     if (s.status === 'processing') {
       $('s-body').innerHTML = `<div class="working"><div class="dot"></div><div>Transcribing with Whisper, then translating.<br>Longer recordings take a minute or two.</div></div>`;
       return;
@@ -625,17 +682,19 @@ nav button[aria-selected="true"] { background: var(--surface); color: var(--ink)
     }
     if (!s.segments.length) { $('s-body').innerHTML = `<p class="empty">No speech was found in this recording.</p>${del}`; return; }
     const han = s.script === 'traditional' ? 'zh-Hant' : 'zh-Hans';
+    const srcOf = (seg) => seg.lang || s.source || 'zh', tgtOf = (seg) => seg.target || s.target || 'en';
+    const langAttr = (code) => (isHan(code) ? han : code);
     const src = s.source || 'zh', tgt = s.target || 'en';
-    const srcLang = isHan(src) ? han : src, tgtLang = isHan(tgt) ? han : tgt;
     $('s-title').style.fontFamily = hasHan(s.title) ? 'var(--han)' : 'var(--f-ui)';
-    const tappable = LOOKUP_LANGS.includes(src) || LOOKUP_LANGS.includes(tgt);
-    $('s-body').innerHTML = `<p class="tip">Tap ▶ to replay a line.${tappable ? ' Tap a word to look it up.' : ''} Tap Edit to fix a misheard line.</p><ol class="lines">${s.segments.map((seg, i) => `
+    const tappable = s.segments.some((seg) => LOOKUP_LANGS.includes(srcOf(seg)) || LOOKUP_LANGS.includes(tgtOf(seg)));
+    $('s-body').innerHTML = `<p class="tip">Tap ▶ to replay a line.${tappable ? ' Tap a word to look it up.' : ''} Tap Edit to fix a misheard line.</p><ol class="lines">${s.segments.map((seg, i) => { const src = srcOf(seg), tgt = tgtOf(seg); return `
       <li class="line${playingId === seg.id ? ' playing' : ''}" data-id="${seg.id}">
         <button class="time" type="button" data-act="play" data-i="${i}" aria-label="Play line ${i + 1}">${fmtTime(seg.start)}</button>
         <div>
-          <p class="${isHan(src) ? 'zh' : 'orig'}" lang="${srcLang}">${wordsHtml(segText(seg), src, i, 's')}</p>
+          ${s.mode === 'conversation' ? `<p class="lang-tag">${LANGS[src]}</p>` : ''}
+          <p class="${isHan(src) ? 'zh' : 'orig'}" lang="${langAttr(src)}">${wordsHtml(segText(seg), src, i, 's')}</p>
           ${settings.pinyin && seg.pinyin ? `<p class="py">${pinyinHtml(seg.pinyin)}</p>` : ''}
-          <p class="tr${isHan(tgt) ? ' han' : ''}" lang="${tgtLang}">${segTr(seg) ? wordsHtml(segTr(seg), tgt, i, 't') : '—'}</p>
+          <p class="tr${isHan(tgt) ? ' han' : ''}" lang="${langAttr(tgt)}">${segTr(seg) ? wordsHtml(segTr(seg), tgt, i, 't') : '—'}</p>
           ${settings.pinyin && seg.translation_pinyin ? `<p class="py">${pinyinHtml(seg.translation_pinyin)}</p>` : ''}
           ${editing === i
             ? `<div class="editbox"><textarea id="edit-zh" aria-label="What was said">${esc(segText(seg))}</textarea>
@@ -643,7 +702,7 @@ nav button[aria-selected="true"] { background: var(--surface); color: var(--ink)
                <button class="small-primary" type="button" data-act="save" data-i="${i}">Re-translate</button></div></div>`
             : `<button class="textbtn" type="button" data-act="edit" data-i="${i}">Edit</button>`}
         </div>
-      </li>`).join('')}</ol>${del}`;
+      </li>`; }).join('')}</ol>${del}`;
     $('edit-zh')?.focus();
   }
 
@@ -677,6 +736,282 @@ nav button[aria-selected="true"] { background: var(--surface); color: var(--ink)
     try { await navigator.clipboard.writeText(text); toast('Copied'); } catch { toast('Couldn’t copy. Select the text instead.'); }
   }
 
+  // ---------- live mode ----------
+  // Audio is captured as 16 kHz PCM, cut into chunks at natural pauses, and each chunk is sent for
+  // transcription. Lines show up straight away; translations are fetched one batch at a time, so when
+  // speech is fast several lines share one request (kind to free-plan rate limits).
+  const LIVE = { minChunk: 3.0, maxChunk: 12, pause: 0.6, minSpeech: 0.4, rate: 16000 };
+  let live = null;
+
+  const workletUrl = URL.createObjectURL(new Blob([`
+    class Tap extends AudioWorkletProcessor {
+      constructor() { super(); this.buf = []; this.n = 0; }
+      process(inputs) {
+        const ch = inputs[0] && inputs[0][0];
+        if (ch) { this.buf.push(ch.slice(0)); this.n += ch.length; if (this.n >= sampleRate / 10) { this.port.postMessage(this.buf); this.buf = []; this.n = 0; } }
+        return true;
+      }
+    }
+    registerProcessor('tingyi-tap', Tap);`], { type: 'application/javascript' }));
+
+  function resampleTo16k(parts, inRate) {
+    const len = parts.reduce((a, p) => a + p.length, 0);
+    const input = new Float32Array(len); let o = 0;
+    for (const p of parts) { input.set(p, o); o += p.length; }
+    if (inRate === LIVE.rate) return input;
+    const ratio = inRate / LIVE.rate, out = new Float32Array(Math.floor(len / ratio));
+    for (let i = 0; i < out.length; i++) {
+      const a = Math.floor(i * ratio), b = Math.min(len, Math.floor((i + 1) * ratio));
+      let sum = 0; for (let j = a; j < b; j++) sum += input[j];
+      out[i] = sum / Math.max(1, b - a);
+    }
+    return out;
+  }
+
+  function wavBlob(frames) {
+    const n = frames.reduce((a, f) => a + f.length, 0);
+    const buf = new ArrayBuffer(44 + n * 2), v = new DataView(buf);
+    const str = (o, t) => { for (let i = 0; i < t.length; i++) v.setUint8(o + i, t.charCodeAt(i)); };
+    str(0, 'RIFF'); v.setUint32(4, 36 + n * 2, true); str(8, 'WAVE'); str(12, 'fmt ');
+    v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+    v.setUint32(24, LIVE.rate, true); v.setUint32(28, LIVE.rate * 2, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true);
+    str(36, 'data'); v.setUint32(40, n * 2, true);
+    let o = 44;
+    for (const f of frames) for (let i = 0; i < f.length; i++, o += 2) v.setInt16(o, Math.max(-1, Math.min(1, f[i])) * 0x7fff, true);
+    return new Blob([buf], { type: 'audio/wav' });
+  }
+
+  async function startLive(mode) {
+    if (rec || live) return;
+    showNotice('');
+    if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder || !window.AudioContext) {
+      showNotice('This browser can’t do live translation. Use Chrome on Android.'); return;
+    }
+    let stream;
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
+    } catch { showNotice('Microphone access was blocked. Allow the microphone for this site in your browser settings, then try again.'); return; }
+
+    live = {
+      mode, source: settings.source, target: settings.target, script: settings.script, stream,
+      startedAt: Date.now(), lines: [], nextId: 0, order: Promise.resolve(), inflight: 0, translating: false,
+      frames: [], chunkStart: 0, total: 0, speech: 0, silence: 0, noise: 0.004, levels: Array(16).fill(0),
+      fullChunks: [], stopping: false, errors: 0, mutedAt: 0,
+    };
+    // Full recording for replay later
+    const mime = pickMime();
+    try {
+      live.full = new MediaRecorder(stream, mime ? { mimeType: mime, audioBitsPerSecond: 32000 } : undefined);
+      live.full.ondataavailable = (e) => e.data.size && live?.fullChunks.push(e.data);
+      live.full.start(1000);
+    } catch { live.full = null; }
+
+    try { live.ctx = new AudioContext({ sampleRate: LIVE.rate }); } catch { live.ctx = new AudioContext(); }
+    const srcNode = live.ctx.createMediaStreamSource(stream);
+    const onFrames = (parts) => live && !live.stopping && onLiveAudio(resampleTo16k(parts, live.ctx.sampleRate));
+    try {
+      await live.ctx.audioWorklet.addModule(workletUrl);
+      live.node = new AudioWorkletNode(live.ctx, 'tingyi-tap');
+      live.node.port.onmessage = (e) => onFrames(e.data);
+      srcNode.connect(live.node);
+    } catch {
+      live.node = live.ctx.createScriptProcessor(4096, 1, 1);
+      live.node.onaudioprocess = (e) => onFrames([new Float32Array(e.inputBuffer.getChannelData(0))]);
+      srcNode.connect(live.node); live.node.connect(live.ctx.destination);
+    }
+    const track = stream.getAudioTracks()[0];
+    if (track) {
+      track.onended = () => stopLive('mic-lost');
+      track.onmute = () => { if (live) live.mutedAt = Date.now(); };
+      track.onunmute = () => { if (live?.mutedAt && Date.now() - live.mutedAt > 2000) { buzz('alert'); toast('Microphone was paused for a moment'); } if (live) live.mutedAt = 0; };
+    }
+    try { live.wake = await navigator.wakeLock?.request('screen'); } catch {}
+    live.tick = setInterval(() => { if (live && !live.stopping) $('live-timer').textContent = fmtTime((Date.now() - live.startedAt) / 1000); }, 500);
+    $('live-meter').innerHTML = '<i></i>'.repeat(16);
+    setView('live');
+  }
+
+  function onLiveAudio(frame) {
+    const L = live;
+    let sum = 0; for (let i = 0; i < frame.length; i++) sum += frame[i] * frame[i];
+    const rms = Math.sqrt(sum / Math.max(1, frame.length));
+    // Track the background noise level and call it speech when clearly above it
+    L.noise = rms < L.noise ? rms : L.noise + (rms - L.noise) * 0.01;
+    const speaking = rms > Math.max(0.01, L.noise * 3);
+    const secs = frame.length / LIVE.rate;
+    L.frames.push(frame); L.total += frame.length;
+    if (speaking) { L.speech += secs; L.silence = 0; } else L.silence += secs;
+    L.levels = [Math.min(1, rms * 12), ...L.levels.slice(0, 15)];
+    const bars = $('live-meter').children;
+    for (let i = 0; i < bars.length; i++) bars[i].style.height = `${3 + L.levels[i] * 15}px`;
+
+    const chunkSecs = (L.total - L.chunkStart) / LIVE.rate;
+    if (L.speech === 0 && chunkSecs > 1.2) {
+      // Nothing said yet: keep only a short lead-in so chunks don't fill with silence
+      while (L.frames.length > 3) { const f = L.frames.shift(); L.chunkStart += f.length; }
+      return;
+    }
+    if ((chunkSecs >= LIVE.minChunk && L.silence >= LIVE.pause && L.speech >= LIVE.minSpeech) || chunkSecs >= LIVE.maxChunk) flushChunk();
+  }
+
+  function flushChunk() {
+    const L = live; if (!L || !L.frames.length) return;
+    const frames = L.frames, offset = L.chunkStart / LIVE.rate, speech = L.speech;
+    L.frames = []; L.chunkStart = L.total; L.speech = 0; L.silence = 0;
+    if (speech < LIVE.minSpeech) return; // just noise
+    sendChunk(wavBlob(frames), offset);
+  }
+
+  function liveOptions(extra) {
+    return { ...options(), source: live.source, target: live.target, script: live.script, ...extra };
+  }
+
+  function sendChunk(blob, offset) {
+    const L = live;
+    const form = new FormData();
+    form.append('file', blob, 'chunk.wav');
+    form.append('options', JSON.stringify(liveOptions()));
+    form.append('offset', String(offset));
+    form.append('detect', L.mode === 'conversation' ? 'true' : 'false');
+    L.inflight++; renderLiveState();
+    const request = fetch('/api/live/transcribe', { method: 'POST', headers: authHeaders(), body: form })
+      .then(async (res) => { if (!res.ok) throw Object.assign(new Error(await apiError(res)), { status: res.status }); return res.json(); });
+    // Results are added in the order the chunks were spoken, even if replies arrive out of order
+    L.order = L.order.then(async () => {
+      try {
+        const data = await request;
+        for (const seg of data.segments) L.lines.push({ ...seg, id: L.nextId++, translation: null });
+        L.errors = 0;
+      } catch (e) {
+        L.errors++;
+        if (e.status === 401) { showNotice('Wrong or missing access code. Enter it in Settings.'); stopLive('error'); }
+        else toast(e instanceof TypeError ? 'Connection problem. Still listening…' : 'Missed a few seconds. Still listening…');
+      } finally {
+        L.inflight--; renderLive(); pumpTranslate();
+      }
+    });
+  }
+
+  async function pumpTranslate() {
+    const L = live; if (!L || L.translating) return;
+    const waiting = L.lines.filter((l) => l.translation === null && !l.busy);
+    if (!waiting.length) { renderLiveState(); return; }
+    const dir = (l) => `${l.lang}>${l.target}`;
+    const batch = waiting.filter((l) => dir(l) === dir(waiting[0])).slice(0, 8);
+    const context = L.lines.filter((l) => l.translation).slice(-4).map((l) => ({ text: l.text, translation: l.translation }));
+    L.translating = true; batch.forEach((l) => (l.busy = true)); renderLiveState();
+    try {
+      const res = await fetch('/api/live/translate', {
+        method: 'POST', headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ lines: batch.map((l) => ({ id: l.id, text: l.text })), context, options: liveOptions({ source: batch[0].lang, target: batch[0].target }) }),
+      });
+      if (!res.ok) throw new Error(await apiError(res));
+      const data = await res.json();
+      for (const t of data.translations) {
+        const line = L.lines.find((l) => l.id === t.id);
+        if (line) { line.translation = t.translation || '—'; line.translation_pinyin = t.translation_pinyin; }
+      }
+    } catch {
+      batch.forEach((l) => { l.tries = (l.tries || 0) + 1; if (l.tries >= 3) { l.translation = ''; l.failed = true; } });
+      await new Promise((r) => setTimeout(r, 1500));
+    } finally {
+      batch.forEach((l) => (l.busy = false));
+      L.translating = false;
+      if (live === L || L.stopping) { renderLive(); pumpTranslate(); }
+    }
+  }
+
+  function renderLiveState() {
+    if (!live || view !== 'live') return;
+    const busy = live.inflight || live.translating;
+    $('live-state').textContent = live.stopping ? 'Finishing the last lines…' : busy ? 'Listening · translating…' : 'Listening…';
+    $('live-status').classList.toggle('done', !!live.stopping);
+  }
+
+  function renderLive() {
+    const L = live; if (!L || view !== 'live') return;
+    const conv = L.mode === 'conversation';
+    $('live-mode').textContent = conv ? 'Live conversation' : 'Live subtitles';
+    $('live-dir').textContent = conv ? `${LANGS[L.source]} ⇄ ${LANGS[L.target]} · detected automatically` : `${LANGS[L.source]} → ${LANGS[L.target]}`;
+    const nearBottom = window.innerHeight + window.scrollY >= document.body.scrollHeight - 140;
+    const han = (code) => (isHan(code) ? ' han' : '');
+    const trHtml = (l) => (l.translation === null ? `<p class="t pending">translating…</p>`
+      : l.failed ? `<p class="t pending">Couldn’t translate this line</p>`
+      : `<p class="t${han(l.target)}">${esc(l.translation)}</p>${settings.pinyin && l.translation_pinyin ? `<p class="py">${pinyinHtml(l.translation_pinyin)}</p>` : ''}`);
+    let html;
+    if (!L.lines.length) {
+      html = `<p class="live-empty">${conv
+        ? `Start talking. Speak ${LANGS[L.source]} or ${LANGS[L.target]}, and pause briefly after each sentence.`
+        : `Listening for ${LANGS[L.source]}. Lines appear a few seconds after each sentence.`}</p>`;
+    } else if (conv) {
+      html = `<div class="chat">${L.lines.map((l) => `<div class="bubble ${baseOf(l.lang) === baseOf(L.source) ? 'a' : 'b'}">
+        <span class="who">${LANGS[l.lang]}</span>
+        <p class="o${han(l.lang)}">${esc(l.text)}</p>
+        ${trHtml(l)}</div>`).join('')}</div>`;
+    } else {
+      html = `<div class="live-feed">${L.lines.map((l) => `<div class="lv-line">
+        <p class="o${han(l.lang)}">${esc(l.text)}</p>
+        ${settings.pinyin && l.pinyin ? `<p class="py">${pinyinHtml(l.pinyin)}</p>` : ''}
+        ${trHtml(l)}</div>`).join('')}</div>`;
+    }
+    $('live-feed').innerHTML = html;
+    renderLiveState();
+    if (nearBottom) window.scrollTo(0, document.body.scrollHeight);
+  }
+
+  async function stopLive(reason) {
+    const L = live; if (!L || L.stopping) return;
+    L.stopping = true;
+    buzz(reason === 'user' ? 'stopped' : 'alert');
+    flushChunk();
+    clearInterval(L.tick);
+    try { L.node?.disconnect(); } catch {}
+    L.ctx?.close().catch(() => {});
+    try { L.wake?.release(); } catch {}
+    const fullDone = new Promise((resolve) => {
+      if (!L.full || L.full.state === 'inactive') return resolve();
+      L.full.onstop = resolve; try { L.full.stop(); } catch { resolve(); }
+    });
+    renderActions(); renderLiveState();
+    await fullDone;
+    L.stream.getTracks().forEach((t) => t.stop());
+    await L.order;
+    // Give translations up to ~30 seconds to finish
+    for (let i = 0; i < 60 && L.lines.some((l) => l.translation === null); i++) { pumpTranslate(); await new Promise((r) => setTimeout(r, 500)); }
+
+    const duration = (Date.now() - L.startedAt) / 1000;
+    live = null;
+    if (!L.lines.length) {
+      setView('record');
+      showNotice(reason === 'mic-lost' ? 'Live translation stopped: the microphone was taken by another app or a call. Nothing was heard.' : 'Nothing was heard, so nothing was saved.');
+      return;
+    }
+    const now = L.startedAt;
+    const s = {
+      id: 's' + now, createdAt: now, duration, mode: L.mode, source: L.source, target: L.target, script: L.script,
+      status: 'done', audio: new Blob(L.fullChunks, { type: L.full?.mimeType || 'audio/webm' }),
+      title: (L.mode === 'conversation' ? 'Conversation ' : 'Live ') + fmtDate(now),
+      segments: L.lines.map((l) => ({ id: l.id, start: l.start, end: l.end, text: l.text, pinyin: l.pinyin, translation: l.translation || '', translation_pinyin: l.translation_pinyin || null, lang: l.lang, target: l.target })),
+    };
+    try {
+      const res = await fetch('/api/title', {
+        method: 'POST', headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ lines: s.segments.slice(0, 40).map((x) => ({ text: x.text, translation: x.translation })), options: { ...options(), source: L.source, target: L.target } }),
+      });
+      if (res.ok) { const t = (await res.json()).title; if (t) s.title = t; }
+    } catch {}
+    sessions.unshift(s); current = s;
+    await putSession(s);
+    setView('session');
+    if (reason === 'mic-lost') showNotice('Live translation stopped by itself: the microphone was taken by another app or a call. Everything up to then is saved.');
+  }
+
+  $('live-sub').onclick = () => startLive('subtitles');
+  $('live-conv').onclick = () => startLive('conversation');
+  function renderLiveNote() {
+    $('live-note').textContent = `Live uses the languages above: subtitles ${LANGS[settings.source]} → ${LANGS[settings.target]}, conversation ${LANGS[settings.source]} ⇄ ${LANGS[settings.target]}.`;
+  }
+
   // ---------- word lookup ----------
   const LOOKUP_LANGS = ['zh', 'yue', 'id'];
   const segmenters = {};
@@ -705,7 +1040,7 @@ nav button[aria-selected="true"] { background: var(--surface); color: var(--ink)
 
   function openLookup(i, side, k) {
     const seg = current.segments[i];
-    const lang = side === 's' ? (current.source || 'zh') : (current.target || 'en');
+    const lang = side === 's' ? (seg.lang || current.source || 'zh') : (seg.target || current.target || 'en');
     const text = side === 's' ? segText(seg) : segTr(seg);
     lookup = { i, side, lang, text, tokens: tokenize(text, lang), a: k, b: k };
     fetchLookup();
@@ -981,7 +1316,7 @@ nav button[aria-selected="true"] { background: var(--surface); color: var(--ink)
       },
     });
   }
-  document.querySelectorAll('nav button').forEach((b) => (b.onclick = () => { if (!rec) setView(b.dataset.view); }));
+  document.querySelectorAll('nav button').forEach((b) => (b.onclick = () => { if (!rec && !live) setView(b.dataset.view); }));
   $('back').onclick = () => setView('history');
   document.querySelectorAll('.seg').forEach((g) => (g.onclick = (ev) => {
     const b = ev.target.closest('button'); if (!b) return;

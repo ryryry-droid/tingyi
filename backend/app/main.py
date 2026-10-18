@@ -13,6 +13,13 @@ from fastapi.responses import FileResponse
 
 from . import config, translate
 from .models import (
+    LiveSegment,
+    LiveTranscribeResponse,
+    LiveTranslateRequest,
+    LiveTranslateResponse,
+    LiveTranslation,
+    TitleRequest,
+    TitleResponse,
     Example,
     LookupRequest,
     LookupResponse,
@@ -22,7 +29,8 @@ from .models import (
     Segment,
     TranslateResponse,
 )
-from .pipeline import finish_translation, process_recording
+from .pipeline import clean_segments, finish_translation, process_recording
+from . import asr
 from .textproc import to_pinyin, to_script
 
 app = FastAPI(title="Tingyi speech translator")
@@ -152,3 +160,78 @@ async def lookup(req: LookupRequest) -> LookupResponse:
         notes=clean(entry.get("notes")),
         example=example,
     )
+
+
+# ---------------- live mode ----------------
+# The page sends short audio chunks cut at pauses. Transcription and translation are separate calls so
+# the transcript can appear immediately and translations can be batched (gentler on free-plan limits).
+
+
+@app.post("/api/live/transcribe", response_model=LiveTranscribeResponse, dependencies=[Depends(check_token)])
+async def live_transcribe(
+    file: UploadFile = File(...),
+    options: str = Form("{}"),
+    offset: float = Form(0.0),  # where this chunk starts in the session, in seconds
+    detect: bool = Form(False),  # conversation mode: spoken language is either options.source or options.target
+) -> LiveTranscribeResponse:
+    try:
+        opts = Options(**json.loads(options or "{}"))
+    except Exception as e:
+        raise HTTPException(status_code=422, detail=f"Bad options: {e}")
+    data = await file.read()
+    if not data:
+        return LiveTranscribeResponse(segments=[])
+    suffix = os.path.splitext(file.filename or "")[1].lower()
+    with tempfile.NamedTemporaryFile(suffix=suffix if suffix in AUDIO_EXTS else ".wav", delete=False) as tmp:
+        tmp.write(data)
+        path = tmp.name
+    try:
+        if detect:
+            raw, _, spoken = await run_in_threadpool(asr.transcribe_detect, path, opts)
+        else:
+            raw, _ = await run_in_threadpool(asr.transcribe, path, opts)
+            spoken = opts.source
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Transcription failed: {e}")
+    finally:
+        os.unlink(path)
+
+    spoken_opts = opts.model_copy(update={"source": spoken})
+    if detect:  # translate into the other language of the pair
+        other = opts.target if spoken == opts.source else opts.source
+        target = "zh" if other == "yue" else other
+    else:
+        target = opts.target
+    lines = clean_segments(raw, spoken_opts)
+    return LiveTranscribeResponse(
+        segments=[
+            LiveSegment(
+                start=round(offset + s.start, 2), end=round(offset + s.end, 2), text=s.text, pinyin=s.pinyin,
+                lang=spoken, target=target,
+            )
+            for s in lines
+        ]
+    )
+
+
+@app.post("/api/live/translate", response_model=LiveTranslateResponse, dependencies=[Depends(check_token)])
+async def live_translate(req: LiveTranslateRequest) -> LiveTranslateResponse:
+    opts = req.options
+    lines = [Segment(id=l.id, start=0, end=0, text=l.text) for l in req.lines if l.text.strip()]
+    context = [Segment(id=-1 - i, start=0, end=0, text=c.text, translation=c.translation) for i, c in enumerate(req.context[-6:])]
+    try:
+        result = await run_in_threadpool(translate.translate_lines, lines, context, opts)
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Translation failed: {e}")
+    out = []
+    for line in lines:
+        text, py = finish_translation(result.get(line.id, ""), opts)
+        out.append(LiveTranslation(id=line.id, translation=text, translation_pinyin=py))
+    return LiveTranslateResponse(translations=out)
+
+
+@app.post("/api/title", response_model=TitleResponse, dependencies=[Depends(check_token)])
+async def make_title(req: TitleRequest) -> TitleResponse:
+    segs = [Segment(id=i, start=0, end=0, text=l.text, translation=l.translation) for i, l in enumerate(req.lines)]
+    title = await run_in_threadpool(translate.make_title, segs, req.options)
+    return TitleResponse(title=title)

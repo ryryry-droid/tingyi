@@ -239,3 +239,78 @@ def test_lookup_requires_token(monkeypatch):
     setup(monkeypatch)
     monkeypatch.setattr(config, "API_TOKEN", "secret")
     assert client.post("/api/lookup", json={"word": "a", "lang": "id"}).status_code == 401
+
+
+def test_live_transcribe_subtitles(monkeypatch):
+    setup(monkeypatch)
+    r = client.post("/api/live/transcribe", files={"file": ("c.wav", b"RIFFxxxx", "audio/wav")},
+                    data={"options": json.dumps({"source": "zh", "target": "en"}), "offset": "12.5"})
+    segs = r.json()["segments"]
+    assert r.status_code == 200 and segs[0]["start"] == 12.5 and segs[1]["start"] == 14.6
+    assert segs[1]["text"] == "昨天去了医院。" and segs[0]["lang"] == "zh" and segs[0]["target"] == "en"
+    assert segs[0]["pinyin"].startswith("nǐ hǎo")
+
+
+def _fake_run(detected, text):
+    calls = []
+    def run(path, language, prompt):
+        calls.append(language)
+        t = text if language is None else f"{text}"
+        return [RawSegment(start=0, end=1, text=t)], 1.0, detected
+    return run, calls
+
+
+def test_live_detect_picks_pair_language(monkeypatch):
+    setup(monkeypatch)
+    run, calls = _fake_run("english", "Where is the station?")
+    monkeypatch.setattr(asr, "_run", run)
+    r = client.post("/api/live/transcribe", files={"file": ("c.wav", b"x", "audio/wav")},
+                    data={"options": json.dumps({"source": "zh", "target": "en"}), "detect": "true"})
+    seg = r.json()["segments"][0]
+    assert seg["lang"] == "en" and seg["target"] == "zh" and seg["pinyin"] is None and calls == [None]
+
+
+def test_live_detect_malay_counts_as_indonesian(monkeypatch):
+    setup(monkeypatch)
+    run, calls = _fake_run("malay", "Mau ke mana?")
+    monkeypatch.setattr(asr, "_run", run)
+    r = client.post("/api/live/transcribe", files={"file": ("c.wav", b"x", "audio/wav")},
+                    data={"options": json.dumps({"source": "zh", "target": "id"}), "detect": "true"})
+    seg = r.json()["segments"][0]
+    assert seg["lang"] == "id" and seg["target"] == "zh" and calls == [None]
+
+
+def test_live_detect_outside_pair_retranscribes(monkeypatch):
+    setup(monkeypatch)
+    run, calls = _fake_run("japanese", "你好吗")
+    monkeypatch.setattr(asr, "_run", run)
+    r = client.post("/api/live/transcribe", files={"file": ("c.wav", b"x", "audio/wav")},
+                    data={"options": json.dumps({"source": "en", "target": "zh"}), "detect": "true"})
+    seg = r.json()["segments"][0]
+    assert seg["lang"] == "zh" and seg["target"] == "en" and calls == [None, "zh"]
+
+
+def test_live_translate_batch(monkeypatch):
+    fake = setup(monkeypatch)
+    r = client.post("/api/live/translate", json={
+        "lines": [{"id": 7, "text": "你好"}, {"id": 8, "text": "谢谢"}],
+        "context": [{"text": "早上好", "translation": "Good morning"}],
+        "options": {"source": "zh", "target": "id"}})
+    t = r.json()["translations"]
+    assert r.status_code == 200 and [x["id"] for x in t] == [7, 8] and t[1]["translation"] == "EN<谢谢>"
+    assert "早上好 => Good morning" in fake.prompts[0] and "into Indonesian" in fake.prompts[0]
+
+
+def test_live_translate_into_chinese_adds_pinyin(monkeypatch):
+    setup(monkeypatch)
+    monkeypatch.setattr(translate, "translate_lines", lambda lines, ctx, opts: {l.id: "車站在哪裡？" for l in lines})
+    r = client.post("/api/live/translate", json={"lines": [{"id": 1, "text": "Where is the station?"}],
+                                                  "options": {"source": "en", "target": "zh", "script": "simplified"}})
+    t = r.json()["translations"][0]
+    assert t["translation"] == "车站在哪里？" and t["translation_pinyin"].startswith("chē zhàn")
+
+
+def test_title_endpoint(monkeypatch):
+    setup(monkeypatch)
+    r = client.post("/api/title", json={"lines": [{"text": "你好", "translation": "Hello"}], "options": {}})
+    assert r.json()["title"] == "Meeting Wang Xiaoming"

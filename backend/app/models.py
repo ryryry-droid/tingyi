@@ -147,3 +147,53 @@ class LookupResponse(BaseModel):
     in_context: str = ""
     notes: str = ""
     example: Optional[Example] = None
+
+
+class LiveSegment(BaseModel):
+    """A transcribed line from a live chunk (translated separately)."""
+
+    start: float  # seconds from the start of the live session
+    end: float
+    text: str
+    pinyin: Optional[str] = None
+    lang: str  # spoken language of this line
+    target: str  # language it will be translated into
+
+
+class LiveTranscribeResponse(BaseModel):
+    segments: list[LiveSegment]
+
+
+class LineIn(BaseModel):
+    id: int
+    text: str
+
+
+class ContextLine(BaseModel):
+    text: str
+    translation: str = ""
+
+
+class LiveTranslateRequest(BaseModel):
+    lines: list[LineIn] = Field(min_length=1, max_length=30)
+    context: list[ContextLine] = Field(default_factory=list)
+    options: Options = Field(default_factory=Options)  # source/target = this batch's direction
+
+
+class LiveTranslation(BaseModel):
+    id: int
+    translation: str
+    translation_pinyin: Optional[str] = None
+
+
+class LiveTranslateResponse(BaseModel):
+    translations: list[LiveTranslation]
+
+
+class TitleRequest(BaseModel):
+    lines: list[ContextLine] = Field(min_length=1)
+    options: Options = Field(default_factory=Options)
+
+
+class TitleResponse(BaseModel):
+    title: str

@@ -43,6 +43,21 @@ To use Claude for translation instead (paid, best quality), add `ANTHROPIC_API_K
 switches to it automatically and keeps Groq for Whisper.
 
 
+
+## Live mode (web app)
+
+Two bubbles at the bottom of the Record page:
+
+- **Live subtitles**: listens continuously and shows each sentence with its translation a few seconds later
+  (Spoken → Translate into, as chosen above).
+- **Live conversation**: the two chosen languages form a pair; each sentence's language is detected
+  (Whisper language ID, with Malay/Javanese counted as Indonesian) and translated into the other one.
+
+The page captures 16 kHz audio, cuts it at pauses (3–12 s chunks), and calls
+`POST /api/live/transcribe` per chunk and `POST /api/live/translate` for batches of lines, so lines appear
+immediately and translations catch up. Stopping saves the session (full audio, per-line languages, AI title
+from `POST /api/title`) to History.
+
 ## Android app (records with the screen off)
 
 The `mobile/` folder is a native Android app (Expo / React Native) with the same languages, titles
