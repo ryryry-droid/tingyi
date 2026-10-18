@@ -1,0 +1,550 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>听译 Tingyi</title>
+<meta name="theme-color" content="#EDF1EE" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0F1513" media="(prefers-color-scheme: dark)">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Tingyi">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/icon-192.png">
+<link rel="icon" href="/icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600&family=Noto+Serif+SC:wght@400;600&family=Noto+Serif+TC:wght@400;600&display=swap">
+<style>
+:root {
+  --bg: #EDF1EE; --surface: #F8FAF8; --line: #D3DCD6; --ink: #16201B; --muted: #5D6B64; --faint: #8D9A93;
+  --accent: #2D6A5C; --accent-ink: #FFFFFF; --accent-soft: #DCE9E3; --rec: #B4442C; --warn: #8A5A12; --warn-soft: #F3E8D3;
+  --t1: #B4442C; --t2: #3F7D3A; --t3: #3460A8; --t4: #7B4597;
+  --f-han-sc: "Noto Serif SC", "Songti SC", "SimSun", serif;
+  --f-han-tc: "Noto Serif TC", "Songti TC", "PMingLiU", serif;
+  --f-ui: "Figtree", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --han: var(--f-han-sc);
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) { :root {
+  --bg: #0F1513; --surface: #161E1B; --line: #27332E; --ink: #E2EAE6; --muted: #9AAAA2; --faint: #6E7D76;
+  --accent: #7DBBA8; --accent-ink: #0C1714; --accent-soft: #1D2E28; --rec: #F08A70; --warn: #E2B566; --warn-soft: #2C2516;
+  --t1: #F08A70; --t2: #8CCB7E; --t3: #8FB2F0; --t4: #C79BE0; color-scheme: dark; } }
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { background: var(--bg); color: var(--ink); font: 16px/1.55 var(--f-ui); -webkit-tap-highlight-color: transparent; }
+.wrap { max-width: 600px; margin: 0 auto; padding: calc(8px + env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-right, 0px)) calc(110px + env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px)); }
+button, textarea, input { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+[hidden] { display: none !important; }
+
+header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-block: 8px 12px; flex-wrap: wrap; }
+.brand b { font-family: var(--f-han-sc); font-weight: 600; font-size: 28px; letter-spacing: .08em; color: var(--accent); }
+nav { display: flex; background: var(--line); border-radius: 999px; padding: 3px; }
+nav button { border: 0; background: none; padding: 6px 14px; border-radius: 999px; font-size: 14px; color: var(--muted); }
+nav button[aria-selected="true"] { background: var(--surface); color: var(--ink); font-weight: 600; }
+.label { font-size: 12px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin: 0 0 8px; }
+.notice { background: var(--warn-soft); color: var(--warn); border-radius: 10px; padding: 10px 14px; font-size: 14px; margin-bottom: 14px; }
+.textbtn { border: 0; background: none; color: var(--muted); font-size: 14px; padding: 6px 4px; }
+.textbtn.accent { color: var(--accent); font-weight: 600; }
+.textbtn.danger { color: var(--t1); }
+
+.recorder { display: grid; justify-items: center; gap: 14px; padding-block: 28px 20px; }
+.timer { font-size: 52px; font-weight: 300; font-variant-numeric: tabular-nums; letter-spacing: .02em; }
+.meter { display: flex; gap: 3px; align-items: center; height: 36px; }
+.meter i { display: block; width: 4px; height: 4px; border-radius: 2px; background: var(--line); transition: height .08s; }
+.recording .meter i { background: var(--rec); }
+.recbtn { width: 92px; height: 92px; border-radius: 50%; border: 4px solid var(--rec); background: var(--surface); display: grid; place-items: center; }
+.recbtn span { display: block; width: 62px; height: 62px; border-radius: 50%; background: var(--rec); transition: all .2s; }
+.recording .recbtn span { width: 32px; height: 32px; border-radius: 7px; }
+.rechint { color: var(--muted); font-size: 14px; text-align: center; }
+.or { display: flex; justify-content: center; }
+.upload { border: 1px dashed var(--line); background: none; border-radius: 10px; padding: 10px 16px; color: var(--muted); font-size: 14px; }
+
+.actionbar { position: fixed; left: 0; right: 0; bottom: 0; background: linear-gradient(to top, var(--bg) 70%, transparent); padding: 18px max(16px, env(safe-area-inset-right, 0px)) calc(14px + env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px)); }
+.actionbar .inner { max-width: 600px; margin: 0 auto; display: flex; gap: 10px; }
+.primary { flex: 1; border: 0; border-radius: 12px; padding: 14px 18px; background: var(--accent); color: var(--accent-ink); font-size: 17px; font-weight: 600; }
+.secondary { border: 1px solid var(--line); background: var(--surface); border-radius: 12px; padding: 14px 16px; font-size: 15px; }
+
+.session-head { display: grid; gap: 4px; margin: 4px 0 10px; }
+.session-head h1 { font-size: 22px; line-height: 1.3; margin: 0; text-wrap: balance; font-family: var(--han); font-weight: 600; overflow-wrap: anywhere; }
+.meta { font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.tip { font-size: 12px; color: var(--faint); margin: 0 0 4px; }
+.lines { list-style: none; margin: 0; padding: 0; }
+.line { display: grid; grid-template-columns: 44px minmax(0, 1fr); gap: 10px; padding: 14px 10px; margin-inline: -10px; border-bottom: 1px solid var(--line); }
+.line.playing { background: var(--accent-soft); border-color: transparent; border-radius: 10px; }
+.time { align-self: start; font-size: 12px; color: var(--faint); padding-top: 8px; font-variant-numeric: tabular-nums; border: 0; background: none; text-align: left; padding-left: 0; }
+.time::before { content: "▶ "; font-size: 9px; vertical-align: 1px; }
+.playing .time::before { content: "■ "; }
+.zh { font-family: var(--han); font-size: 22px; line-height: 1.6; margin: 0; overflow-wrap: anywhere; }
+.py { font-size: 14px; letter-spacing: .02em; margin: 2px 0 0; overflow-wrap: anywhere; }
+.s1 { color: var(--t1); } .s2 { color: var(--t2); } .s3 { color: var(--t3); } .s4 { color: var(--t4); } .s0 { color: var(--faint); }
+.en { font-size: 17px; line-height: 1.5; margin: 8px 0 0; }
+.editbox { margin-top: 8px; display: grid; gap: 8px; }
+.editbox textarea { width: 100%; min-height: 72px; border: 1px solid var(--accent); border-radius: 10px; background: var(--surface); padding: 10px; font-family: var(--han); font-size: 20px; }
+.editbox .row { display: flex; justify-content: flex-end; gap: 12px; align-items: center; }
+.small-primary { border: 0; border-radius: 999px; background: var(--accent); color: var(--accent-ink); padding: 8px 16px; font-weight: 600; font-size: 14px; }
+
+.working { display: grid; justify-items: center; gap: 12px; padding: 60px 0; color: var(--muted); text-align: center; }
+.dot { width: 10px; height: 10px; border-radius: 50%; background: var(--accent); animation: pulse 1s ease-in-out infinite; }
+@keyframes pulse { 50% { transform: scale(1.8); opacity: .4; } }
+@media (prefers-reduced-motion: reduce) { .dot { animation: none; } .meter i { transition: none; } }
+
+.history { list-style: none; margin: 0; padding: 0; }
+.history button { width: 100%; text-align: left; border: 0; background: none; padding: 14px 0; border-bottom: 1px solid var(--line); display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 12px; align-items: baseline; }
+.history .t { font-family: var(--han); font-size: 17px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.history .d { font-size: 13px; color: var(--faint); font-variant-numeric: tabular-nums; }
+.history .e { grid-column: 1 / -1; font-size: 14px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.history .bad { color: var(--t1); }
+.empty { color: var(--muted); font-size: 15px; padding: 18px 0; }
+
+.field { display: grid; gap: 8px; margin-bottom: 22px; }
+.seg { display: flex; background: var(--line); border-radius: 10px; padding: 3px; }
+.seg button { flex: 1; border: 0; background: none; padding: 9px 6px; border-radius: 8px; font-size: 14px; color: var(--muted); }
+.seg button[aria-pressed="true"] { background: var(--surface); color: var(--ink); font-weight: 600; }
+.switch { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.switch input { width: 22px; height: 22px; accent-color: var(--accent); }
+.field input[type=password], .field textarea { width: 100%; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); padding: 10px 12px; font-size: 16px; }
+.field textarea { min-height: 110px; }
+.hint { font-size: 13px; color: var(--muted); margin: 0; }
+.toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(96px + env(safe-area-inset-bottom, 0px)); background: var(--ink); color: var(--bg); padding: 8px 16px; border-radius: 999px; font-size: 14px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="brand"><b>听译</b></div>
+    <nav aria-label="Views">
+      <button id="tab-record" data-view="record" aria-selected="true">Record</button>
+      <button id="tab-history" data-view="history" aria-selected="false">History</button>
+      <button id="tab-settings" data-view="settings" aria-selected="false">Settings</button>
+    </nav>
+  </header>
+
+  <div id="notice" class="notice" hidden></div>
+
+  <section id="view-record">
+    <div class="recorder" id="recorder">
+      <div class="timer" id="timer">0:00</div>
+      <div class="meter" id="meter" aria-hidden="true"></div>
+      <button class="recbtn" id="recbtn" type="button" aria-label="Start recording"><span></span></button>
+      <div class="rechint" id="rechint">Tap to record Chinese speech.<br>Tap again to stop and translate.</div>
+    </div>
+    <div class="or">
+      <label class="upload" for="file">Or translate an audio file from your phone<input id="file" type="file" accept="audio/*,.m4a,.mp3,.wav,.webm,.ogg,.aac" hidden></label>
+    </div>
+  </section>
+
+  <section id="view-session" hidden>
+    <button class="textbtn" id="back" type="button">‹ History</button>
+    <div class="session-head"><h1 id="s-title"></h1><div class="meta" id="s-meta"></div></div>
+    <div id="s-body"></div>
+  </section>
+
+  <section id="view-history" hidden>
+    <p class="label">Your recordings</p>
+    <ul class="history" id="history"></ul>
+  </section>
+
+  <section id="view-settings" hidden>
+    <div class="field">
+      <label class="label" for="set-token">Access code</label>
+      <input id="set-token" type="password" autocomplete="off" autocapitalize="off" placeholder="The API_TOKEN you set on the server">
+      <p class="hint">Keeps strangers from using your API credits. Stored only on this phone.</p>
+    </div>
+    <div class="field">
+      <p class="label">Spoken language</p>
+      <div class="seg" data-setting="dialect">
+        <button type="button" data-value="mandarin">Mandarin 普通话</button>
+        <button type="button" data-value="cantonese">Cantonese 粤语</button>
+      </div>
+    </div>
+    <div class="field">
+      <p class="label">Chinese characters</p>
+      <div class="seg" data-setting="script">
+        <button type="button" data-value="simplified">Simplified 简体</button>
+        <button type="button" data-value="traditional">Traditional 繁體</button>
+      </div>
+    </div>
+    <div class="field">
+      <p class="label">Translation style</p>
+      <div class="seg" data-setting="style">
+        <button type="button" data-value="natural">Natural</button>
+        <button type="button" data-value="literal">Literal</button>
+      </div>
+    </div>
+    <div class="field">
+      <label class="switch" for="set-pinyin"><span>Show pinyin</span><input type="checkbox" id="set-pinyin"></label>
+      <p class="hint">Coloured by tone: <span class="s1">mā</span> <span class="s2">má</span> <span class="s3">mǎ</span> <span class="s4">mà</span> <span class="s0">ma</span></p>
+    </div>
+    <div class="field">
+      <label class="label" for="set-glossary">Glossary</label>
+      <textarea id="set-glossary" placeholder="王小明 = Wang Xiaoming&#10;云计算 = cloud computing"></textarea>
+      <p class="hint">One per line. Helps Whisper hear names correctly and keeps translations consistent.</p>
+    </div>
+  </section>
+</div>
+
+<div class="actionbar" id="actionbar" hidden><div class="inner" id="actions"></div></div>
+<div class="toast" id="toast" hidden></div>
+
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const fmtTime = (sec) => { const s = Math.max(0, Math.floor(sec || 0)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; };
+  const fmtDate = (ms) => new Date(ms).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+  const MAX_SECONDS = 60 * 60;
+
+  // ---------- settings ----------
+  const DEFAULTS = { token: '', dialect: 'mandarin', script: 'simplified', style: 'natural', pinyin: true, glossary: '' };
+  let settings = { ...DEFAULTS };
+  try { settings = { ...DEFAULTS, ...JSON.parse(localStorage.getItem('tingyi.settings') || '{}') }; } catch {}
+  const saveSettings = () => { try { localStorage.setItem('tingyi.settings', JSON.stringify(settings)); } catch {} };
+  const options = () => ({
+    script: settings.script, dialect: settings.dialect, style: settings.style, pinyin: settings.pinyin,
+    glossary: settings.glossary.split('\n').map((l) => l.trim()).filter(Boolean),
+  });
+  const authHeaders = () => (settings.token ? { Authorization: `Bearer ${settings.token}` } : {});
+
+  // ---------- IndexedDB: sessions with their audio ----------
+  const dbp = new Promise((resolve, reject) => {
+    const req = indexedDB.open('tingyi', 1);
+    req.onupgradeneeded = () => req.result.createObjectStore('sessions', { keyPath: 'id' });
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+  async function tx(mode, fn) {
+    const db = await dbp;
+    return new Promise((resolve, reject) => {
+      const t = db.transaction('sessions', mode);
+      const r = fn(t.objectStore('sessions'));
+      t.oncomplete = () => resolve(r?.result);
+      t.onerror = () => reject(t.error);
+    });
+  }
+  const putSession = (s) => tx('readwrite', (st) => st.put(s)).catch(() => {});
+  const deleteSession = (id) => tx('readwrite', (st) => st.delete(id));
+  const allSessions = () => tx('readonly', (st) => st.getAll()).then((xs) => (xs || []).sort((a, b) => b.createdAt - a.createdAt)).catch(() => []);
+
+  // ---------- state ----------
+  let view = 'record';
+  let sessions = [];
+  let current = null;
+  let editing = null;
+  let confirmDelete = false;
+  let player = null, playUrl = null, playingId = null, stopAt = 0;
+
+  // ---------- pinyin colouring (server sends tone-marked pinyin) ----------
+  const TONES = [/[āēīōūǖĀĒĪŌŪǕ]/, /[áéíóúǘÁÉÍÓÚǗ]/, /[ǎěǐǒǔǚǍĚǏǑǓǙ]/, /[àèìòùǜÀÈÌÒÙǛ]/];
+  function pinyinHtml(py) {
+    return String(py || '').split(/\s+/).filter(Boolean).map((syl) => {
+      if (!/[a-zA-Züāáǎàēéěèīíǐìōóǒòūúǔùǖǘǚǜ]/.test(syl)) return esc(syl);
+      const t = TONES.findIndex((re) => re.test(syl));
+      return `<span class="s${t + 1}">${esc(syl)}</span>`;
+    }).join(' ');
+  }
+
+  // ---------- recorder ----------
+  const bars = 24;
+  $('meter').innerHTML = '<i></i>'.repeat(bars);
+  let rec = null, chunks = [], stream = null, startedAt = 0, tick = null, analyser = null, audioCtx = null, wakeLock = null, recMime = '';
+
+  function pickMime() {
+    const types = ['audio/webm;codecs=opus', 'audio/mp4', 'audio/webm', 'audio/ogg;codecs=opus'];
+    return types.find((t) => window.MediaRecorder && MediaRecorder.isTypeSupported(t)) || '';
+  }
+  const extFor = (mime) => (mime.includes('mp4') ? 'm4a' : mime.includes('ogg') ? 'ogg' : mime.includes('wav') ? 'wav' : mime.includes('mpeg') ? 'mp3' : 'webm');
+
+  async function startRecording() {
+    showNotice('');
+    if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) {
+      showNotice('This browser can’t record audio. Use Safari on iPhone or Chrome on Android, or upload a file instead.');
+      return;
+    }
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
+    } catch (e) {
+      showNotice('Microphone access was blocked. Allow the microphone for this site in your browser settings, then try again.');
+      return;
+    }
+    recMime = pickMime();
+    chunks = [];
+    rec = new MediaRecorder(stream, recMime ? { mimeType: recMime, audioBitsPerSecond: 32000 } : undefined);
+    rec.ondataavailable = (e) => e.data.size && chunks.push(e.data);
+    rec.onstop = onRecordingStopped;
+    rec.start(1000);
+    startedAt = Date.now();
+    try {
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      analyser = audioCtx.createAnalyser(); analyser.fftSize = 256;
+      audioCtx.createMediaStreamSource(stream).connect(analyser);
+    } catch { analyser = null; }
+    try { wakeLock = await navigator.wakeLock?.request('screen'); } catch {}
+    $('recorder').classList.add('recording');
+    $('recbtn').setAttribute('aria-label', 'Stop recording');
+    $('rechint').innerHTML = 'Recording… keep this screen open.<br>Tap to stop and translate.';
+    tick = setInterval(updateMeter, 80);
+  }
+
+  function updateMeter() {
+    const secs = (Date.now() - startedAt) / 1000;
+    $('timer').textContent = fmtTime(secs);
+    if (secs >= MAX_SECONDS) { stopRecording(); return; }
+    if (!analyser) return;
+    const data = new Uint8Array(analyser.fftSize);
+    analyser.getByteTimeDomainData(data);
+    let peak = 0; for (const v of data) peak = Math.max(peak, Math.abs(v - 128));
+    const level = Math.min(1, peak / 64);
+    const items = $('meter').children;
+    for (let i = items.length - 1; i > 0; i--) items[i].style.height = items[i - 1].style.height;
+    items[0].style.height = `${4 + level * 32}px`;
+  }
+
+  function stopRecording() {
+    if (!rec || rec.state === 'inactive') return;
+    rec.stop();
+  }
+
+  function resetRecorderUi() {
+    clearInterval(tick);
+    stream?.getTracks().forEach((t) => t.stop());
+    audioCtx?.close().catch(() => {});
+    try { wakeLock?.release(); } catch {}
+    rec = null; stream = null; analyser = null; audioCtx = null; wakeLock = null;
+    $('recorder').classList.remove('recording');
+    $('recbtn').setAttribute('aria-label', 'Start recording');
+    $('rechint').innerHTML = 'Tap to record Chinese speech.<br>Tap again to stop and translate.';
+    $('timer').textContent = '0:00';
+    [...$('meter').children].forEach((i) => (i.style.height = '4px'));
+  }
+
+  function onRecordingStopped() {
+    const duration = (Date.now() - startedAt) / 1000;
+    const type = rec?.mimeType || recMime || 'audio/webm';
+    const blob = new Blob(chunks, { type });
+    resetRecorderUi();
+    if (duration < 1 || blob.size < 1000) { showNotice('That was too short. Record at least a second of speech.'); return; }
+    newSession(blob, duration);
+  }
+
+  $('recbtn').onclick = () => (rec ? stopRecording() : startRecording());
+  $('file').onchange = async (e) => {
+    const f = e.target.files[0]; e.target.value = '';
+    if (!f) return;
+    if (f.size > 25 * 1024 * 1024) { showNotice('That file is over 25 MB. Trim it or split it into shorter parts.'); return; }
+    newSession(f, 0, f.name);
+  };
+
+  // ---------- server calls ----------
+  async function apiError(res) {
+    if (res.status === 401) return 'Wrong or missing access code. Enter it in Settings.';
+    try { const b = await res.json(); if (b?.detail) return typeof b.detail === 'string' ? b.detail : JSON.stringify(b.detail); } catch {}
+    return `Server error ${res.status}.`;
+  }
+
+  async function newSession(blob, duration, name) {
+    const now = Date.now();
+    const s = { id: 's' + now, createdAt: now, duration, title: name || `Recording ${fmtDate(now)}`, status: 'processing', segments: [], audio: blob, script: settings.script };
+    sessions.unshift(s);
+    current = s;
+    await putSession(s);
+    setView('session');
+    process(s);
+  }
+
+  async function process(s) {
+    s.status = 'processing'; s.error = '';
+    rerender();
+    try {
+      const form = new FormData();
+      const type = s.audio.type || 'audio/webm';
+      form.append('file', s.audio, `recording.${extFor(type)}`);
+      form.append('options', JSON.stringify(options()));
+      const res = await fetch('/api/translate', { method: 'POST', headers: authHeaders(), body: form });
+      if (!res.ok) throw new Error(await apiError(res));
+      const data = await res.json();
+      s.segments = data.segments;
+      s.duration = data.duration || s.duration;
+      s.status = 'done';
+      const first = s.segments[0]?.zh;
+      if (first) s.title = first.length > 24 ? first.slice(0, 24) + '…' : first;
+    } catch (e) {
+      s.status = 'error';
+      s.error = e instanceof TypeError ? 'Couldn’t reach the server. Check your connection and try again.' : e.message;
+    }
+    await putSession(s);
+    rerender();
+  }
+
+  async function retranslate(i, zh) {
+    const context = current.segments.slice(Math.max(0, i - 6), i);
+    const res = await fetch('/api/retranslate', {
+      method: 'POST', headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ zh, context, options: options() }),
+    });
+    if (!res.ok) throw new Error(await apiError(res));
+    return res.json();
+  }
+
+  // ---------- playback ----------
+  function stopPlayback() {
+    if (player) { player.pause(); }
+    playingId = null;
+    document.querySelectorAll('.line.playing').forEach((el) => el.classList.remove('playing'));
+  }
+  function playSegment(seg) {
+    if (playingId === seg.id) { stopPlayback(); return; }
+    stopPlayback();
+    if (!player) {
+      player = new Audio();
+      player.addEventListener('timeupdate', () => { if (playingId !== null && player.currentTime >= stopAt) stopPlayback(); });
+      player.addEventListener('ended', stopPlayback);
+    }
+    if (player.dataset.session !== current.id) {
+      if (playUrl) URL.revokeObjectURL(playUrl);
+      playUrl = URL.createObjectURL(current.audio);
+      player.src = playUrl; player.dataset.session = current.id;
+    }
+    playingId = seg.id; stopAt = seg.end;
+    document.querySelector(`.line[data-id="${seg.id}"]`)?.classList.add('playing');
+    const go = () => { player.currentTime = seg.start; player.play().catch(() => stopPlayback()); };
+    if (player.readyState >= 1) go(); else player.addEventListener('loadedmetadata', go, { once: true });
+  }
+
+  // ---------- rendering ----------
+  function setView(v) {
+    if (v !== 'session') stopPlayback();
+    view = v; editing = null; confirmDelete = false;
+    ['record', 'history', 'settings'].forEach((n) => $('tab-' + n).setAttribute('aria-selected', String(n === v || (v === 'session' && n === 'history'))));
+    ['record', 'session', 'history', 'settings'].forEach((n) => ($('view-' + n).hidden = n !== v));
+    rerender();
+    window.scrollTo(0, 0);
+  }
+
+  function rerender() {
+    document.documentElement.style.setProperty('--han', settings.script === 'traditional' ? 'var(--f-han-tc)' : 'var(--f-han-sc)');
+    if (view === 'session') renderSession();
+    if (view === 'history') renderHistory();
+    if (view === 'settings') renderSettings();
+    renderActions();
+  }
+
+  function renderActions() {
+    const show = view === 'session' && current?.status === 'done';
+    $('actionbar').hidden = !show;
+    if (!show) return;
+    $('actions').innerHTML = `<button class="secondary" id="copy" type="button">Copy</button><button class="primary" id="new" type="button">New recording</button>`;
+    $('copy').onclick = copyTranscript;
+    $('new').onclick = () => setView('record');
+  }
+
+  function renderSession() {
+    const s = current; if (!s) return;
+    $('s-title').textContent = s.status === 'done' ? s.title : s.status === 'processing' ? 'Translating…' : 'Translation failed';
+    $('s-meta').textContent = `${fmtDate(s.createdAt)}${s.duration ? ' · ' + fmtTime(s.duration) : ''}${s.status === 'done' ? ` · ${s.segments.length} lines` : ''}`;
+    if (s.status === 'processing') {
+      $('s-body').innerHTML = `<div class="working"><div class="dot"></div><div>Whisper is transcribing, then Claude translates.<br>Longer recordings take a minute or two.</div></div>`;
+      return;
+    }
+    const del = confirmDelete
+      ? `<p class="meta" style="margin-top:20px">Delete this recording? <button class="textbtn danger" type="button" data-act="del-yes">Delete</button> <button class="textbtn" type="button" data-act="del-no">Keep</button></p>`
+      : `<p style="margin-top:20px"><button class="textbtn" type="button" data-act="del">Delete recording</button></p>`;
+    if (s.status === 'error') {
+      $('s-body').innerHTML = `<div class="working"><div>${esc(s.error)}</div><button class="small-primary" type="button" data-act="retry">Try again</button></div>${del}`;
+      return;
+    }
+    if (!s.segments.length) { $('s-body').innerHTML = `<p class="empty">No speech was found in this recording.</p>${del}`; return; }
+    const lang = s.script === 'traditional' ? 'zh-Hant' : 'zh-Hans';
+    $('s-body').innerHTML = `<p class="tip">Tap the time to replay a line. Tap Edit to fix misheard Chinese.</p><ol class="lines">${s.segments.map((seg, i) => `
+      <li class="line${playingId === seg.id ? ' playing' : ''}" data-id="${seg.id}">
+        <button class="time" type="button" data-act="play" data-i="${i}" aria-label="Play line ${i + 1}">${fmtTime(seg.start)}</button>
+        <div>
+          <p class="zh" lang="${lang}">${esc(seg.zh)}</p>
+          ${settings.pinyin && seg.pinyin ? `<p class="py">${pinyinHtml(seg.pinyin)}</p>` : ''}
+          <p class="en">${esc(seg.en || '—')}</p>
+          ${editing === i
+            ? `<div class="editbox"><textarea id="edit-zh" aria-label="Chinese text">${esc(seg.zh)}</textarea>
+               <div class="row"><button class="textbtn" type="button" data-act="cancel">Cancel</button>
+               <button class="small-primary" type="button" data-act="save" data-i="${i}">Re-translate</button></div></div>`
+            : `<button class="textbtn" type="button" data-act="edit" data-i="${i}">Edit</button>`}
+        </div>
+      </li>`).join('')}</ol>${del}`;
+    $('edit-zh')?.focus();
+  }
+
+  function renderHistory() {
+    $('history').innerHTML = sessions.length ? sessions.map((s) => `<li><button type="button" data-open="${esc(s.id)}">
+      <span class="t">${esc(s.title)}</span><span class="d">${fmtDate(s.createdAt)}</span>
+      <span class="e ${s.status === 'error' ? 'bad' : ''}">${s.status === 'processing' ? 'Translating…' : s.status === 'error' ? 'Failed. Tap to retry.' : esc(s.segments[0]?.en || 'No speech found')}</span>
+    </button></li>`).join('') : `<li class="empty">Recordings you translate are saved here, on this phone.</li>`;
+  }
+
+  function renderSettings() {
+    document.querySelectorAll('.seg').forEach((g) => g.querySelectorAll('button').forEach((b) => b.setAttribute('aria-pressed', String(settings[g.dataset.setting] === b.dataset.value))));
+    $('set-pinyin').checked = settings.pinyin;
+    if (document.activeElement !== $('set-glossary')) $('set-glossary').value = settings.glossary;
+    if (document.activeElement !== $('set-token')) $('set-token').value = settings.token;
+  }
+
+  function showNotice(msg) { $('notice').textContent = msg; $('notice').hidden = !msg; }
+  function toast(msg) { const t = $('toast'); t.textContent = msg; t.hidden = false; clearTimeout(toast.t); toast.t = setTimeout(() => (t.hidden = true), 2000); }
+
+  async function copyTranscript() {
+    const text = current.segments.map((s) => `[${fmtTime(s.start)}] ${s.zh}\n${s.en}`).join('\n\n');
+    try { await navigator.clipboard.writeText(text); toast('Copied'); } catch { toast('Couldn’t copy. Select the text instead.'); }
+  }
+
+  // ---------- events ----------
+  $('s-body').addEventListener('click', async (ev) => {
+    const b = ev.target.closest('button[data-act]'); if (!b || !current) return;
+    const i = +b.dataset.i, act = b.dataset.act;
+    if (act === 'play') playSegment(current.segments[i]);
+    else if (act === 'edit') { editing = i; renderSession(); }
+    else if (act === 'cancel') { editing = null; renderSession(); }
+    else if (act === 'retry') process(current);
+    else if (act === 'del') { confirmDelete = true; renderSession(); }
+    else if (act === 'del-no') { confirmDelete = false; renderSession(); }
+    else if (act === 'del-yes') {
+      await deleteSession(current.id).catch(() => {});
+      sessions = sessions.filter((s) => s.id !== current.id); current = null;
+      setView('history'); toast('Deleted');
+    } else if (act === 'save') {
+      const zh = $('edit-zh').value.trim(); if (!zh) return;
+      b.disabled = true; b.textContent = 'Translating…';
+      try {
+        const r = await retranslate(i, zh);
+        current.segments[i] = { ...current.segments[i], zh: r.zh, pinyin: r.pinyin, en: r.en };
+        editing = null; await putSession(current); renderSession();
+      } catch (e) { showNotice(e.message); b.disabled = false; b.textContent = 'Re-translate'; }
+    }
+  });
+  $('history').addEventListener('click', (ev) => {
+    const b = ev.target.closest('button[data-open]'); if (!b) return;
+    current = sessions.find((s) => s.id === b.dataset.open);
+    if (current) setView('session');
+  });
+  document.querySelectorAll('nav button').forEach((b) => (b.onclick = () => { if (!rec) setView(b.dataset.view); }));
+  $('back').onclick = () => setView('history');
+  document.querySelectorAll('.seg').forEach((g) => (g.onclick = (ev) => {
+    const b = ev.target.closest('button'); if (!b) return;
+    settings[g.dataset.setting] = b.dataset.value; saveSettings(); rerender();
+  }));
+  $('set-pinyin').onchange = (e) => { settings.pinyin = e.target.checked; saveSettings(); };
+  $('set-glossary').oninput = (e) => { settings.glossary = e.target.value; saveSettings(); };
+  $('set-token').oninput = (e) => { settings.token = e.target.value.trim(); saveSettings(); };
+
+  // ---------- boot ----------
+  (async () => {
+    sessions = await allSessions();
+    sessions.forEach((s) => { if (s.status === 'processing') { s.status = 'error'; s.error = 'Interrupted before it finished. Tap Try again.'; } });
+    try {
+      const h = await fetch('/health').then((r) => r.json());
+      if (h.token_required && !settings.token) { showNotice('Enter your access code in Settings before recording.'); }
+    } catch {}
+    rerender();
+  })();
+})();
+</script>
+</body>
+</html>

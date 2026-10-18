@@ -1,0 +1,10 @@
+fastapi>=0.115
+uvicorn[standard]>=0.30
+python-multipart>=0.0.9
+openai>=1.40
+anthropic>=0.40
+opencc-python-reimplemented>=0.1.7
+pypinyin>=0.51
+python-dotenv>=1.0
+# Optional, for ASR_PROVIDER=local (runs Whisper on your own machine, no audio leaves it):
+# faster-whisper>=1.0

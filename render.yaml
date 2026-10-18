@@ -1,0 +1,26 @@
+# Render blueprint: deploys the server (which also serves the phone recording page).
+# On render.com: New → Blueprint → pick this repo, then fill in the secret values it asks for.
+services:
+  - type: web
+    name: tingyi
+    runtime: python
+    plan: free
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.7
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: API_TOKEN
+        sync: false
+      - key: ANTHROPIC_MODEL
+        value: claude-sonnet-5-5
+      - key: ASR_PROVIDER
+        value: openai
+      - key: OPENAI_TRANSCRIBE_MODEL
+        value: whisper-1
