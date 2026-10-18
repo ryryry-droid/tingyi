@@ -7,7 +7,7 @@ from types import SimpleNamespace
 
 from fastapi.testclient import TestClient
 
-from app import asr, config, translate
+from app import asr, config, models, translate
 from app.main import app
 from app.models import RawSegment
 
@@ -362,3 +362,20 @@ def test_new_language_hallucinations():
     assert not asr._keep("Terima kasih kerana menonton!")
     assert not asr._keep("Cảm ơn các bạn đã theo dõi")
     assert asr._keep("Cảm ơn bạn nhiều")
+
+
+def test_extra_languages(monkeypatch):
+    fake = setup(monkeypatch)
+    client.post("/api/retranslate", json={"text": "ありがとう", "options": {"source": "ja", "target": "th"}})
+    assert "from Japanese into Thai" in fake.prompts[0] and "Write natural, everyday Thai" in fake.prompts[0]
+    # Japanese gets no Whisper hint (so it isn't nudged toward another language), only glossary terms
+    assert asr._prompt(models.Options(source="ja", target="en")) == ""
+    assert asr._prompt(models.Options(source="ko", target="en", glossary=["서울 = Seoul"])) == "서울"
+    # conversation detection works for any language in the pair
+    run, calls = _fake_run("korean", "안녕하세요")
+    monkeypatch.setattr(asr, "_run", run)
+    r = client.post("/api/live/transcribe", files={"file": ("c.wav", b"x", "audio/wav")},
+                    data={"options": json.dumps({"source": "en", "target": "ko"}), "detect": "true"})
+    assert r.json()["segments"][0]["lang"] == "ko" and r.json()["segments"][0]["target"] == "en"
+    monkeypatch.setattr(translate, "_complete_simple", lambda p, max_tokens=200: '{"word": "hola", "meaning": "hello"}')
+    assert client.post("/api/lookup", json={"word": "hola", "lang": "es"}).json()["meaning"] == "hello"

@@ -7,11 +7,11 @@ import re
 from functools import lru_cache
 
 from . import config
-from .models import Options, RawSegment
+from .models import LANG_NAMES, Options, RawSegment
 
 # Whisper language codes. Hosted APIs don't accept "yue", so Cantonese is sent as "zh" there.
-_LANG = {"zh": "zh", "yue": "yue", "id": "id", "ms": "ms", "vi": "vi", "en": "en"}
-_LANG_HOSTED = {"zh": "zh", "yue": "zh", "id": "id", "ms": "ms", "vi": "vi", "en": "en"}
+_LANG = {code: code for code in LANG_NAMES}
+_LANG_HOSTED = {**_LANG, "yue": "zh"}
 
 # A short prompt in the spoken language nudges Whisper toward that language, the right
 # script, and punctuated output; glossary terms are appended to bias recognition of names.
@@ -41,13 +41,15 @@ _HALLUCINATIONS = re.compile(
 
 def _prompt(opts: Options) -> str:
     key = (opts.source, opts.script if opts.source_is_chinese else None)
-    prompt = _PROMPT[key]
+    prompt = _PROMPT.get(key, "")  # other languages: no hint, so Whisper isn't nudged toward another language
     terms = [g.split("=")[0].strip() for g in opts.glossary if g.strip()]
     if terms:
         lead = {"id": " Kosakata: ", "ms": " Istilah: ", "vi": " Từ vựng: "}.get(opts.source, " Terms: ")
         joiner = ("词汇：", "、", "。") if opts.source_is_chinese else (lead, ", ", ".")
+        if not prompt:
+            joiner = ("", ", ", "")
         prompt += joiner[0] + joiner[1].join(terms[:50]) + joiner[2]
-    return prompt
+    return prompt.strip()
 
 
 def _keep(text: str, no_speech_prob: float = 0.0, avg_logprob: float = 0.0) -> bool:
@@ -61,7 +63,7 @@ def _keep(text: str, no_speech_prob: float = 0.0, avg_logprob: float = 0.0) -> b
 
 def transcribe(path: str, opts: Options) -> tuple[list[RawSegment], float]:
     """Returns (segments, duration_seconds), transcribing in opts.source."""
-    segments, duration, _ = _run(path, opts.source, _prompt(opts))
+    segments, duration, _ = _run(path, opts.source, _prompt(opts) or None)
     return segments, duration
 
 
@@ -73,6 +75,10 @@ _DETECTED = {
     "indonesian": "id", "id": "id",
     "malay": "ms", "ms": "ms",
     "vietnamese": "vi", "vi": "vi",
+    "thai": "th", "tagalog": "tl", "filipino": "tl", "khmer": "km", "japanese": "ja", "korean": "ko",
+    "hindi": "hi", "tamil": "ta", "spanish": "es", "castilian": "es", "french": "fr", "german": "de",
+    "italian": "it", "portuguese": "pt", "russian": "ru", "arabic": "ar",
+    **{code: code for code in LANG_NAMES},
     # often reported for Indonesian speech
     "javanese": "id", "jw": "id", "sundanese": "id", "su": "id",
 }
@@ -103,7 +109,7 @@ def transcribe_detect(path: str, opts: Options) -> tuple[list[RawSegment], float
         other = next((p for p in pair if _base(p) != "zh"), pair[0])
         chosen = han_side if (han_side and _HAN.search(text)) else other
         if segments:
-            segments, duration, _ = _run(path, chosen, _prompt(opts.model_copy(update={"source": chosen})))
+            segments, duration, _ = _run(path, chosen, _prompt(opts.model_copy(update={"source": chosen})) or None)
     return segments, duration, chosen
 
 

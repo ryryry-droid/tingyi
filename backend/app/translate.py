@@ -95,8 +95,10 @@ def _complete(prompt: str) -> str:
 def _build_prompt(lines: list[Segment], context: list[Segment], opts: Options) -> str:
     parts = [
         f"Translate from {LANG_NAMES[opts.source]} into {LANG_NAMES[opts.target]}.",
-        SOURCE_NOTES[opts.source],
-        TARGET_NOTES[opts.target].format(script=SCRIPT_NAMES[opts.script]),
+        SOURCE_NOTES.get(opts.source, ""),
+        TARGET_NOTES.get(opts.target, "Write natural, everyday {name}.").format(
+            script=SCRIPT_NAMES[opts.script], name=LANG_NAMES[opts.target]
+        ),
         _style(opts),
     ]
     if opts.glossary:
@@ -168,7 +170,7 @@ def make_title(segments: list[Segment], opts: Options) -> str:
         return ""
     transcript = "\n".join(lines)[:4000]  # the opening is plenty for a title, and keeps it cheap
     lang = "en" if "en" in (opts.source, opts.target) else opts.target
-    language = TITLE_LANG[lang]
+    language = TITLE_LANG.get(lang) or LANG_NAMES[lang]
     if lang == "zh" and opts.script == "traditional":
         language = "Traditional Chinese"
     prompt = (
@@ -210,7 +212,7 @@ LOOKUP_LANG = {"zh": "Mandarin Chinese", "yue": "Cantonese", "id": "Indonesian",
 
 def lookup_word(word: str, sentence: str, lang: str, script: str) -> dict:
     """Dictionary entry for a word, aimed at an English-speaking learner."""
-    language = LOOKUP_LANG[lang]
+    language = LOOKUP_LANG.get(lang) or LANG_NAMES[lang]
     chinese = lang in ("zh", "yue")
     script_note = (
         f" Write all Chinese in {'Traditional' if script == 'traditional' else 'Simplified'} characters." if chinese else ""

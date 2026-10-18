@@ -4,11 +4,8 @@ from pydantic import BaseModel, Field, computed_field, model_validator
 
 Script = Literal["simplified", "traditional"]
 Style = Literal["natural", "literal"]
-# Spoken languages: Mandarin, Cantonese, Indonesian, English
-Source = Literal["zh", "yue", "id", "ms", "vi", "en"]
-# Languages to translate into
-Target = Literal["en", "zh", "id", "ms", "vi"]
-
+# Every language the app offers (users choose which ones they see in Settings).
+# Codes are Whisper's language codes.
 LANG_NAMES = {
     "zh": "Mandarin Chinese",
     "yue": "Cantonese",
@@ -16,7 +13,27 @@ LANG_NAMES = {
     "ms": "Malay (Bahasa Melayu)",
     "vi": "Vietnamese",
     "en": "English",
+    "th": "Thai",
+    "tl": "Filipino (Tagalog)",
+    "km": "Khmer",
+    "ja": "Japanese",
+    "ko": "Korean",
+    "hi": "Hindi",
+    "ta": "Tamil",
+    "es": "Spanish",
+    "fr": "French",
+    "de": "German",
+    "it": "Italian",
+    "pt": "Portuguese",
+    "ru": "Russian",
+    "ar": "Arabic",
 }
+# Spoken languages
+Source = Literal["zh", "yue", "id", "ms", "vi", "en", "th", "tl", "km", "ja", "ko", "hi", "ta", "es", "fr", "de", "it", "pt", "ru", "ar"]
+# Languages to translate into (Cantonese is translated into written Chinese)
+Target = Literal["en", "zh", "id", "ms", "vi", "th", "tl", "km", "ja", "ko", "hi", "ta", "es", "fr", "de", "it", "pt", "ru", "ar"]
+# Languages whose words can be looked up (everything except English)
+LookupLang = Literal["zh", "yue", "id", "ms", "vi", "th", "tl", "km", "ja", "ko", "hi", "ta", "es", "fr", "de", "it", "pt", "ru", "ar"]
 CHINESE = {"zh", "yue"}
 
 
@@ -134,7 +151,7 @@ class LookupRequest(BaseModel):
 
     word: str = Field(min_length=1, max_length=40)
     sentence: str = Field(default="", max_length=600)
-    lang: Literal["zh", "yue", "id", "ms", "vi"]
+    lang: LookupLang
     script: Script = "simplified"
 
 

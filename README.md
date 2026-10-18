@@ -1,6 +1,6 @@
 # ChatTalk — speak, record, translate
 
-Records speech and shows it line by line with its translation. Languages: Mandarin, Cantonese, Malay, Vietnamese,
+Records speech and shows it line by line with its translation. Twenty languages are available (choose yours in Settings); by default Mandarin, Cantonese, Malay, Vietnamese,
 Indonesian and English, translated in any direction between Mandarin, Indonesian, Malay, Vietnamese and English
 (pinyin shown whenever Chinese is on either side). The phone web page has a language switcher with
 a swap button for two-way conversations. The Expo app in `mobile/` is the earlier Chinese→English version. A small Python server does the AI work.
