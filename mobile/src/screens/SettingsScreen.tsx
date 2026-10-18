@@ -2,23 +2,23 @@ import { useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 
 import { checkServer } from '../api';
-import { Segmented } from '../components';
+import { Label, Segmented } from '../components';
 import { useColors } from '../theme';
-import { Settings } from '../types';
+import { CATALOG, distinctLangs, fixPair, LANGS, Settings } from '../types';
 
 type Props = {
   settings: Settings;
-  onSave: (s: Settings) => void;
-  onBack: () => void;
+  onChange: (s: Settings) => void;
+  toast: (msg: string) => void;
+  buzzPreview: () => void;
 };
 
-export default function SettingsScreen({ settings, onSave, onBack }: Props) {
+export default function SettingsScreen({ settings: s, onChange, toast, buzzPreview }: Props) {
   const c = useColors();
-  const [s, setS] = useState(settings);
   const [showCode, setShowCode] = useState(false);
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<{ ok: boolean; text: string } | null>(null);
-  const set = <K extends keyof Settings>(k: K, v: Settings[K]) => setS((prev) => ({ ...prev, [k]: v }));
+  const set = <K extends keyof Settings>(k: K, v: Settings[K]) => onChange({ ...s, [k]: v });
 
   async function test() {
     setTesting(true);
@@ -32,107 +32,153 @@ export default function SettingsScreen({ settings, onSave, onBack }: Props) {
     }
   }
 
-  const input = [styles.input, { backgroundColor: c.card, borderColor: c.line, color: c.ink }];
-  const label = [styles.label, { color: c.muted }];
+  function toggleLang(code: string) {
+    const on = s.langs.includes(code);
+    const langs = on ? s.langs.filter((x) => x !== code) : [...s.langs, code];
+    if (distinctLangs(langs) < 2) {
+      toast('Keep at least two languages');
+      return;
+    }
+    onChange({ ...s, langs, ...fixPair(langs, s.source, s.target) });
+    toast(on ? `${LANGS[code]} removed` : `${LANGS[code]} added`);
+  }
+
+  const input = [styles.input, { backgroundColor: c.surface, borderColor: c.line, color: c.ink }];
+  const hint = [styles.help, { color: c.muted }];
 
   return (
-    <View style={{ flex: 1 }}>
-      <View style={styles.header}>
-        <Pressable onPress={onBack} hitSlop={12}>
-          <Text style={{ fontSize: 16, color: c.muted }}>Cancel</Text>
-        </Pressable>
-        <Text style={{ fontSize: 17, fontWeight: '600', color: c.ink }}>Settings</Text>
-        <Pressable onPress={() => onSave({ ...s, serverUrl: s.serverUrl.trim(), apiToken: s.apiToken.trim() })} hitSlop={12}>
-          <Text style={{ fontSize: 16, color: c.accent, fontWeight: '600' }}>Save</Text>
-        </Pressable>
-      </View>
+    <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
+      <Label>Server address</Label>
+      <TextInput
+        value={s.serverUrl}
+        onChangeText={(v) => set('serverUrl', v)}
+        autoCapitalize="none"
+        autoCorrect={false}
+        keyboardType="url"
+        placeholder="https://tingyi-xxxx.onrender.com"
+        placeholderTextColor={c.faint}
+        style={input}
+      />
+      <Text style={hint}>The link of your Render server, the same one you open in Chrome.</Text>
 
-      <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
-        <Text style={label}>Server address</Text>
+      <Label style={styles.gap}>Access code</Label>
+      <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
         <TextInput
-          value={s.serverUrl}
-          onChangeText={(v) => set('serverUrl', v)}
+          value={s.apiToken}
+          onChangeText={(v) => set('apiToken', v)}
           autoCapitalize="none"
           autoCorrect={false}
-          keyboardType="url"
-          placeholder="https://tingyi-xxxx.onrender.com"
+          secureTextEntry={!showCode}
+          placeholder="The API_TOKEN you set on Render"
           placeholderTextColor={c.faint}
-          style={input}
+          style={[input, { flex: 1 }]}
         />
-        <Text style={[styles.help, { color: c.muted }]}>The link of your Render server, the same one you open in Chrome.</Text>
-
-        <Text style={label}>Access code</Text>
-        <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
-          <TextInput
-            value={s.apiToken}
-            onChangeText={(v) => set('apiToken', v)}
-            autoCapitalize="none"
-            autoCorrect={false}
-            secureTextEntry={!showCode}
-            placeholder="The API_TOKEN you set on Render"
-            placeholderTextColor={c.faint}
-            style={[input, { flex: 1 }]}
-          />
-          <Pressable onPress={() => setShowCode((v) => !v)} hitSlop={8}>
-            <Text style={{ color: c.accent, fontSize: 14 }}>{showCode ? 'Hide' : 'Show'}</Text>
-          </Pressable>
-        </View>
-        <Pressable onPress={test} style={styles.testButton} disabled={testing}>
-          {testing ? <ActivityIndicator color={c.accent} /> : <Text style={{ color: c.accent, fontSize: 15 }}>Test connection</Text>}
+        <Pressable onPress={() => setShowCode((v) => !v)} hitSlop={8}>
+          <Text style={{ color: c.accent, fontSize: 14, fontWeight: '700' }}>{showCode ? 'Hide' : 'Show'}</Text>
         </Pressable>
-        {testResult && <Text style={[styles.help, { color: testResult.ok ? c.ok : c.rec }]}>{testResult.text}</Text>}
+      </View>
+      <Text style={hint}>Keeps strangers from using your API credits. Stored only on this phone.</Text>
+      <Pressable onPress={test} style={styles.testButton} disabled={testing}>
+        {testing ? <ActivityIndicator color={c.accent} /> : <Text style={{ color: c.accent, fontSize: 15, fontWeight: '700' }}>Test connection</Text>}
+      </Pressable>
+      {testResult && <Text style={[styles.help, { color: testResult.ok ? c.ok : c.rec }]}>{testResult.text}</Text>}
 
-        <Text style={label}>Chinese characters</Text>
-        <Segmented
-          value={s.script}
-          onChange={(v) => set('script', v)}
-          options={[
-            { value: 'simplified', label: 'Simplified 简体' },
-            { value: 'traditional', label: 'Traditional 繁體' },
-          ]}
-          colors={c}
+      <Label style={styles.gap}>Languages</Label>
+      <Text style={[hint, { marginTop: 0, marginBottom: 8 }]}>Tap to add or remove. Only your languages appear in the Spoken and Translate into lists.</Text>
+      <View style={styles.langs}>
+        {CATALOG.map(([code, , label]) => {
+          const on = s.langs.includes(code);
+          return (
+            <Pressable
+              key={code}
+              onPress={() => toggleLang(code)}
+              accessibilityRole="button"
+              accessibilityState={{ selected: on }}
+              style={[styles.lang, { borderColor: c.line, backgroundColor: c.surface }, on && { backgroundColor: c.accent, borderColor: c.accent }]}
+            >
+              <Text style={{ fontSize: 14, fontWeight: '700', color: on ? c.accentInk : c.muted }}>
+                {on ? '✓ ' : '＋ '}
+                {label}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
+
+      <Label style={styles.gap}>Chinese characters</Label>
+      <Segmented
+        value={s.script}
+        onChange={(v) => set('script', v)}
+        options={[
+          { value: 'simplified', label: 'Simplified 简体' },
+          { value: 'traditional', label: 'Traditional 繁體' },
+        ]}
+      />
+      <Text style={hint}>Used whenever Chinese is spoken or translated into.</Text>
+
+      <Label style={styles.gap}>Appearance</Label>
+      <Segmented
+        value={s.theme}
+        onChange={(v) => set('theme', v)}
+        options={[
+          { value: 'dark', label: 'Dark' },
+          { value: 'light', label: 'Light' },
+        ]}
+      />
+
+      <Label style={styles.gap}>Translation style</Label>
+      <Segmented
+        value={s.style}
+        onChange={(v) => set('style', v)}
+        options={[
+          { value: 'natural', label: 'Natural' },
+          { value: 'literal', label: 'Literal' },
+        ]}
+      />
+
+      <View style={styles.switchRow}>
+        <Text style={{ fontSize: 16, color: c.ink, fontWeight: '600', flex: 1 }}>Vibrate when a recording stops</Text>
+        <Switch
+          value={s.vibrate}
+          onValueChange={(v) => {
+            set('vibrate', v);
+            if (v) buzzPreview();
+          }}
+          trackColor={{ true: c.accent }}
         />
-        <Text style={[styles.help, { color: c.muted }]}>Used whenever Chinese is spoken or translated into.</Text>
+      </View>
+      <Text style={hint}>One short buzz when you stop it. A long buzz if it stops by itself, for example when a call takes the microphone.</Text>
 
-        <Text style={label}>Translation style</Text>
-        <Segmented
-          value={s.style}
-          onChange={(v) => set('style', v)}
-          options={[
-            { value: 'natural', label: 'Natural' },
-            { value: 'literal', label: 'Literal' },
-          ]}
-          colors={c}
-        />
+      <View style={styles.switchRow}>
+        <Text style={{ fontSize: 16, color: c.ink, fontWeight: '600', flex: 1 }}>Show pinyin</Text>
+        <Switch value={s.pinyin} onValueChange={(v) => set('pinyin', v)} trackColor={{ true: c.accent }} />
+      </View>
+      <Text style={hint}>
+        Coloured by tone: <Text style={{ color: c.tones[1] }}>mā</Text> <Text style={{ color: c.tones[2] }}>má</Text>{' '}
+        <Text style={{ color: c.tones[3] }}>mǎ</Text> <Text style={{ color: c.tones[4] }}>mà</Text> <Text style={{ color: c.tones[0] }}>ma</Text>
+      </Text>
 
-        <View style={styles.switchRow}>
-          <Text style={{ fontSize: 16, color: c.ink }}>Show pinyin</Text>
-          <Switch value={s.pinyin} onValueChange={(v) => set('pinyin', v)} trackColor={{ true: c.accent }} />
-        </View>
-
-        <Text style={label}>Glossary</Text>
-        <Text style={[styles.help, { color: c.muted, marginTop: 0, marginBottom: 8 }]}>
-          One per line, in any of the languages. Helps names get heard correctly and translated consistently.
-        </Text>
-        <TextInput
-          value={s.glossary}
-          onChangeText={(v) => set('glossary', v)}
-          multiline
-          placeholder={'王小明 = Wang Xiaoming\nPak Budi = Mr Budi'}
-          placeholderTextColor={c.faint}
-          style={[input, { minHeight: 110, textAlignVertical: 'top' }]}
-        />
-      </ScrollView>
-    </View>
+      <Label style={styles.gap}>Glossary</Label>
+      <TextInput
+        value={s.glossary}
+        onChangeText={(v) => set('glossary', v)}
+        multiline
+        placeholder={'王小明 = Wang Xiaoming\nPak Budi = Mr Budi'}
+        placeholderTextColor={c.faint}
+        style={[input, { minHeight: 110, textAlignVertical: 'top' }]}
+      />
+      <Text style={hint}>One per line, in any of the languages. Helps names get heard correctly and translated consistently.</Text>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 18, paddingVertical: 12 },
-  body: { padding: 18, paddingBottom: 60 },
-  label: { fontSize: 12, textTransform: 'uppercase', letterSpacing: 1, marginTop: 22, marginBottom: 8 },
-  help: { fontSize: 13, marginTop: 6 },
+  body: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 60 },
+  gap: { marginTop: 24 },
+  help: { fontSize: 13, marginTop: 6, lineHeight: 18 },
   input: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, fontSize: 16 },
-  testButton: { alignSelf: 'flex-start', marginTop: 12, paddingVertical: 6 },
-  switchRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 24 },
+  testButton: { alignSelf: 'flex-start', marginTop: 10, paddingVertical: 6 },
+  switchRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 24, gap: 12 },
+  langs: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  lang: { borderWidth: 1.5, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 6 },
 });
