@@ -177,9 +177,13 @@ nav button[aria-selected="true"] { background: var(--surface); color: var(--ink)
 .wc-word.han { font-family: var(--han); font-weight: 600; letter-spacing: .04em; }
 .wc-py { font-size: 16px; margin: 2px 0 0; }
 .pos { display: inline-block; font-size: 12px; color: var(--accent); background: var(--accent-soft); border-radius: 999px; padding: 2px 9px; margin-top: 6px; }
-.widen { display: flex; gap: 6px; flex-shrink: 0; }
-.widen button { border: 1px solid var(--line); background: none; border-radius: 8px; padding: 5px 9px; font-size: 13px; color: var(--muted); }
-.widen button:disabled { opacity: .35; }
+.picker { background: var(--bg); border-radius: 14px; padding: 10px 12px; display: grid; gap: 6px; }
+.picker .k { font-size: 12px; text-transform: uppercase; letter-spacing: .08em; color: var(--faint); font-weight: 700; }
+.ptoks { display: flex; flex-wrap: wrap; gap: 4px 2px; line-height: 1.2; }
+.ptoks button { border: 0; background: none; color: var(--ink); font-size: 20px; padding: 5px 4px; border-radius: 8px; min-width: 30px; }
+.ptoks button.han { font-family: var(--han); font-size: 22px; }
+.ptoks button.on { background: var(--yellow); color: var(--yellow-ink); }
+.ptoks span { color: var(--faint); font-size: 20px; padding: 5px 1px; }
 .wc-meaning { font-size: 18px; margin: 0; }
 .wc-row { display: grid; gap: 2px; }
 .wc-row .k { font-size: 12px; text-transform: uppercase; letter-spacing: .08em; color: var(--faint); }
@@ -1269,37 +1273,75 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
   let words = [];
   const wordId = (lang, word) => `${isHan(lang) ? 'zh' : lang}:${word}`;
 
+  // The sheet shows the sentence split into characters (Chinese/Japanese/Thai/Khmer) or words, and you tap
+  // them to choose exactly what to look up. lookup.a/b index into lookup.picks; mains are the tappable
+  // words in the transcript, highlighted where they overlap the selection.
+  const CHAR_LANGS = ['zh', 'yue', 'ja', 'th', 'km'];
+  const PUNCT_RE = /^[\s.,!?;:"“”‘’()\[\]{}…—–。，！？、；：「」『』（）《》〈〉·•\/]+$/;
+  function pickTokens(text, lang) {
+    if (!CHAR_LANGS.includes(lang)) return tokenize(text, lang);
+    const out = [];
+    for (const ch of text) {
+      const prev = out[out.length - 1];
+      if (prev && /^[ัิ-ฺ็-๎឴-៓̀-ͯ]$/.test(ch)) prev.t += ch; // Thai/Khmer marks
+      else if (prev && /^[A-Za-z0-9]$/.test(ch) && /^[A-Za-z0-9]+$/.test(prev.t)) prev.t += ch; // keep Latin words whole
+      else out.push({ t: ch, w: !PUNCT_RE.test(ch) });
+    }
+    return out;
+  }
+  const offsets = (toks) => { let o = 0; return toks.map((x) => { const s = o; o += x.t.length; return s; }); };
   function openLookup(i, side, k) {
     const seg = current.segments[i];
     const lang = side === 's' ? (seg.lang || current.source || 'zh') : (seg.target || current.target || 'en');
     const text = side === 's' ? segText(seg) : segTr(seg);
-    lookup = { i, side, lang, text, tokens: tokenize(text, lang), a: k, b: k };
+    const mains = tokenize(text, lang), picks = pickTokens(text, lang);
+    const mo = offsets(mains), po = offsets(picks);
+    const from = mo[k], to = mo[k] + mains[k].t.length;
+    let a = po.findIndex((s, j) => s + picks[j].t.length > from), b = a;
+    while (b + 1 < picks.length && po[b + 1] < to) b++;
+    lookup = { i, side, lang, text, mains, picks, a: Math.max(0, a), b: Math.max(0, b) };
     fetchLookup();
   }
-  const lookupWord = () => lookup.tokens.slice(lookup.a, lookup.b + 1).map((x) => x.t).join('').trim();
-  function widen(dir) {
-    const t = lookup.tokens;
-    let j = dir < 0 ? lookup.a - 1 : lookup.b + 1;
-    while (j >= 0 && j < t.length && !t[j].w) {
-      if (/[。，！？、；：,.!?;:]/.test(t[j].t)) return; // stop at punctuation
-      j += dir;
+  const lookupWord = () => lookup.picks.slice(lookup.a, lookup.b + 1).map((x) => x.t).join('').trim();
+  let pickTimer = null;
+  function pick(k) {
+    const L = lookup; if (!L || !L.picks[k]?.w) return;
+    if (k < L.a) L.a = k;
+    else if (k > L.b) L.b = k;
+    else if (L.a === L.b) return;
+    else if (k === L.a) L.a++;
+    else if (k === L.b) L.b--;
+    else { L.a = k; L.b = k; }
+    while (lookupWord().length > 30 && L.a < L.b) { if (k <= L.a) L.b--; else L.a++; }
+    L.entry = null; L.error = ''; L.loading = true; L.query = lookupWord();
+    renderSheet(); highlight();
+    clearTimeout(pickTimer);
+    pickTimer = setTimeout(() => lookup === L && fetchLookup(), 700); // wait for more taps before looking up
+  }
+  /** When the dictionary returns a longer word (e.g. 周末 for 周), grow the selection to match it. */
+  function growTo(word) {
+    const L = lookup; if (!word) return;
+    const po = offsets(L.picks), from = po[L.a], to = po[L.b] + L.picks[L.b].t.length;
+    for (let i = L.text.indexOf(word); i >= 0; i = L.text.indexOf(word, i + 1)) {
+      const end = i + word.length;
+      if (i <= from && end >= to) {
+        const na = po.indexOf(i); let nb = na;
+        while (nb >= 0 && nb + 1 < L.picks.length && po[nb + 1] < end) nb++;
+        if (na >= 0 && po[nb] + L.picks[nb].t.length === end) { L.a = na; L.b = nb; }
+        return;
+      }
     }
-    if (j < 0 || j >= t.length) return;
-    if (dir < 0) lookup.a = j; else lookup.b = j;
-    fetchLookup();
-  }
-  function canWiden(dir) {
-    const t = lookup.tokens;
-    let j = dir < 0 ? lookup.a - 1 : lookup.b + 1;
-    while (j >= 0 && j < t.length && !t[j].w) { if (/[。，！？、；：,.!?;:]/.test(t[j].t)) return false; j += dir; }
-    return j >= 0 && j < t.length && lookupWord().length < 30;
   }
   function highlight() {
     document.querySelectorAll('.w.sel').forEach((el) => el.classList.remove('sel'));
     if (!lookup) return;
-    for (let k = lookup.a; k <= lookup.b; k++) {
-      document.querySelector(`.w[data-i="${lookup.i}"][data-side="${lookup.side}"][data-k="${k}"]`)?.classList.add('sel');
-    }
+    const po = offsets(lookup.picks), mo = offsets(lookup.mains);
+    const from = po[lookup.a], to = po[lookup.b] + lookup.picks[lookup.b].t.length;
+    lookup.mains.forEach((m, k) => {
+      if (mo[k] < to && mo[k] + m.t.length > from) {
+        document.querySelector(`.w[data-i="${lookup.i}"][data-side="${lookup.side}"][data-k="${k}"]`)?.classList.add('sel');
+      }
+    });
   }
 
   async function fetchLookup(wordOverride) {
@@ -1320,6 +1362,7 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
       }
       if (!lookup || lookup.query !== word) return; // a newer lookup replaced this one
       lookup.entry = entry;
+      if (!wordOverride) { growTo(entry.word); highlight(); }
     } catch (e) {
       if (!lookup) return;
       lookup.error = e instanceof TypeError ? 'Couldn’t reach the server. Check your connection.' : e.message;
@@ -1329,6 +1372,7 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
   }
 
   function closeSheet() {
+    clearTimeout(pickTimer);
     lookup = null; $('sheet').hidden = true; $('sheet').innerHTML = ''; highlight();
   }
 
@@ -1369,10 +1413,13 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
           ${han && settings.pinyin && e?.pinyin ? `<p class="wc-py py">${pinyinHtml(e.pinyin)}</p>` : ''}
           ${e?.part_of_speech ? `<span class="pos">${esc(e.part_of_speech)}</span>` : ''}
         </div>
-        <div class="widen" aria-label="Change selection">
-          <button type="button" data-wc="left" aria-label="Include the word before" ${canWiden(-1) ? '' : 'disabled'}>＋ before</button>
-          <button type="button" data-wc="right" aria-label="Include the word after" ${canWiden(1) ? '' : 'disabled'}>after ＋</button>
-        </div>
+<span></span>
+      </div>
+      <div class="picker" aria-label="Choose what to look up">
+        <span class="k">${CHAR_LANGS.includes(lookup.lang) ? 'Tap characters to look up more or fewer' : 'Tap words to look up more or fewer'}</span>
+        <div class="ptoks">${lookup.picks.map((x, k) => (x.w
+          ? `<button type="button" data-pick="${k}" class="${isHan(lookup.lang) ? 'han' : ''}${k >= lookup.a && k <= lookup.b ? ' on' : ''}" aria-pressed="${k >= lookup.a && k <= lookup.b}">${esc(x.t)}</button>`
+          : (x.t.trim() ? `<span>${esc(x.t)}</span>` : ''))).join('')}</div>
       </div>
       ${body}
     </div>`;
@@ -1381,11 +1428,10 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
 
   $('sheet').addEventListener('click', async (ev) => {
     if (ev.target === $('sheet')) { closeSheet(); return; }
+    const pk = ev.target.closest('[data-pick]'); if (pk && lookup) { pick(+pk.dataset.pick); return; }
     const b = ev.target.closest('[data-wc]'); if (!b || !lookup) return;
     const act = b.dataset.wc, e = lookup.entry;
     if (act === 'close') closeSheet();
-    else if (act === 'left') widen(-1);
-    else if (act === 'right') widen(1);
     else if (act === 'retry') fetchLookup(lookup.query);
     else if (act === 'root') fetchLookup(e.root);
     else if (act === 'save') {
