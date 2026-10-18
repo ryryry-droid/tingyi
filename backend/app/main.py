@@ -12,7 +12,16 @@ from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import FileResponse
 
 from . import config, translate
-from .models import Options, RetranslateRequest, RetranslateResponse, Segment, TranslateResponse
+from .models import (
+    Example,
+    LookupRequest,
+    LookupResponse,
+    Options,
+    RetranslateRequest,
+    RetranslateResponse,
+    Segment,
+    TranslateResponse,
+)
 from .pipeline import finish_translation, process_recording
 from .textproc import to_pinyin, to_script
 
@@ -109,4 +118,37 @@ async def retranslate(req: RetranslateRequest) -> RetranslateResponse:
         pinyin=to_pinyin(text) if opts.pinyin and opts.source_is_chinese else None,
         translation=translation,
         translation_pinyin=translation_pinyin,
+    )
+
+
+@app.post("/api/lookup", response_model=LookupResponse, dependencies=[Depends(check_token)])
+async def lookup(req: LookupRequest) -> LookupResponse:
+    chinese = req.lang in ("zh", "yue")
+    word = req.word.strip()
+    try:
+        entry = await run_in_threadpool(translate.lookup_word, word, req.sentence.strip(), req.lang, req.script)
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Lookup failed: {e}")
+
+    def clean(v) -> str:
+        return str(v or "").strip()
+
+    looked_up = clean(entry.get("word")) or word
+    if chinese:
+        looked_up = to_script(looked_up, req.script)
+    example = None
+    ex = entry.get("example") or {}
+    if clean(ex.get("text")):
+        ex_text = to_script(clean(ex["text"]), req.script) if chinese else clean(ex["text"])
+        example = Example(text=ex_text, pinyin=to_pinyin(ex_text) if chinese else None, translation=clean(ex.get("translation")))
+    return LookupResponse(
+        word=looked_up,
+        lang=req.lang,
+        pinyin=to_pinyin(looked_up) if chinese else None,
+        root=clean(entry.get("root")) if req.lang == "id" else "",
+        part_of_speech=clean(entry.get("part_of_speech")),
+        meaning=clean(entry.get("meaning")) or "No meaning found",
+        in_context=clean(entry.get("in_context")),
+        notes=clean(entry.get("notes")),
+        example=example,
     )

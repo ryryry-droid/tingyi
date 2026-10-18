@@ -181,10 +181,10 @@ def make_title(segments: list[Segment], opts: Options) -> str:
     return str(title).strip().strip("\"'“”「」。.!").strip()[:80]
 
 
-def _complete_simple(prompt: str) -> str:
+def _complete_simple(prompt: str, max_tokens: int = 200) -> str:
     if config.TRANSLATE_PROVIDER == "anthropic":
         response = _client().messages.create(
-            model=config.ANTHROPIC_MODEL, max_tokens=200, messages=[{"role": "user", "content": prompt}]
+            model=config.ANTHROPIC_MODEL, max_tokens=max_tokens, messages=[{"role": "user", "content": prompt}]
         )
         return "".join(b.text for b in response.content if getattr(b, "type", "") == "text")
     args = dict(
@@ -197,3 +197,37 @@ def _complete_simple(prompt: str) -> str:
         args["reasoning_effort"] = "low"
     response = _openai_client().chat.completions.create(**args)
     return response.choices[0].message.content or ""
+
+
+LOOKUP_LANG = {"zh": "Mandarin Chinese", "yue": "Cantonese", "id": "Indonesian"}
+
+
+def lookup_word(word: str, sentence: str, lang: str, script: str) -> dict:
+    """Dictionary entry for a word, aimed at an English-speaking learner."""
+    language = LOOKUP_LANG[lang]
+    chinese = lang in ("zh", "yue")
+    script_note = (
+        f" Write all Chinese in {'Traditional' if script == 'traditional' else 'Simplified'} characters." if chinese else ""
+    )
+    root_note = (
+        ' If the word has affixes (me-, di-, ber-, ter-, -kan, -nya, -an...), put its base word in "root", else "".'
+        if lang == "id"
+        else ' Set "root" to "".'
+    )
+    prompt = (
+        f"You are a {language}–English learner's dictionary. The learner tapped the {language} word "
+        f"\"{word}\" in this sentence:\n{sentence or word}\n\n"
+        "Reply with JSON only, in this shape:\n"
+        '{"word": "<the word as it should be looked up>", "root": "", "part_of_speech": "<noun, verb, ...>", '
+        '"meaning": "<its common English meanings, 12 words max>", '
+        '"in_context": "<what it means in this sentence, 15 words max>", '
+        '"notes": "<one short usage note (register, slang, measure word, tone of a particle), or empty>", '
+        f'"example": {{"text": "<a new, short, everyday {language} sentence using the word>", '
+        '"translation": "<its English translation>"}}\n'
+        f"If the tapped text is only part of a word, look up the whole word.{root_note}{script_note}"
+    )
+    text = _complete_simple(prompt, max_tokens=500)
+    match = re.search(r"\{.*\}", text, re.S)
+    if not match:
+        raise ValueError("The dictionary didn't return an entry")
+    return json.loads(match.group(0))

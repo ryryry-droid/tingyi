@@ -204,3 +204,38 @@ def test_title_failure_is_harmless(monkeypatch):
     monkeypatch.setattr(translate, "_complete_simple", lambda p: (_ for _ in ()).throw(RuntimeError("rate limited")))
     r = client.post("/api/translate", files={"file": ("a.m4a", b"x", "audio/m4a")}, data={"options": "{}"})
     assert r.status_code == 200 and r.json()["title"] == ""
+
+
+def test_lookup_chinese(monkeypatch):
+    setup(monkeypatch)
+    calls = []
+
+    def fake(prompt, max_tokens=200):
+        calls.append(prompt)
+        return json.dumps({"word": "醫院", "root": "x", "part_of_speech": "noun", "meaning": "hospital",
+                           "in_context": "the hospital nearby", "notes": "",
+                           "example": {"text": "我去醫院看病。", "translation": "I'm going to the hospital to see a doctor."}})
+
+    monkeypatch.setattr(translate, "_complete_simple", fake)
+    r = client.post("/api/lookup", json={"word": "医院", "sentence": "最近的医院在哪里？", "lang": "zh", "script": "simplified"})
+    body = r.json()
+    assert r.status_code == 200, body
+    assert body["word"] == "医院" and body["pinyin"] == "yī yuàn" and body["root"] == ""
+    assert body["example"]["text"] == "我去医院看病。" and body["example"]["pinyin"].startswith("wǒ qù yī yuàn")
+    assert "最近的医院在哪里" in calls[0] and "Simplified" in calls[0]
+
+
+def test_lookup_indonesian_root(monkeypatch):
+    setup(monkeypatch)
+    monkeypatch.setattr(translate, "_complete_simple", lambda p, max_tokens=200: '{"word": "dimakan", "root": "makan", '
+                        '"part_of_speech": "verb", "meaning": "eaten", "in_context": "was eaten", "notes": "",'
+                        ' "example": {"text": "Kuenya sudah dimakan.", "translation": "The cake has been eaten."}}')
+    r = client.post("/api/lookup", json={"word": "dimakan", "sentence": "Nasinya udah dimakan.", "lang": "id"})
+    body = r.json()
+    assert body["root"] == "makan" and body["pinyin"] is None and body["example"]["pinyin"] is None
+
+
+def test_lookup_requires_token(monkeypatch):
+    setup(monkeypatch)
+    monkeypatch.setattr(config, "API_TOKEN", "secret")
+    assert client.post("/api/lookup", json={"word": "a", "lang": "id"}).status_code == 401

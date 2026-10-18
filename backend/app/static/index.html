@@ -41,7 +41,7 @@ button { cursor: pointer; }
 header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-block: 8px 12px; flex-wrap: wrap; }
 .brand b { font-family: var(--f-han-sc); font-weight: 600; font-size: 28px; letter-spacing: .08em; color: var(--accent); }
 nav { display: flex; background: var(--line); border-radius: 999px; padding: 3px; }
-nav button { border: 0; background: none; padding: 6px 14px; border-radius: 999px; font-size: 14px; color: var(--muted); }
+nav button { border: 0; background: none; padding: 6px 10px; border-radius: 999px; font-size: 13.5px; color: var(--muted); }
 nav button[aria-selected="true"] { background: var(--surface); color: var(--ink); font-weight: 600; }
 .label { font-size: 12px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin: 0 0 8px; }
 .notice { background: var(--warn-soft); color: var(--warn); border-radius: 10px; padding: 10px 14px; font-size: 14px; margin-bottom: 14px; }
@@ -113,6 +113,50 @@ nav button[aria-selected="true"] { background: var(--surface); color: var(--ink)
 .field input[type=password], .field textarea { width: 100%; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); padding: 10px 12px; font-size: 16px; }
 .field textarea { min-height: 110px; }
 .hint { font-size: 13px; color: var(--muted); margin: 0; }
+/* tappable words */
+.w { cursor: pointer; border-radius: 4px; transition: background .15s; -webkit-touch-callout: none; }
+.w:hover { background: var(--accent-soft); }
+.w.sel { background: var(--accent-soft); box-shadow: 0 2px 0 var(--accent); }
+/* word card */
+.sheet-wrap { position: fixed; inset: 0; z-index: 30; background: rgba(0,0,0,.38); display: flex; align-items: flex-end; }
+.sheet { width: 100%; max-width: 600px; margin: 0 auto; max-height: 82vh; overflow-y: auto; background: var(--surface); border-radius: 18px 18px 0 0;
+  padding: 18px max(18px, env(safe-area-inset-right, 0px)) calc(18px + env(safe-area-inset-bottom, 0px)) max(18px, env(safe-area-inset-left, 0px)); display: grid; gap: 12px; }
+.sheet .grab { width: 40px; height: 4px; border-radius: 2px; background: var(--line); margin: -6px auto 2px; }
+.wc-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.wc-word { font-size: 32px; line-height: 1.2; margin: 0; overflow-wrap: anywhere; }
+.wc-word.han { font-family: var(--han); font-weight: 600; letter-spacing: .04em; }
+.wc-py { font-size: 16px; margin: 2px 0 0; }
+.pos { display: inline-block; font-size: 12px; color: var(--accent); background: var(--accent-soft); border-radius: 999px; padding: 2px 9px; margin-top: 6px; }
+.widen { display: flex; gap: 6px; flex-shrink: 0; }
+.widen button { border: 1px solid var(--line); background: none; border-radius: 8px; padding: 5px 9px; font-size: 13px; color: var(--muted); }
+.widen button:disabled { opacity: .35; }
+.wc-meaning { font-size: 18px; margin: 0; }
+.wc-row { display: grid; gap: 2px; }
+.wc-row .k { font-size: 12px; text-transform: uppercase; letter-spacing: .08em; color: var(--faint); }
+.wc-row p { margin: 0; }
+.wc-ex { border-left: 0; background: var(--bg); border-radius: 10px; padding: 12px 14px; display: grid; gap: 3px; }
+.wc-ex .x { font-size: 18px; margin: 0; }
+.wc-ex .x.han { font-family: var(--han); }
+.wc-ex .xt { color: var(--muted); margin: 2px 0 0; font-size: 15px; }
+.linkbtn { border: 0; background: none; padding: 0; color: var(--accent); text-decoration: underline; text-underline-offset: 3px; font-size: inherit; }
+.wc-actions { display: flex; gap: 10px; align-items: center; margin-top: 4px; }
+.saved { color: var(--accent); font-weight: 600; font-size: 15px; }
+/* words bank */
+.words-tools { display: grid; gap: 10px; margin-bottom: 6px; }
+.words-tools input { width: 100%; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); padding: 10px 12px; font-size: 16px; }
+.filter { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.filter button { border: 1px solid var(--line); background: none; border-radius: 999px; padding: 5px 12px; font-size: 13px; color: var(--muted); }
+.filter button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.filter .grow { flex: 1; }
+.wlist { list-style: none; margin: 0; padding: 0; }
+.wcard { padding: 14px 0; border-bottom: 1px solid var(--line); display: grid; gap: 4px; }
+.wcard .top { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.wcard .wd { font-size: 22px; }
+.wcard .wd.han { font-family: var(--han); font-weight: 600; }
+.wcard .m { margin: 0; }
+.wcard .ex { margin: 2px 0 0; color: var(--muted); font-size: 14px; }
+.wcard .ex .han { font-family: var(--han); }
+.wcard .src { font-size: 12px; color: var(--faint); display: flex; justify-content: space-between; gap: 10px; align-items: center; }
 .toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(96px + env(safe-area-inset-bottom, 0px)); background: var(--ink); color: var(--bg); padding: 8px 16px; border-radius: 999px; font-size: 14px; }
 </style>
 </head>
@@ -123,6 +167,7 @@ nav button[aria-selected="true"] { background: var(--surface); color: var(--ink)
     <nav aria-label="Views">
       <button id="tab-record" data-view="record" aria-selected="true">Record</button>
       <button id="tab-history" data-view="history" aria-selected="false">History</button>
+      <button id="tab-words" data-view="words" aria-selected="false">Words</button>
       <button id="tab-settings" data-view="settings" aria-selected="false">Settings</button>
     </nav>
   </header>
@@ -170,6 +215,21 @@ nav button[aria-selected="true"] { background: var(--surface); color: var(--ink)
     <ul class="history" id="history"></ul>
   </section>
 
+  <section id="view-words" hidden>
+    <div class="words-tools">
+      <input id="w-search" type="search" placeholder="Search your words" autocomplete="off">
+      <div class="filter" id="w-filter">
+        <button type="button" data-f="all" aria-pressed="true">All</button>
+        <button type="button" data-f="zh" aria-pressed="false">Chinese</button>
+        <button type="button" data-f="id" aria-pressed="false">Indonesian</button>
+        <span class="grow"></span>
+        <button type="button" id="w-copy">Copy list</button>
+      </div>
+      <div class="meta" id="w-count"></div>
+    </div>
+    <ul class="wlist" id="wlist"></ul>
+  </section>
+
   <section id="view-settings" hidden>
     <div class="field">
       <label class="label" for="set-token">Access code</label>
@@ -205,6 +265,7 @@ nav button[aria-selected="true"] { background: var(--surface); color: var(--ink)
 
 <div class="actionbar" id="actionbar" hidden><div class="inner" id="actions"></div></div>
 <div class="toast" id="toast" hidden></div>
+<div class="sheet-wrap" id="sheet" hidden></div>
 
 <script>
 (() => {
@@ -231,22 +292,29 @@ nav button[aria-selected="true"] { background: var(--surface); color: var(--ink)
 
   // ---------- IndexedDB: sessions with their audio ----------
   const dbp = new Promise((resolve, reject) => {
-    const req = indexedDB.open('tingyi', 1);
-    req.onupgradeneeded = () => req.result.createObjectStore('sessions', { keyPath: 'id' });
+    const req = indexedDB.open('tingyi', 2);
+    req.onupgradeneeded = () => {
+      const db = req.result;
+      if (!db.objectStoreNames.contains('sessions')) db.createObjectStore('sessions', { keyPath: 'id' });
+      if (!db.objectStoreNames.contains('words')) db.createObjectStore('words', { keyPath: 'id' });
+    };
     req.onsuccess = () => resolve(req.result);
     req.onerror = () => reject(req.error);
   });
-  async function tx(mode, fn) {
+  async function tx(mode, fn, store = 'sessions') {
     const db = await dbp;
     return new Promise((resolve, reject) => {
-      const t = db.transaction('sessions', mode);
-      const r = fn(t.objectStore('sessions'));
+      const t = db.transaction(store, mode);
+      const r = fn(t.objectStore(store));
       t.oncomplete = () => resolve(r?.result);
       t.onerror = () => reject(t.error);
     });
   }
   const putSession = (s) => tx('readwrite', (st) => st.put(s)).catch(() => {});
   const deleteSession = (id) => tx('readwrite', (st) => st.delete(id));
+  const putWord = (w) => tx('readwrite', (st) => st.put(w), 'words');
+  const deleteWord = (id) => tx('readwrite', (st) => st.delete(id), 'words');
+  const allWords = () => tx('readonly', (st) => st.getAll(), 'words').then((xs) => (xs || []).sort((a, b) => b.createdAt - a.createdAt)).catch(() => []);
   const allSessions = () => tx('readonly', (st) => st.getAll()).then((xs) => (xs || []).sort((a, b) => b.createdAt - a.createdAt)).catch(() => []);
 
   // ---------- state ----------
@@ -463,8 +531,9 @@ nav button[aria-selected="true"] { background: var(--surface); color: var(--ink)
   function setView(v) {
     if (v !== 'session') stopPlayback();
     view = v; editing = null; confirmDelete = false;
-    ['record', 'history', 'settings'].forEach((n) => $('tab-' + n).setAttribute('aria-selected', String(n === v || (v === 'session' && n === 'history'))));
-    ['record', 'session', 'history', 'settings'].forEach((n) => ($('view-' + n).hidden = n !== v));
+    ['record', 'history', 'words', 'settings'].forEach((n) => $('tab-' + n).setAttribute('aria-selected', String(n === v || (v === 'session' && n === 'history'))));
+    ['record', 'session', 'history', 'words', 'settings'].forEach((n) => ($('view-' + n).hidden = n !== v));
+    closeSheet();
     rerender();
     window.scrollTo(0, 0);
   }
@@ -474,6 +543,7 @@ nav button[aria-selected="true"] { background: var(--surface); color: var(--ink)
     renderLangbar();
     if (view === 'session') renderSession();
     if (view === 'history') renderHistory();
+    if (view === 'words') renderWords();
     if (view === 'settings') renderSettings();
     renderActions();
   }
@@ -507,13 +577,14 @@ nav button[aria-selected="true"] { background: var(--surface); color: var(--ink)
     const src = s.source || 'zh', tgt = s.target || 'en';
     const srcLang = isHan(src) ? han : src, tgtLang = isHan(tgt) ? han : tgt;
     $('s-title').style.fontFamily = hasHan(s.title) ? 'var(--han)' : 'var(--f-ui)';
-    $('s-body').innerHTML = `<p class="tip">Tap the time to replay a line. Tap Edit to fix a misheard line.</p><ol class="lines">${s.segments.map((seg, i) => `
+    const tappable = LOOKUP_LANGS.includes(src) || LOOKUP_LANGS.includes(tgt);
+    $('s-body').innerHTML = `<p class="tip">Tap ▶ to replay a line.${tappable ? ' Tap a word to look it up.' : ''} Tap Edit to fix a misheard line.</p><ol class="lines">${s.segments.map((seg, i) => `
       <li class="line${playingId === seg.id ? ' playing' : ''}" data-id="${seg.id}">
         <button class="time" type="button" data-act="play" data-i="${i}" aria-label="Play line ${i + 1}">${fmtTime(seg.start)}</button>
         <div>
-          <p class="${isHan(src) ? 'zh' : 'orig'}" lang="${srcLang}">${esc(segText(seg))}</p>
+          <p class="${isHan(src) ? 'zh' : 'orig'}" lang="${srcLang}">${wordsHtml(segText(seg), src, i, 's')}</p>
           ${settings.pinyin && seg.pinyin ? `<p class="py">${pinyinHtml(seg.pinyin)}</p>` : ''}
-          <p class="tr${isHan(tgt) ? ' han' : ''}" lang="${tgtLang}">${esc(segTr(seg) || '—')}</p>
+          <p class="tr${isHan(tgt) ? ' han' : ''}" lang="${tgtLang}">${segTr(seg) ? wordsHtml(segTr(seg), tgt, i, 't') : '—'}</p>
           ${settings.pinyin && seg.translation_pinyin ? `<p class="py">${pinyinHtml(seg.translation_pinyin)}</p>` : ''}
           ${editing === i
             ? `<div class="editbox"><textarea id="edit-zh" aria-label="What was said">${esc(segText(seg))}</textarea>
@@ -547,8 +618,226 @@ nav button[aria-selected="true"] { background: var(--surface); color: var(--ink)
     try { await navigator.clipboard.writeText(text); toast('Copied'); } catch { toast('Couldn’t copy. Select the text instead.'); }
   }
 
+  // ---------- word lookup ----------
+  const LOOKUP_LANGS = ['zh', 'yue', 'id'];
+  const segmenters = {};
+  /** Splits text into tokens; word tokens can be tapped. */
+  function tokenize(text, lang) {
+    const loc = isHan(lang) ? 'zh' : lang;
+    try {
+      segmenters[loc] = segmenters[loc] || new Intl.Segmenter(loc, { granularity: 'word' });
+      return [...segmenters[loc].segment(text)].map((x) => ({ t: x.segment, w: !!x.isWordLike }));
+    } catch {
+      const re = isHan(lang) ? /[㐀-鿿]|[^㐀-鿿]+/g : /[\p{L}\p{M}'-]+|[^\p{L}\p{M}'-]+/gu;
+      return (text.match(re) || []).map((t) => ({ t, w: isHan(lang) ? /[㐀-鿿]/.test(t) : /\p{L}/u.test(t) }));
+    }
+  }
+  function wordsHtml(text, lang, i, side) {
+    if (!LOOKUP_LANGS.includes(lang)) return esc(text);
+    return tokenize(text, lang).map((tk, k) => (tk.w && !/^\d+$/.test(tk.t)
+      ? `<span class="w" data-i="${i}" data-side="${side}" data-k="${k}">${esc(tk.t)}</span>`
+      : esc(tk.t))).join('');
+  }
+
+  let lookup = null; // { i, side, lang, tokens, a, b, entry, error, loading }
+  const lookupCache = new Map();
+  let words = [];
+  const wordId = (lang, word) => `${isHan(lang) ? 'zh' : lang}:${word}`;
+
+  function openLookup(i, side, k) {
+    const seg = current.segments[i];
+    const lang = side === 's' ? (current.source || 'zh') : (current.target || 'en');
+    const text = side === 's' ? segText(seg) : segTr(seg);
+    lookup = { i, side, lang, text, tokens: tokenize(text, lang), a: k, b: k };
+    fetchLookup();
+  }
+  const lookupWord = () => lookup.tokens.slice(lookup.a, lookup.b + 1).map((x) => x.t).join('').trim();
+  function widen(dir) {
+    const t = lookup.tokens;
+    let j = dir < 0 ? lookup.a - 1 : lookup.b + 1;
+    while (j >= 0 && j < t.length && !t[j].w) {
+      if (/[。，！？、；：,.!?;:]/.test(t[j].t)) return; // stop at punctuation
+      j += dir;
+    }
+    if (j < 0 || j >= t.length) return;
+    if (dir < 0) lookup.a = j; else lookup.b = j;
+    fetchLookup();
+  }
+  function canWiden(dir) {
+    const t = lookup.tokens;
+    let j = dir < 0 ? lookup.a - 1 : lookup.b + 1;
+    while (j >= 0 && j < t.length && !t[j].w) { if (/[。，！？、；：,.!?;:]/.test(t[j].t)) return false; j += dir; }
+    return j >= 0 && j < t.length && lookupWord().length < 30;
+  }
+  function highlight() {
+    document.querySelectorAll('.w.sel').forEach((el) => el.classList.remove('sel'));
+    if (!lookup) return;
+    for (let k = lookup.a; k <= lookup.b; k++) {
+      document.querySelector(`.w[data-i="${lookup.i}"][data-side="${lookup.side}"][data-k="${k}"]`)?.classList.add('sel');
+    }
+  }
+
+  async function fetchLookup(wordOverride) {
+    const word = wordOverride || lookupWord();
+    const key = `${lookup.lang}|${settings.script}|${word}|${lookup.text}`;
+    lookup.entry = null; lookup.error = ''; lookup.loading = true; lookup.query = word;
+    renderSheet(); highlight();
+    try {
+      let entry = lookupCache.get(key);
+      if (!entry) {
+        const res = await fetch('/api/lookup', {
+          method: 'POST', headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+          body: JSON.stringify({ word, sentence: lookup.text, lang: lookup.lang, script: settings.script }),
+        });
+        if (!res.ok) throw new Error(await apiError(res));
+        entry = await res.json();
+        lookupCache.set(key, entry);
+      }
+      if (!lookup || lookup.query !== word) return; // a newer lookup replaced this one
+      lookup.entry = entry;
+    } catch (e) {
+      if (!lookup) return;
+      lookup.error = e instanceof TypeError ? 'Couldn’t reach the server. Check your connection.' : e.message;
+    }
+    lookup.loading = false;
+    renderSheet();
+  }
+
+  function closeSheet() {
+    lookup = null; $('sheet').hidden = true; $('sheet').innerHTML = ''; highlight();
+  }
+
+  function exampleHtml(ex, han) {
+    if (!ex) return '';
+    return `<div class="wc-ex"><span class="wc-row"><span class="k">Example</span></span>
+      <p class="x${han ? ' han' : ''}">${esc(ex.text)}</p>
+      ${settings.pinyin && ex.pinyin ? `<p class="py">${pinyinHtml(ex.pinyin)}</p>` : ''}
+      <p class="xt">${esc(ex.translation)}</p></div>`;
+  }
+
+  function renderSheet() {
+    if (!lookup) return;
+    const han = isHan(lookup.lang);
+    const e = lookup.entry;
+    const shown = e ? e.word : lookup.query;
+    const saved = e && words.some((w) => w.id === wordId(lookup.lang, e.word));
+    let body;
+    if (lookup.loading) body = `<div class="working" style="padding:24px 0"><div class="dot"></div><div>Looking up…</div></div>`;
+    else if (lookup.error) body = `<p class="notice" style="margin:0">${esc(lookup.error)}</p><div class="wc-actions"><button class="small-primary" type="button" data-wc="retry">Try again</button></div>`;
+    else body = `
+      <p class="wc-meaning">${esc(e.meaning)}</p>
+      ${e.in_context ? `<div class="wc-row"><span class="k">In this sentence</span><p>${esc(e.in_context)}</p></div>` : ''}
+      ${e.root && e.root.toLowerCase() !== e.word.toLowerCase() ? `<div class="wc-row"><span class="k">Base word</span><p><button class="linkbtn" type="button" data-wc="root">${esc(e.root)}</button></p></div>` : ''}
+      ${e.notes ? `<div class="wc-row"><span class="k">Note</span><p>${esc(e.notes)}</p></div>` : ''}
+      ${exampleHtml(e.example, han)}
+      <div class="wc-actions">
+        ${saved
+          ? `<span class="saved">✓ In your words</span><span style="flex:1"></span><button class="textbtn danger" type="button" data-wc="remove">Remove</button>`
+          : `<button class="primary" type="button" data-wc="save">Add to my words</button>`}
+        <button class="secondary" type="button" data-wc="close">Close</button>
+      </div>`;
+    $('sheet').innerHTML = `<div class="sheet" role="dialog" aria-modal="true" aria-label="Word lookup">
+      <div class="grab"></div>
+      <div class="wc-head">
+        <div style="min-width:0">
+          <p class="wc-word${han ? ' han' : ''}">${esc(shown)}</p>
+          ${han && settings.pinyin && e?.pinyin ? `<p class="wc-py py">${pinyinHtml(e.pinyin)}</p>` : ''}
+          ${e?.part_of_speech ? `<span class="pos">${esc(e.part_of_speech)}</span>` : ''}
+        </div>
+        <div class="widen" aria-label="Change selection">
+          <button type="button" data-wc="left" aria-label="Include the word before" ${canWiden(-1) ? '' : 'disabled'}>＋ before</button>
+          <button type="button" data-wc="right" aria-label="Include the word after" ${canWiden(1) ? '' : 'disabled'}>after ＋</button>
+        </div>
+      </div>
+      ${body}
+    </div>`;
+    $('sheet').hidden = false;
+  }
+
+  $('sheet').addEventListener('click', async (ev) => {
+    if (ev.target === $('sheet')) { closeSheet(); return; }
+    const b = ev.target.closest('[data-wc]'); if (!b || !lookup) return;
+    const act = b.dataset.wc, e = lookup.entry;
+    if (act === 'close') closeSheet();
+    else if (act === 'left') widen(-1);
+    else if (act === 'right') widen(1);
+    else if (act === 'retry') fetchLookup(lookup.query);
+    else if (act === 'root') fetchLookup(e.root);
+    else if (act === 'save') {
+      const w = {
+        id: wordId(lookup.lang, e.word), word: e.word, lang: isHan(lookup.lang) ? 'zh' : lookup.lang, pinyin: e.pinyin || '',
+        root: e.root || '', part_of_speech: e.part_of_speech || '', meaning: e.meaning, in_context: e.in_context || '',
+        notes: e.notes || '', example: e.example || null, sentence: lookup.text,
+        sessionId: current?.id || '', sessionTitle: current?.title || '', createdAt: Date.now(),
+      };
+      await putWord(w).catch(() => {});
+      words = [w, ...words.filter((x) => x.id !== w.id)];
+      renderSheet(); toast('Added to your words');
+    } else if (act === 'remove') {
+      const id = wordId(lookup.lang, e.word);
+      await deleteWord(id).catch(() => {});
+      words = words.filter((x) => x.id !== id);
+      renderSheet(); toast('Removed');
+    }
+  });
+  document.addEventListener('keydown', (ev) => { if (ev.key === 'Escape' && lookup) closeSheet(); });
+
+  // ---------- vocabulary bank ----------
+  let wordFilter = 'all', wordSearch = '', confirmWord = null;
+  function filteredWords() {
+    const q = wordSearch.trim().toLowerCase();
+    return words.filter((w) => (wordFilter === 'all' || w.lang === wordFilter)
+      && (!q || [w.word, w.pinyin, w.meaning, w.root].join(' ').toLowerCase().includes(q)
+        || (w.pinyin || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().includes(q)));
+  }
+  function renderWords() {
+    $('w-filter').querySelectorAll('[data-f]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.f === wordFilter)));
+    const list = filteredWords();
+    $('w-count').textContent = words.length
+      ? `${list.length} of ${words.length} ${words.length === 1 ? 'word' : 'words'}`
+      : '';
+    $('w-copy').hidden = !list.length;
+    $('wlist').innerHTML = !words.length
+      ? `<li class="empty">No saved words yet. Open a recording, tap a Chinese or Indonesian word, and choose Add to my words.</li>`
+      : !list.length ? `<li class="empty">No words match.</li>`
+      : list.map((w) => {
+        const han = w.lang === 'zh';
+        return `<li class="wcard">
+          <div class="top"><span class="wd${han ? ' han' : ''}">${esc(w.word)}</span>
+            ${settings.pinyin && w.pinyin ? `<span class="py">${pinyinHtml(w.pinyin)}</span>` : ''}
+            ${w.part_of_speech ? `<span class="pos" style="margin:0">${esc(w.part_of_speech)}</span>` : ''}</div>
+          <p class="m">${esc(w.meaning)}${w.root && w.root.toLowerCase() !== w.word.toLowerCase() ? ` <span class="meta">· base word ${esc(w.root)}</span>` : ''}</p>
+          ${w.example ? `<p class="ex"><span class="${han ? 'han' : ''}">${esc(w.example.text)}</span><br>${esc(w.example.translation)}</p>` : ''}
+          <div class="src"><span>${w.sessionTitle ? `From “${esc(w.sessionTitle)}” · ` : ''}${fmtDate(w.createdAt)}</span>
+            ${confirmWord === w.id
+              ? `<span><button class="textbtn danger" type="button" data-del="${esc(w.id)}">Delete</button><button class="textbtn" type="button" data-keep="1">Keep</button></span>`
+              : `<button class="textbtn" type="button" data-ask="${esc(w.id)}">Delete</button>`}</div>
+        </li>`;
+      }).join('');
+  }
+  $('w-search').oninput = (e) => { wordSearch = e.target.value; renderWords(); };
+  $('w-filter').onclick = async (ev) => {
+    const b = ev.target.closest('[data-f]');
+    if (b) { wordFilter = b.dataset.f; renderWords(); }
+  };
+  $('w-copy').onclick = async () => {
+    const text = filteredWords().map((w) => `${w.word}${w.pinyin ? ` (${w.pinyin})` : ''} — ${w.meaning}${w.example ? `\n  ${w.example.text}\n  ${w.example.translation}` : ''}`).join('\n');
+    try { await navigator.clipboard.writeText(text); toast('Copied'); } catch { toast('Couldn’t copy.'); }
+  };
+  $('wlist').onclick = async (ev) => {
+    const b = ev.target.closest('button'); if (!b) return;
+    if (b.dataset.ask) { confirmWord = b.dataset.ask; renderWords(); }
+    else if (b.dataset.keep) { confirmWord = null; renderWords(); }
+    else if (b.dataset.del) {
+      await deleteWord(b.dataset.del).catch(() => {});
+      words = words.filter((w) => w.id !== b.dataset.del); confirmWord = null; renderWords(); toast('Deleted');
+    }
+  };
+
   // ---------- events ----------
   $('s-body').addEventListener('click', async (ev) => {
+    const w = ev.target.closest('.w');
+    if (w && current) { openLookup(+w.dataset.i, w.dataset.side, +w.dataset.k); return; }
     const b = ev.target.closest('button[data-act]'); if (!b || !current) return;
     const i = +b.dataset.i, act = b.dataset.act;
     if (act === 'play') playSegment(current.segments[i]);
@@ -589,6 +878,7 @@ nav button[aria-selected="true"] { background: var(--surface); color: var(--ink)
   // ---------- boot ----------
   (async () => {
     sessions = await allSessions();
+    words = await allWords();
     sessions.forEach((s) => { if (s.status === 'processing') { s.status = 'error'; s.error = 'Interrupted before it finished. Tap Try again.'; } });
     try {
       const h = await fetch('/health').then((r) => r.json());

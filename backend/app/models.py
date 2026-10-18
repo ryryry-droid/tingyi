@@ -120,3 +120,30 @@ class RetranslateResponse(BaseModel):
     @property
     def en(self) -> str:
         return self.translation
+
+
+class LookupRequest(BaseModel):
+    """Look up a word the user tapped, in the sentence it appeared in."""
+
+    word: str = Field(min_length=1, max_length=40)
+    sentence: str = Field(default="", max_length=600)
+    lang: Literal["zh", "yue", "id"]
+    script: Script = "simplified"
+
+
+class Example(BaseModel):
+    text: str
+    pinyin: Optional[str] = None
+    translation: str
+
+
+class LookupResponse(BaseModel):
+    word: str
+    lang: str
+    pinyin: Optional[str] = None
+    root: str = ""  # Indonesian base word when the tapped word has affixes (e.g. dimakan -> makan)
+    part_of_speech: str = ""
+    meaning: str
+    in_context: str = ""
+    notes: str = ""
+    example: Optional[Example] = None
