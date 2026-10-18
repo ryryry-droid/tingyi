@@ -27,7 +27,10 @@ _PROMPT = {
 # Phrases Whisper is known to invent over silence or music (it learned them from video subtitles)
 _HALLUCINATIONS = re.compile(
     r"^(terima kasih (telah|sudah) menonton|jangan lupa (like|subscribe)|thanks? (you )?for watching|"
-    r"please subscribe|subtitles? by|字幕|请不吝点赞|謝謝觀看|谢谢观看|明镜与点点栏目|优优独播剧场)",
+    r"please subscribe|subtitles? by|字幕|请不吝点赞|謝謝觀看|谢谢观看|明镜与点点栏目|优优独播剧场|"
+    # echoes of our own hint to Whisper, which it can repeat back on silence
+    r"以下[是系](普通[话話]|广东话|廣東話)|[请請]加上[标標][点點]符[号號]|Berikut adalah percakapan|"
+    r"The following is a conversation|with proper punctuation|词汇：|Kosakata:)",
     re.I,
 )
 

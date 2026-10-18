@@ -314,3 +314,10 @@ def test_title_endpoint(monkeypatch):
     setup(monkeypatch)
     r = client.post("/api/title", json={"lines": [{"text": "你好", "translation": "Hello"}], "options": {}})
     assert r.json()["title"] == "Meeting Wang Xiaoming"
+
+
+def test_prompt_echo_filtered():
+    assert not asr._keep("请加上标点符号。")
+    assert not asr._keep("以下是普通话的句子，请加上标点符号。")
+    assert not asr._keep("Berikut adalah percakapan dalam bahasa Indonesia, dengan tanda baca yang benar.")
+    assert asr._keep("请加上你的名字。")

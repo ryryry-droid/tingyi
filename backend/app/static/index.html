@@ -107,7 +107,11 @@ nav button[aria-selected="true"] { background: var(--surface); color: var(--ink)
 .history { list-style: none; margin: 0; padding: 0; }
 .history li.hrow { position: relative; overflow: hidden; border-bottom: 1px solid var(--line); touch-action: pan-y; }
 .history .hdel { position: absolute; inset: 0 auto 0 0; width: 96px; border: 0; background: var(--rec); color: #fff; font-weight: 600; font-size: 15px; display: grid; place-items: center; }
-.history .hrow > button[data-open] { position: relative; background: var(--bg); transition: transform .2s ease; will-change: transform; }
+.history .hrow > button[data-open] { position: relative; background: transparent; transition: transform .2s ease; will-change: transform; }
+/* Delete stays hidden until a swipe starts, so rows can show the page background */
+.history .hdel { visibility: hidden; }
+.history .hrow.dragging .hdel, .history .hrow.open .hdel { visibility: visible; }
+.history .hrow.dragging > button[data-open] { background: var(--bg); }
 .history .hrow.dragging > button[data-open] { transition: none; }
 .history .hrow.open > button[data-open] { transform: translateX(96px); }
 @media (prefers-reduced-motion: reduce) { .history .hrow > button[data-open] { transition: none; } }
