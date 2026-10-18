@@ -252,6 +252,10 @@ nav button[aria-selected="true"] { background: var(--surface); color: var(--ink)
       </div>
     </div>
     <div class="field">
+      <label class="switch" for="set-vibrate"><span>Vibrate when a recording stops</span><input type="checkbox" id="set-vibrate"></label>
+      <p class="hint">One short buzz when you stop it. A long buzz if it stops by itself, for example when a call takes the microphone. Android only.</p>
+    </div>
+    <div class="field">
       <label class="switch" for="set-pinyin"><span>Show pinyin</span><input type="checkbox" id="set-pinyin"></label>
       <p class="hint">Coloured by tone: <span class="s1">mā</span> <span class="s2">má</span> <span class="s3">mǎ</span> <span class="s4">mà</span> <span class="s0">ma</span></p>
     </div>
@@ -276,7 +280,7 @@ nav button[aria-selected="true"] { background: var(--surface); color: var(--ink)
   const MAX_SECONDS = 60 * 60;
 
   // ---------- settings ----------
-  const DEFAULTS = { token: '', source: 'zh', target: 'en', script: 'simplified', style: 'natural', pinyin: true, glossary: '' };
+  const DEFAULTS = { token: '', vibrate: true, source: 'zh', target: 'en', script: 'simplified', style: 'natural', pinyin: true, glossary: '' };
   const LANGS = { zh: 'Mandarin', yue: 'Cantonese', id: 'Indonesian', en: 'English' };
   const isHan = (code) => code === 'zh' || code === 'yue';
   const hasHan = (text) => /[\u3400-\u9fff]/.test(text || '');
@@ -339,6 +343,19 @@ nav button[aria-selected="true"] { background: var(--surface); color: var(--ink)
   const bars = 24;
   $('meter').innerHTML = '<i></i>'.repeat(bars);
   let rec = null, chunks = [], stream = null, startedAt = 0, tick = null, analyser = null, audioCtx = null, wakeLock = null, recMime = '';
+  // Why the current recording ended: 'user' (tapped stop), 'limit' (hit max length), or anything else = accidental
+  let stopReason = null, mutedAt = 0, gapSeconds = 0, pendingBuzz = null;
+
+  // ---------- vibration ----------
+  const BUZZ = { stopped: [90], alert: [400, 150, 400, 150, 600] };
+  function buzz(kind) {
+    if (!settings.vibrate || !navigator.vibrate) return;
+    if (document.hidden) { pendingBuzz = kind; return; } // Chrome ignores vibration in the background
+    try { navigator.vibrate(BUZZ[kind]); } catch {}
+  }
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden && pendingBuzz) { const k = pendingBuzz; pendingBuzz = null; setTimeout(() => buzz(k), 300); }
+  });
 
   function pickMime() {
     const types = ['audio/webm;codecs=opus', 'audio/mp4', 'audio/webm', 'audio/ogg;codecs=opus'];
@@ -363,6 +380,18 @@ nav button[aria-selected="true"] { background: var(--surface); color: var(--ink)
     rec = new MediaRecorder(stream, recMime ? { mimeType: recMime, audioBitsPerSecond: 32000 } : undefined);
     rec.ondataavailable = (e) => e.data.size && chunks.push(e.data);
     rec.onstop = onRecordingStopped;
+    rec.onerror = () => endRecording('error');
+    stopReason = null; mutedAt = 0; gapSeconds = 0;
+    const track = stream.getAudioTracks()[0];
+    if (track) {
+      // The microphone was taken away (a call, another app, permission revoked): stop and keep what we have
+      track.onended = () => endRecording('mic-lost');
+      // Android can silence the mic while the screen is off; note how long so we can say so afterwards
+      track.onmute = () => { mutedAt = Date.now(); };
+      track.onunmute = () => {
+        if (mutedAt) { const gap = (Date.now() - mutedAt) / 1000; mutedAt = 0; if (gap > 2) { gapSeconds += gap; buzz('alert'); toast(`Recording was silent for ${Math.round(gap)}s`); } }
+      };
+    }
     rec.start(1000);
     startedAt = Date.now();
     try {
@@ -380,7 +409,7 @@ nav button[aria-selected="true"] { background: var(--surface); color: var(--ink)
   function updateMeter() {
     const secs = (Date.now() - startedAt) / 1000;
     $('timer').textContent = fmtTime(secs);
-    if (secs >= MAX_SECONDS) { stopRecording(); return; }
+    if (secs >= MAX_SECONDS) { endRecording('limit'); return; }
     if (!analyser) return;
     const data = new Uint8Array(analyser.fftSize);
     analyser.getByteTimeDomainData(data);
@@ -391,10 +420,12 @@ nav button[aria-selected="true"] { background: var(--surface); color: var(--ink)
     items[0].style.height = `${4 + level * 32}px`;
   }
 
-  function stopRecording() {
+  function endRecording(reason) {
     if (!rec || rec.state === 'inactive') return;
-    rec.stop();
+    stopReason = stopReason || reason;
+    try { rec.stop(); } catch { onRecordingStopped(); }
   }
+  const stopRecording = () => endRecording('user');
 
   function resetRecorderUi() {
     clearInterval(tick);
@@ -410,12 +441,24 @@ nav button[aria-selected="true"] { background: var(--surface); color: var(--ink)
   }
 
   function onRecordingStopped() {
+    if (!rec) return;
+    const reason = stopReason || 'unknown'; // no reason recorded = the browser stopped it on its own
+    if (mutedAt) gapSeconds += (Date.now() - mutedAt) / 1000;
+    const gap = Math.round(gapSeconds);
     const duration = (Date.now() - startedAt) / 1000;
     const type = rec?.mimeType || recMime || 'audio/webm';
     const blob = new Blob(chunks, { type });
     resetRecorderUi();
+    buzz(reason === 'user' ? 'stopped' : 'alert');
     if (duration < 1 || blob.size < 1000) { showNotice('That was too short. Record at least a second of speech.'); return; }
     newSession(blob, duration);
+    const when = fmtTime(duration);
+    const message = reason === 'user' ? ''
+      : reason === 'limit' ? `Recording stopped at the ${MAX_SECONDS / 60}-minute limit. Translating what was recorded.`
+      : reason === 'mic-lost' ? `Recording stopped by itself at ${when}: the microphone was taken by another app or a call. Translating what was recorded.`
+      : `Recording stopped by itself at ${when}. Translating what was recorded.`;
+    const gapNote = gap > 2 ? ` About ${gap}s was silent because the microphone was paused (often when the screen turns off).` : '';
+    if (message || gapNote) showNotice((message || 'Recording finished.') + gapNote);
   }
 
   function idleHint() {
@@ -606,6 +649,7 @@ nav button[aria-selected="true"] { background: var(--surface); color: var(--ink)
   function renderSettings() {
     document.querySelectorAll('.seg').forEach((g) => g.querySelectorAll('button').forEach((b) => b.setAttribute('aria-pressed', String(settings[g.dataset.setting] === b.dataset.value))));
     $('set-pinyin').checked = settings.pinyin;
+    $('set-vibrate').checked = settings.vibrate;
     if (document.activeElement !== $('set-glossary')) $('set-glossary').value = settings.glossary;
     if (document.activeElement !== $('set-token')) $('set-token').value = settings.token;
   }
@@ -872,6 +916,7 @@ nav button[aria-selected="true"] { background: var(--surface); color: var(--ink)
     settings[g.dataset.setting] = b.dataset.value; saveSettings(); rerender();
   }));
   $('set-pinyin').onchange = (e) => { settings.pinyin = e.target.checked; saveSettings(); };
+  $('set-vibrate').onchange = (e) => { settings.vibrate = e.target.checked; saveSettings(); if (e.target.checked) buzz('stopped'); };
   $('set-glossary').oninput = (e) => { settings.glossary = e.target.value; saveSettings(); };
   $('set-token').oninput = (e) => { settings.token = e.target.value.trim(); saveSettings(); };
 
