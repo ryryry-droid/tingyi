@@ -1,13 +1,13 @@
 import * as Clipboard from 'expo-clipboard';
 import { RecordingPresets, requestRecordingPermissionsAsync, setAudioModeAsync, useAudioRecorder } from 'expo-audio';
 import { useEffect, useRef, useState } from 'react';
-import { FlatList, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { FlatList, Pressable, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 
 import { liveTranscribe, lookupWord, options } from '../api';
 import { Btn, Label, Pinyin, Segmented, Sheet, sheetStyles, TextBtn, Working } from '../components';
 import { speakWord } from '../speech';
 import { deaccent, formatDate, HAN_FONT, useColors } from '../theme';
-import { DEFAULT_TEST_SETUP, LookupEntry, Settings, TestKind, TestSetup, Word, WORD_EXAMPLE, wordId, wordLangOf, wordLangs } from '../types';
+import { caseFor, DEFAULT_TEST_SETUP, LANGS, LookupEntry, Settings, TestKind, TestSetup, Word, WORD_EXAMPLE, wordId, wordLangOf, wordLangs } from '../types';
 import { cleanWord } from '../words';
 import { ExampleBox } from './SessionScreen';
 
@@ -230,6 +230,7 @@ function AddWordSheet({ settings, words, onSaveWord, toast, onClose }: Props & {
   const src = wordLangOf(settings.source);
   const [lang, setLang] = useState(codes.includes(src) ? src : codes.includes(settings.target) ? settings.target : codes[0] || 'zh');
   const [text, setText] = useState('');
+  const [fromEn, setFromEn] = useState(false); // typing or saying an English word
   const [entry, setEntry] = useState<LookupEntry | null>(null);
   const [meaning, setMeaning] = useState('');
   const [loading, setLoading] = useState<string | false>(false);
@@ -258,7 +259,7 @@ function AddWordSheet({ settings, words, onSaveWord, toast, onClose }: Props & {
     setEntry(null);
     setLoading('Looking it up…');
     try {
-      const e = await lookupWord(settings, word, word, lang);
+      const e = await lookupWord(settings, word, fromEn ? '' : word, lang, fromEn);
       if (!alive.current) return;
       setEntry(e);
       setMeaning(e.meaning);
@@ -297,7 +298,7 @@ function AddWordSheet({ settings, words, onSaveWord, toast, onClose }: Props & {
     if (!send || !recorder.uri || !alive.current) return;
     setLoading('Listening back…');
     try {
-      const r = await liveTranscribe(settings, recorder.uri, options(settings, lang, 'en'), 0, false);
+      const r = await liveTranscribe(settings, recorder.uri, options(settings, fromEn ? 'en' : lang, fromEn ? lang : 'en'), 0, false);
       const heard = cleanWord(r.segments.map((x) => x.text).join(' '));
       if (!alive.current) return;
       if (!heard) {
@@ -321,10 +322,10 @@ function AddWordSheet({ settings, words, onSaveWord, toast, onClose }: Props & {
     onSaveWord({
       ...(existing || {}),
       id: wordId(lang, entry.word),
-      word: entry.word,
+      word: caseFor(entry.word, entry.part_of_speech),
       lang,
       pinyin: entry.pinyin || '',
-      root: entry.root || '',
+      root: caseFor(entry.root, entry.part_of_speech),
       part_of_speech: entry.part_of_speech || '',
       meaning: meaning.trim() || entry.meaning,
       in_context: '',
@@ -341,7 +342,23 @@ function AddWordSheet({ settings, words, onSaveWord, toast, onClose }: Props & {
 
   return (
     <Sheet visible onClose={onClose}>
-      <Text style={ss.h2}>Add a word</Text>
+      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+        <Text style={ss.h2}>Add a word</Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+          <Text style={{ color: fromEn ? c.accent : c.muted, fontWeight: '700', fontSize: 14 }}>English</Text>
+          <Switch
+            value={fromEn}
+            onValueChange={(v) => {
+              setFromEn(v);
+              setText('');
+              setEntry(null);
+              setError('');
+            }}
+            trackColor={{ true: c.accent }}
+            accessibilityLabel="Type in English"
+          />
+        </View>
+      </View>
       <View style={styles.wrap}>
         {langs.map(([code, label]) => (
           <Pressable
@@ -368,7 +385,7 @@ function AddWordSheet({ settings, words, onSaveWord, toast, onClose }: Props & {
           returnKeyType="search"
           autoCapitalize="none"
           autoFocus
-          placeholder={`Type or say a word${WORD_EXAMPLE[lang] ? `, e.g. ${WORD_EXAMPLE[lang]}` : ''}`}
+          placeholder={fromEn ? 'Type or say an English word, e.g. weekend' : `Type or say a word${WORD_EXAMPLE[lang] ? `, e.g. ${WORD_EXAMPLE[lang]}` : ''}`}
           placeholderTextColor={c.faint}
           style={[styles.addInput, { borderColor: c.line, backgroundColor: c.bg, color: c.ink }]}
         />
@@ -389,6 +406,11 @@ function AddWordSheet({ settings, words, onSaveWord, toast, onClose }: Props & {
         <Text style={ss.notice}>{error}</Text>
       ) : entry ? (
         <>
+          {fromEn ? (
+            <Text style={{ color: c.muted, fontSize: 13, fontWeight: '600' }}>
+              “{text}” in {lang === 'zh' ? 'Chinese' : LANGS[lang] || lang}
+            </Text>
+          ) : null}
           <View>
             <Text style={[{ fontSize: 32, color: c.ink }, han && { fontFamily: HAN_FONT, fontWeight: '600' }]}>{entry.word}</Text>
             {han && settings.pinyin && entry.pinyin ? <Pinyin value={entry.pinyin} size={16} /> : null}

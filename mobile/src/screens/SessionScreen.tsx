@@ -6,7 +6,7 @@ import { Alert, FlatList, Pressable, Share, StyleSheet, Text, TextInput, View } 
 import { lookupWord, retranslate } from '../api';
 import { Btn, Pinyin, Sheet, sheetStyles, TextBtn, WordText, Working } from '../components';
 import { formatDate, formatTime, HAN_FONT, useColors } from '../theme';
-import { hasHan, isChinese, LANGS, LookupEntry, LOOKUP_LANGS, Segment, Session, Settings, Word, wordId, wordLangOf } from '../types';
+import { caseFor, hasHan, isChinese, LANGS, LookupEntry, LOOKUP_LANGS, Segment, Session, Settings, Word, wordId, wordLangOf } from '../types';
 import { joinTokens, mainsFor, pickByChar, picksFor, pickTokens, rangeFor, tapPick, Token, tokenize } from '../words';
 
 type Props = {
@@ -166,10 +166,10 @@ export default function SessionScreen(p: Props) {
     if (!lookup || !e) return;
     p.onSaveWord({
       id: wordId(lookup.lang, e.word),
-      word: e.word,
+      word: caseFor(e.word, e.part_of_speech),
       lang: wordLangOf(lookup.lang),
       pinyin: e.pinyin || '',
-      root: e.root || '',
+      root: caseFor(e.root, e.part_of_speech),
       part_of_speech: e.part_of_speech || '',
       meaning: e.meaning,
       in_context: e.in_context || '',

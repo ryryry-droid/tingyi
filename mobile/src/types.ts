@@ -158,4 +158,9 @@ export function fixPair(langs: string[], source: string, target: string): { sour
   if (!ok(target)) target = ['en', ...targets].find(ok) || targets[0];
   return { source, target };
 }
-export const wordId = (lang: string, word: string) => `${wordLangOf(lang)}:${word}`;
+// Saved words are kept in lowercase ("Makan" at the start of a sentence is saved as "makan"),
+// except proper nouns: names of people, places, brands
+const lower = (t?: string) => String(t || '').toLocaleLowerCase();
+export const isProper = (pos?: string) => /proper|name|place/i.test(pos || '');
+export const caseFor = (t: string | undefined, pos?: string) => (isProper(pos) ? String(t || '') : lower(t));
+export const wordId = (lang: string, word: string) => `${wordLangOf(lang)}:${lower(word)}`;

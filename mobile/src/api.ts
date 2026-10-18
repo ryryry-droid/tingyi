@@ -118,8 +118,9 @@ export function retranslate(
   return postJson(s, '/api/retranslate', { text, context, options: options(s, source, target, script) });
 }
 
-export function lookupWord(s: Settings, word: string, sentence: string, lang: string): Promise<LookupEntry> {
-  return postJson(s, '/api/lookup', { word, sentence, lang, script: s.script });
+/** fromEnglish: "word" is English, find how to say it in lang. */
+export function lookupWord(s: Settings, word: string, sentence: string, lang: string, fromEnglish = false): Promise<LookupEntry> {
+  return postJson(s, '/api/lookup', { word, sentence, lang, script: s.script, from_english: fromEnglish });
 }
 
 export type LiveSegment = { start: number; end: number; text: string; pinyin?: string | null; lang: string; target: string };

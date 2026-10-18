@@ -1,7 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { File } from 'expo-file-system';
 
-import { DEFAULT_LANGS, DEFAULT_SETTINGS, DEFAULT_TEST_SETUP, distinctLangs, fixPair, LANGS, Session, Settings, TestSetup, Word } from './types';
+import { caseFor, DEFAULT_LANGS, DEFAULT_SETTINGS, DEFAULT_TEST_SETUP, distinctLangs, fixPair, LANGS, Session, Settings, TestSetup, Word, wordId } from './types';
 
 const SESSIONS_KEY = 'tingyi.sessions.v2';
 const SETTINGS_KEY = 'tingyi.settings.v2';
@@ -51,8 +51,17 @@ export async function saveSettings(settings: Settings): Promise<void> {
 }
 
 export async function loadWords(): Promise<Word[]> {
-  const words = await readJson<Word[]>(WORDS_KEY, []);
-  return words.sort((a, b) => b.createdAt - a.createdAt);
+  const words = (await readJson<Word[]>(WORDS_KEY, [])).sort((a, b) => b.createdAt - a.createdAt);
+  // Words saved before lowercase: convert them (merging any that become the same word)
+  const seen = new Set<string>();
+  const out: Word[] = [];
+  for (const w of words) {
+    const id = wordId(w.lang, w.word);
+    if (seen.has(id)) continue;
+    seen.add(id);
+    out.push({ ...w, id, word: caseFor(w.word, w.part_of_speech), root: caseFor(w.root, w.part_of_speech) });
+  }
+  return out;
 }
 
 export async function saveWords(words: Word[]): Promise<void> {
