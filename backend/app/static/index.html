@@ -259,7 +259,6 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
 .recbtn .stopbadge { display: none; position: absolute; right: -6px; bottom: -6px; width: 40px; height: 40px; border-radius: 50%; background: var(--rec); place-items: center; border: 3px solid var(--bg); }
 .recbtn .stopbadge i { display: block; width: 13px; height: 13px; border-radius: 3px; background: #fff; }
 .recording .recbtn { box-shadow: 0 0 0 9px color-mix(in srgb, var(--rec) 26%, transparent), 0 0 0 18px color-mix(in srgb, var(--rec) 10%, transparent); }
-.recording .recbtn .stopbadge { display: grid; }
 @media (prefers-reduced-motion: no-preference) { .recording .recbtn { animation: recglow 1.6s ease-in-out infinite; } }
 @keyframes recglow { 50% { box-shadow: 0 0 0 12px color-mix(in srgb, var(--rec) 22%, transparent), 0 0 0 24px color-mix(in srgb, var(--rec) 7%, transparent); } }
 .timer { font-weight: 300; }
@@ -412,7 +411,7 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
     <div class="recorder" id="recorder">
       <div class="timer" id="timer">0:00</div>
       <div class="meter" id="meter" aria-hidden="true"></div>
-      <button class="recbtn" id="recbtn" type="button" aria-label="Start recording"><img src="/assets/bird.png" alt=""><span class="stopbadge"><i></i></span></button>
+      <button class="recbtn" id="recbtn" type="button" aria-label="Start recording"><img src="/assets/bird.png" alt=""></button>
       <div class="rechint" id="rechint"></div>
     </div>
     <div class="or">
