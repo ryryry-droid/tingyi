@@ -1,4 +1,4 @@
-"""HTTP API for the mobile app.
+"""HTTP API and phone web app.
 
 Run:  uvicorn app.main:app --host 0.0.0.0 --port 8000
 """
@@ -13,10 +13,10 @@ from fastapi.responses import FileResponse
 
 from . import config, translate
 from .models import Options, RetranslateRequest, RetranslateResponse, Segment, TranslateResponse
-from .pipeline import process_recording
+from .pipeline import finish_translation, process_recording
 from .textproc import to_pinyin, to_script
 
-app = FastAPI(title="Chinese audio translator")
+app = FastAPI(title="Tingyi speech translator")
 
 
 def check_token(authorization: str = Header(default="")) -> None:
@@ -91,15 +91,22 @@ async def translate_recording(
 
 @app.post("/api/retranslate", response_model=RetranslateResponse, dependencies=[Depends(check_token)])
 async def retranslate(req: RetranslateRequest) -> RetranslateResponse:
-    zh = to_script(req.zh.strip(), req.options.script)
-    if not zh:
+    opts = req.options
+    text = (req.text or req.zh).strip()
+    if opts.source_is_chinese:
+        text = to_script(text, opts.script)
+    if not text:
         raise HTTPException(status_code=400, detail="Empty text")
-    line = Segment(id=0, start=0, end=0, zh=zh)
-    context = [c for c in req.context if c.en][-config.CONTEXT_SEGMENTS :]
+    line = Segment(id=0, start=0, end=0, text=text)
+    context = [c for c in req.context if c.translation][-config.CONTEXT_SEGMENTS :]
     try:
-        result = await run_in_threadpool(translate.translate_lines, [line], context, req.options)
+        result = await run_in_threadpool(translate.translate_lines, [line], context, opts)
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"Translation failed: {e}")
+    translation, translation_pinyin = finish_translation(result.get(0, ""), opts)
     return RetranslateResponse(
-        zh=zh, pinyin=to_pinyin(zh) if req.options.pinyin else None, en=result.get(0, "")
+        text=text,
+        pinyin=to_pinyin(text) if opts.pinyin and opts.source_is_chinese else None,
+        translation=translation,
+        translation_pinyin=translation_pinyin,
     )

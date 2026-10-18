@@ -30,7 +30,7 @@ class FakeAnthropic:
         prompt = kwargs["messages"][0]["content"]
         self.prompts.append(prompt)
         lines = json.loads(prompt.split("Translate these lines:\n", 1)[1])
-        out = {"translations": [{"id": l["id"], "en": f"EN<{l['zh']}>"} for l in lines]}
+        out = {"translations": [{"id": l["id"], "en": f"EN<{l['text']}>"} for l in lines]}
         return SimpleNamespace(content=[SimpleNamespace(type="text", text="```json\n" + json.dumps(out) + "\n```")])
 
 
@@ -127,7 +127,7 @@ def test_groq_style_translator(monkeypatch):
             calls.append(kwargs)
             prompt = kwargs["messages"][1]["content"]
             lines = json.loads(prompt.split("Translate these lines:\n", 1)[1])
-            out = {"translations": [{"id": l["id"], "en": f"G<{l['zh']}>"} for l in lines]}
+            out = {"translations": [{"id": l["id"], "en": f"G<{l['text']}>"} for l in lines]}
             return SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content=json.dumps(out)))])
 
     setup(monkeypatch)
@@ -138,3 +138,49 @@ def test_groq_style_translator(monkeypatch):
     assert r.status_code == 200, r.text
     assert r.json()["segments"][0]["en"] == "G<你好，我是王小明。>"
     assert calls[0]["reasoning_effort"] == "low" and calls[0]["response_format"] == {"type": "json_object"}
+
+
+def test_indonesian_to_english(monkeypatch):
+    fake = setup(monkeypatch)
+    seen = {}
+
+    def fake_id(path, opts):
+        seen["source"] = opts.source
+        return [RawSegment(start=0, end=2, text="Udah makan belum?"),
+                RawSegment(start=2, end=3, text="Terima kasih telah menonton")], 3.0
+
+    monkeypatch.setattr(asr, "transcribe", fake_id)
+    r = client.post("/api/translate", files={"file": ("a.webm", b"x", "audio/webm")},
+                    data={"options": json.dumps({"source": "id", "target": "en", "pinyin": True})})
+    body = r.json()
+    assert r.status_code == 200 and seen["source"] == "id" and body["source"] == "id"
+    seg = body["segments"][0]
+    assert seg["text"] == "Udah makan belum?" and seg["pinyin"] is None  # no pinyin for Indonesian
+    assert seg["translation"] == "EN<Udah makan belum?>"
+    assert "from Indonesian" in fake.prompts[0] and "sih, dong" in fake.prompts[0]
+
+
+def test_english_to_mandarin_gets_pinyin(monkeypatch):
+    setup(monkeypatch)
+    monkeypatch.setattr(asr, "transcribe", lambda p, o: ([RawSegment(start=0, end=1, text="Hello")], 1.0))
+    monkeypatch.setattr(translate, "translate_lines", lambda lines, ctx, opts: {l.id: "醫院在哪裡？" for l in lines})
+    monkeypatch.setattr("app.pipeline.translate.translate_lines", translate.translate_lines)
+    r = client.post("/api/translate", files={"file": ("a.webm", b"x", "audio/webm")},
+                    data={"options": json.dumps({"source": "en", "target": "zh", "script": "simplified"})})
+    seg = r.json()["segments"][0]
+    assert seg["translation"] == "医院在哪里？"  # forced to simplified
+    assert seg["translation_pinyin"].startswith("yī yuàn")
+
+
+def test_retranslate_indonesian_target(monkeypatch):
+    fake = setup(monkeypatch)
+    r = client.post("/api/retranslate", json={"text": "你好", "options": {"source": "zh", "target": "id"}})
+    assert r.status_code == 200 and r.json()["translation"] == "EN<你好>"
+    assert "into Indonesian" in fake.prompts[0]
+
+
+def test_hallucination_filter():
+    assert not asr._keep("Terima kasih telah menonton!")
+    assert not asr._keep("谢谢观看")
+    assert not asr._keep("Hmm", no_speech_prob=0.9, avg_logprob=-1.5)
+    assert asr._keep("Terima kasih banyak ya")

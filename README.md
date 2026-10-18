@@ -1,7 +1,9 @@
-# 听译 Tingyi — record Chinese, read English
+# 听译 Tingyi — speak, record, translate
 
-A mobile app (iOS + Android, built with Expo / React Native) that records Chinese speech and
-shows it line by line as Chinese text, pinyin, and English. A small Python server does the AI work.
+Records speech and shows it line by line with its translation. Languages: Mandarin, Cantonese,
+Indonesian and English, translated in any direction between Mandarin, Indonesian and English
+(pinyin shown whenever Chinese is on either side). The phone web page has a language switcher with
+a swap button for two-way conversations. The Expo app in `mobile/` is the earlier Chinese→English version. A small Python server does the AI work.
 
 ```
 phone: record (16 kHz mono m4a) ──upload──▶ server: speech-to-text (Whisper)

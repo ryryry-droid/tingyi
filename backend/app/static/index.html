@@ -58,6 +58,10 @@ nav button[aria-selected="true"] { background: var(--surface); color: var(--ink)
 .recbtn span { display: block; width: 62px; height: 62px; border-radius: 50%; background: var(--rec); transition: all .2s; }
 .recording .recbtn span { width: 32px; height: 32px; border-radius: 7px; }
 .rechint { color: var(--muted); font-size: 14px; text-align: center; }
+.langbar { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); gap: 8px; align-items: end; }
+.langbar label { display: grid; gap: 4px; font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; min-width: 0; }
+.langbar select { width: 100%; appearance: none; -webkit-appearance: none; border: 1px solid var(--line); background: var(--surface); border-radius: 10px; padding: 11px 12px; font-size: 16px; color: var(--ink); text-transform: none; letter-spacing: 0; }
+.swap { width: 44px; height: 44px; border-radius: 50%; border: 1px solid var(--line); background: var(--surface); color: var(--accent); font-size: 20px; line-height: 1; }
 .or { display: flex; justify-content: center; }
 .upload { border: 1px dashed var(--line); background: none; border-radius: 10px; padding: 10px 16px; color: var(--muted); font-size: 14px; }
 
@@ -76,10 +80,12 @@ nav button[aria-selected="true"] { background: var(--surface); color: var(--ink)
 .time { align-self: start; font-size: 12px; color: var(--faint); padding-top: 8px; font-variant-numeric: tabular-nums; border: 0; background: none; text-align: left; padding-left: 0; }
 .time::before { content: "▶ "; font-size: 9px; vertical-align: 1px; }
 .playing .time::before { content: "■ "; }
+.orig { font-size: 21px; line-height: 1.55; margin: 0; overflow-wrap: anywhere; }
 .zh { font-family: var(--han); font-size: 22px; line-height: 1.6; margin: 0; overflow-wrap: anywhere; }
 .py { font-size: 14px; letter-spacing: .02em; margin: 2px 0 0; overflow-wrap: anywhere; }
 .s1 { color: var(--t1); } .s2 { color: var(--t2); } .s3 { color: var(--t3); } .s4 { color: var(--t4); } .s0 { color: var(--faint); }
-.en { font-size: 17px; line-height: 1.5; margin: 8px 0 0; }
+.tr { font-size: 17px; line-height: 1.5; margin: 8px 0 0; overflow-wrap: anywhere; }
+.tr.han { font-family: var(--han); font-size: 19px; line-height: 1.6; }
 .editbox { margin-top: 8px; display: grid; gap: 8px; }
 .editbox textarea { width: 100%; min-height: 72px; border: 1px solid var(--accent); border-radius: 10px; background: var(--surface); padding: 10px; font-family: var(--han); font-size: 20px; }
 .editbox .row { display: flex; justify-content: flex-end; gap: 12px; align-items: center; }
@@ -124,11 +130,29 @@ nav button[aria-selected="true"] { background: var(--surface); color: var(--ink)
   <div id="notice" class="notice" hidden></div>
 
   <section id="view-record">
+    <div class="langbar">
+      <label for="src">Spoken
+        <select id="src">
+          <option value="zh">Mandarin 普通话</option>
+          <option value="yue">Cantonese 粤语</option>
+          <option value="id">Indonesian</option>
+          <option value="en">English</option>
+        </select>
+      </label>
+      <button class="swap" id="swap" type="button" aria-label="Swap languages">⇄</button>
+      <label for="tgt">Translate into
+        <select id="tgt">
+          <option value="en">English</option>
+          <option value="zh">Mandarin 中文</option>
+          <option value="id">Indonesian</option>
+        </select>
+      </label>
+    </div>
     <div class="recorder" id="recorder">
       <div class="timer" id="timer">0:00</div>
       <div class="meter" id="meter" aria-hidden="true"></div>
       <button class="recbtn" id="recbtn" type="button" aria-label="Start recording"><span></span></button>
-      <div class="rechint" id="rechint">Tap to record Chinese speech.<br>Tap again to stop and translate.</div>
+      <div class="rechint" id="rechint"></div>
     </div>
     <div class="or">
       <label class="upload" for="file">Or translate an audio file from your phone<input id="file" type="file" accept="audio/*,.m4a,.mp3,.wav,.webm,.ogg,.aac" hidden></label>
@@ -153,14 +177,8 @@ nav button[aria-selected="true"] { background: var(--surface); color: var(--ink)
       <p class="hint">Keeps strangers from using your API credits. Stored only on this phone.</p>
     </div>
     <div class="field">
-      <p class="label">Spoken language</p>
-      <div class="seg" data-setting="dialect">
-        <button type="button" data-value="mandarin">Mandarin 普通话</button>
-        <button type="button" data-value="cantonese">Cantonese 粤语</button>
-      </div>
-    </div>
-    <div class="field">
       <p class="label">Chinese characters</p>
+      <p class="hint">Used whenever Chinese is spoken or translated into.</p>
       <div class="seg" data-setting="script">
         <button type="button" data-value="simplified">Simplified 简体</button>
         <button type="button" data-value="traditional">Traditional 繁體</button>
@@ -180,7 +198,7 @@ nav button[aria-selected="true"] { background: var(--surface); color: var(--ink)
     <div class="field">
       <label class="label" for="set-glossary">Glossary</label>
       <textarea id="set-glossary" placeholder="王小明 = Wang Xiaoming&#10;云计算 = cloud computing"></textarea>
-      <p class="hint">One per line. Helps Whisper hear names correctly and keeps translations consistent.</p>
+      <p class="hint">One per line, in any of the languages. Helps Whisper hear names correctly and keeps translations consistent.</p>
     </div>
   </section>
 </div>
@@ -197,12 +215,15 @@ nav button[aria-selected="true"] { background: var(--surface); color: var(--ink)
   const MAX_SECONDS = 60 * 60;
 
   // ---------- settings ----------
-  const DEFAULTS = { token: '', dialect: 'mandarin', script: 'simplified', style: 'natural', pinyin: true, glossary: '' };
+  const DEFAULTS = { token: '', source: 'zh', target: 'en', script: 'simplified', style: 'natural', pinyin: true, glossary: '' };
+  const LANGS = { zh: 'Mandarin', yue: 'Cantonese', id: 'Indonesian', en: 'English' };
+  const isHan = (code) => code === 'zh' || code === 'yue';
   let settings = { ...DEFAULTS };
   try { settings = { ...DEFAULTS, ...JSON.parse(localStorage.getItem('tingyi.settings') || '{}') }; } catch {}
+  if (settings.dialect) { if (settings.dialect === 'cantonese') settings.source = 'yue'; delete settings.dialect; }
   const saveSettings = () => { try { localStorage.setItem('tingyi.settings', JSON.stringify(settings)); } catch {} };
   const options = () => ({
-    script: settings.script, dialect: settings.dialect, style: settings.style, pinyin: settings.pinyin,
+    source: settings.source, target: settings.target, script: settings.script, style: settings.style, pinyin: settings.pinyin,
     glossary: settings.glossary.split('\n').map((l) => l.trim()).filter(Boolean),
   });
   const authHeaders = () => (settings.token ? { Authorization: `Bearer ${settings.token}` } : {});
@@ -314,7 +335,7 @@ nav button[aria-selected="true"] { background: var(--surface); color: var(--ink)
     rec = null; stream = null; analyser = null; audioCtx = null; wakeLock = null;
     $('recorder').classList.remove('recording');
     $('recbtn').setAttribute('aria-label', 'Start recording');
-    $('rechint').innerHTML = 'Tap to record Chinese speech.<br>Tap again to stop and translate.';
+    idleHint();
     $('timer').textContent = '0:00';
     [...$('meter').children].forEach((i) => (i.style.height = '4px'));
   }
@@ -327,6 +348,28 @@ nav button[aria-selected="true"] { background: var(--surface); color: var(--ink)
     if (duration < 1 || blob.size < 1000) { showNotice('That was too short. Record at least a second of speech.'); return; }
     newSession(blob, duration);
   }
+
+  function idleHint() {
+    $('rechint').innerHTML = `Tap to record ${LANGS[settings.source]}.<br>Tap again to stop and translate into ${LANGS[settings.target]}.`;
+  }
+  const baseOf = (code) => (code === 'yue' ? 'zh' : code);
+  function fixPair() {
+    if (baseOf(settings.source) === settings.target) settings.target = settings.source === 'en' ? 'zh' : 'en';
+  }
+  function renderLangbar() {
+    $('src').value = settings.source; $('tgt').value = settings.target;
+    [...$('tgt').options].forEach((o) => (o.disabled = o.value === baseOf(settings.source)));
+    if (!rec) idleHint();
+  }
+  $('src').onchange = (e) => { settings.source = e.target.value; fixPair(); saveSettings(); renderLangbar(); };
+  $('tgt').onchange = (e) => { settings.target = e.target.value; fixPair(); saveSettings(); renderLangbar(); };
+  $('swap').onclick = () => {
+    if (rec) return;
+    const src = settings.source;
+    settings.source = settings.target;
+    settings.target = baseOf(src);
+    fixPair(); saveSettings(); renderLangbar();
+  };
 
   $('recbtn').onclick = () => (rec ? stopRecording() : startRecording());
   $('file').onchange = async (e) => {
@@ -345,7 +388,7 @@ nav button[aria-selected="true"] { background: var(--surface); color: var(--ink)
 
   async function newSession(blob, duration, name) {
     const now = Date.now();
-    const s = { id: 's' + now, createdAt: now, duration, title: name || `Recording ${fmtDate(now)}`, status: 'processing', segments: [], audio: blob, script: settings.script };
+    const s = { id: 's' + now, createdAt: now, duration, title: name || `Recording ${fmtDate(now)}`, status: 'processing', segments: [], audio: blob, script: settings.script, source: settings.source, target: settings.target };
     sessions.unshift(s);
     current = s;
     await putSession(s);
@@ -360,14 +403,14 @@ nav button[aria-selected="true"] { background: var(--surface); color: var(--ink)
       const form = new FormData();
       const type = s.audio.type || 'audio/webm';
       form.append('file', s.audio, `recording.${extFor(type)}`);
-      form.append('options', JSON.stringify(options()));
+      form.append('options', JSON.stringify({ ...options(), source: s.source || 'zh', target: s.target || 'en' }));
       const res = await fetch('/api/translate', { method: 'POST', headers: authHeaders(), body: form });
       if (!res.ok) throw new Error(await apiError(res));
       const data = await res.json();
       s.segments = data.segments;
       s.duration = data.duration || s.duration;
       s.status = 'done';
-      const first = s.segments[0]?.zh;
+      const first = segText(s.segments[0]);
       if (first) s.title = first.length > 24 ? first.slice(0, 24) + '…' : first;
     } catch (e) {
       s.status = 'error';
@@ -381,7 +424,7 @@ nav button[aria-selected="true"] { background: var(--surface); color: var(--ink)
     const context = current.segments.slice(Math.max(0, i - 6), i);
     const res = await fetch('/api/retranslate', {
       method: 'POST', headers: { ...authHeaders(), 'Content-Type': 'application/json' },
-      body: JSON.stringify({ zh, context, options: options() }),
+      body: JSON.stringify({ text: zh, context: context.map((c) => ({ ...c, text: segText(c), translation: segTr(c) })), options: { ...options(), source: current.source || 'zh', target: current.target || 'en' } }),
     });
     if (!res.ok) throw new Error(await apiError(res));
     return res.json();
@@ -413,6 +456,8 @@ nav button[aria-selected="true"] { background: var(--surface); color: var(--ink)
   }
 
   // ---------- rendering ----------
+  const segText = (seg) => (seg ? seg.text ?? seg.zh ?? '' : '');
+  const segTr = (seg) => (seg ? seg.translation ?? seg.en ?? '' : '');
   function setView(v) {
     if (v !== 'session') stopPlayback();
     view = v; editing = null; confirmDelete = false;
@@ -424,6 +469,7 @@ nav button[aria-selected="true"] { background: var(--surface); color: var(--ink)
 
   function rerender() {
     document.documentElement.style.setProperty('--han', settings.script === 'traditional' ? 'var(--f-han-tc)' : 'var(--f-han-sc)');
+    renderLangbar();
     if (view === 'session') renderSession();
     if (view === 'history') renderHistory();
     if (view === 'settings') renderSettings();
@@ -442,7 +488,7 @@ nav button[aria-selected="true"] { background: var(--surface); color: var(--ink)
   function renderSession() {
     const s = current; if (!s) return;
     $('s-title').textContent = s.status === 'done' ? s.title : s.status === 'processing' ? 'Translating…' : 'Translation failed';
-    $('s-meta').textContent = `${fmtDate(s.createdAt)}${s.duration ? ' · ' + fmtTime(s.duration) : ''}${s.status === 'done' ? ` · ${s.segments.length} lines` : ''}`;
+    $('s-meta').textContent = `${LANGS[s.source || 'zh']} → ${LANGS[s.target || 'en']} · ${fmtDate(s.createdAt)}${s.duration ? ' · ' + fmtTime(s.duration) : ''}${s.status === 'done' ? ` · ${s.segments.length} ${s.segments.length === 1 ? 'line' : 'lines'}` : ''}`;
     if (s.status === 'processing') {
       $('s-body').innerHTML = `<div class="working"><div class="dot"></div><div>Transcribing with Whisper, then translating.<br>Longer recordings take a minute or two.</div></div>`;
       return;
@@ -455,16 +501,20 @@ nav button[aria-selected="true"] { background: var(--surface); color: var(--ink)
       return;
     }
     if (!s.segments.length) { $('s-body').innerHTML = `<p class="empty">No speech was found in this recording.</p>${del}`; return; }
-    const lang = s.script === 'traditional' ? 'zh-Hant' : 'zh-Hans';
-    $('s-body').innerHTML = `<p class="tip">Tap the time to replay a line. Tap Edit to fix misheard Chinese.</p><ol class="lines">${s.segments.map((seg, i) => `
+    const han = s.script === 'traditional' ? 'zh-Hant' : 'zh-Hans';
+    const src = s.source || 'zh', tgt = s.target || 'en';
+    const srcLang = isHan(src) ? han : src, tgtLang = isHan(tgt) ? han : tgt;
+    $('s-title').style.fontFamily = isHan(src) ? 'var(--han)' : 'var(--f-ui)';
+    $('s-body').innerHTML = `<p class="tip">Tap the time to replay a line. Tap Edit to fix a misheard line.</p><ol class="lines">${s.segments.map((seg, i) => `
       <li class="line${playingId === seg.id ? ' playing' : ''}" data-id="${seg.id}">
         <button class="time" type="button" data-act="play" data-i="${i}" aria-label="Play line ${i + 1}">${fmtTime(seg.start)}</button>
         <div>
-          <p class="zh" lang="${lang}">${esc(seg.zh)}</p>
+          <p class="${isHan(src) ? 'zh' : 'orig'}" lang="${srcLang}">${esc(segText(seg))}</p>
           ${settings.pinyin && seg.pinyin ? `<p class="py">${pinyinHtml(seg.pinyin)}</p>` : ''}
-          <p class="en">${esc(seg.en || '—')}</p>
+          <p class="tr${isHan(tgt) ? ' han' : ''}" lang="${tgtLang}">${esc(segTr(seg) || '—')}</p>
+          ${settings.pinyin && seg.translation_pinyin ? `<p class="py">${pinyinHtml(seg.translation_pinyin)}</p>` : ''}
           ${editing === i
-            ? `<div class="editbox"><textarea id="edit-zh" aria-label="Chinese text">${esc(seg.zh)}</textarea>
+            ? `<div class="editbox"><textarea id="edit-zh" aria-label="What was said">${esc(segText(seg))}</textarea>
                <div class="row"><button class="textbtn" type="button" data-act="cancel">Cancel</button>
                <button class="small-primary" type="button" data-act="save" data-i="${i}">Re-translate</button></div></div>`
             : `<button class="textbtn" type="button" data-act="edit" data-i="${i}">Edit</button>`}
@@ -475,8 +525,8 @@ nav button[aria-selected="true"] { background: var(--surface); color: var(--ink)
 
   function renderHistory() {
     $('history').innerHTML = sessions.length ? sessions.map((s) => `<li><button type="button" data-open="${esc(s.id)}">
-      <span class="t">${esc(s.title)}</span><span class="d">${fmtDate(s.createdAt)}</span>
-      <span class="e ${s.status === 'error' ? 'bad' : ''}">${s.status === 'processing' ? 'Translating…' : s.status === 'error' ? 'Failed. Tap to retry.' : esc(s.segments[0]?.en || 'No speech found')}</span>
+      <span class="t"${isHan(s.source || 'zh') ? '' : ' style="font-family:var(--f-ui)"'}>${esc(s.title)}</span><span class="d">${fmtDate(s.createdAt)}</span>
+      <span class="e ${s.status === 'error' ? 'bad' : ''}">${s.status === 'processing' ? 'Translating…' : s.status === 'error' ? 'Failed. Tap to retry.' : esc(segTr(s.segments[0]) || 'No speech found')}</span>
     </button></li>`).join('') : `<li class="empty">Recordings you translate are saved here, on this phone.</li>`;
   }
 
@@ -491,7 +541,7 @@ nav button[aria-selected="true"] { background: var(--surface); color: var(--ink)
   function toast(msg) { const t = $('toast'); t.textContent = msg; t.hidden = false; clearTimeout(toast.t); toast.t = setTimeout(() => (t.hidden = true), 2000); }
 
   async function copyTranscript() {
-    const text = current.segments.map((s) => `[${fmtTime(s.start)}] ${s.zh}\n${s.en}`).join('\n\n');
+    const text = current.segments.map((s) => `[${fmtTime(s.start)}] ${segText(s)}\n${segTr(s)}`).join('\n\n');
     try { await navigator.clipboard.writeText(text); toast('Copied'); } catch { toast('Couldn’t copy. Select the text instead.'); }
   }
 
@@ -514,7 +564,7 @@ nav button[aria-selected="true"] { background: var(--surface); color: var(--ink)
       b.disabled = true; b.textContent = 'Translating…';
       try {
         const r = await retranslate(i, zh);
-        current.segments[i] = { ...current.segments[i], zh: r.zh, pinyin: r.pinyin, en: r.en };
+        current.segments[i] = { ...current.segments[i], text: r.text, zh: r.text, pinyin: r.pinyin, translation: r.translation, en: r.translation, translation_pinyin: r.translation_pinyin };
         editing = null; await putSession(current); renderSession();
       } catch (e) { showNotice(e.message); b.disabled = false; b.textContent = 'Re-translate'; }
     }

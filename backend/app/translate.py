@@ -1,36 +1,53 @@
-"""Chinese -> English translation with Claude.
+"""Translation of transcribed speech between Mandarin/Cantonese, Indonesian and English.
 
 Segments are translated in batches, and each batch is sent together with the
-previous few already-translated lines. Chinese often drops subjects and
-pronouns, so that context is what lets the model pick "she"/"they"/"we"
-correctly instead of guessing. The live mode will call `translate_lines` with
-one or two new lines at a time and the recent lines as context.
+previous few already-translated lines. Chinese and casual Indonesian both often
+drop subjects and pronouns, so that context is what lets the model pick
+"she"/"they"/"we" correctly instead of guessing. The live mode will call
+`translate_lines` with one or two new lines at a time and the recent lines as context.
 """
 import json
 import re
 
 from . import config
-from .models import Options, Segment
+from .models import LANG_NAMES, Options, Segment
 
-SYSTEM = """You translate transcribed spoken Chinese into English.
+SYSTEM = """You are a professional interpreter translating transcribed speech.
 
-The Chinese comes from automatic speech recognition, so it may contain misheard
-homophones, missing punctuation, or filler words (嗯, 那个, 就是). Translate what the
-speaker most plausibly meant.
+The text comes from automatic speech recognition, so it may contain misheard words,
+missing punctuation, or filler words. Translate what the speaker most plausibly meant.
 
 Rules:
-- Translate every line you are given; keep the same ids. One English line per Chinese line.
+- Translate every line you are given; keep the same ids. One translated line per input line.
 - Use the earlier lines (marked as context) to resolve omitted subjects, pronouns and references,
   but do not translate the context lines themselves.
-- Render chengyu and idioms by meaning, not word by word.
+- Render idioms and set phrases by meaning, not word by word.
 - Keep names consistent. Follow the glossary exactly where it applies.
 - If a line is pure noise or unintelligible, return "[inaudible]".
-- Reply with JSON only: {"translations": [{"id": <int>, "en": "<English>"}]}"""
+- Reply with JSON only: {"translations": [{"id": <int>, "text": "<translation>"}]}"""
 
-STYLE = {
-    "natural": "Style: natural, fluent spoken English, as a professional interpreter would say it.",
-    "literal": "Style: stay close to the Chinese wording and structure while remaining grammatical English.",
+# Notes added only when that language is involved
+SOURCE_NOTES = {
+    "zh": "Spoken Mandarin often omits subjects; fillers include 嗯, 那个, 就是. Misheard homophones are common. "
+    "Translate chengyu by meaning.",
+    "yue": "The speaker is speaking Cantonese; the transcript may contain Cantonese characters (嘅, 咗, 唔, 係).",
+    "id": "The speech may be casual or colloquial Indonesian (e.g. gak/nggak, udah, banget, aja, gimana) with particles "
+    "like sih, dong, kok, deh, lho, and possibly Jakarta slang or regional words. Convey their tone, not just the words.",
+    "en": "Spoken English may include fillers (um, like, you know) which should be dropped.",
 }
+TARGET_NOTES = {
+    "en": "Write natural English.",
+    "zh": "Write standard written Mandarin Chinese in {script} characters, with Chinese punctuation.",
+    "id": "Write natural, standard Indonesian (Bahasa Indonesia) that is polite but not stiff, as people actually speak.",
+}
+SCRIPT_NAMES = {"simplified": "Simplified (简体)", "traditional": "Traditional (繁體)"}
+
+
+def _style(opts: Options) -> str:
+    tgt = LANG_NAMES[opts.target]
+    if opts.style == "literal":
+        return f"Style: stay close to the original wording and structure while remaining grammatical {tgt}."
+    return f"Style: natural, fluent spoken {tgt}, as a professional interpreter would say it."
 
 
 def _client():
@@ -70,19 +87,21 @@ def _complete(prompt: str) -> str:
 
 
 def _build_prompt(lines: list[Segment], context: list[Segment], opts: Options) -> str:
-    parts = [STYLE[opts.style]]
-    if opts.dialect == "cantonese":
-        parts.append("The speaker is speaking Cantonese; the transcript may contain Cantonese characters (嘅, 咗, 唔).")
+    parts = [
+        f"Translate from {LANG_NAMES[opts.source]} into {LANG_NAMES[opts.target]}.",
+        SOURCE_NOTES[opts.source],
+        TARGET_NOTES[opts.target].format(script=SCRIPT_NAMES[opts.script]),
+        _style(opts),
+    ]
     if opts.glossary:
         parts.append("Glossary:\n" + "\n".join(f"- {g}" for g in opts.glossary))
     if context:
         parts.append(
             "Context (already translated, do not translate again):\n"
-            + "\n".join(f"{c.zh} => {c.en}" for c in context)
+            + "\n".join(f"{c.text} => {c.translation}" for c in context)
         )
     parts.append(
-        "Translate these lines:\n"
-        + json.dumps([{"id": s.id, "zh": s.zh} for s in lines], ensure_ascii=False)
+        "Translate these lines:\n" + json.dumps([{"id": s.id, "text": s.text} for s in lines], ensure_ascii=False)
     )
     return "\n\n".join(parts)
 
@@ -92,21 +111,27 @@ def _parse(text: str) -> dict[int, str]:
     if not match:
         raise ValueError(f"Translator did not return JSON: {text[:200]}")
     data = json.loads(match.group(0))
-    return {int(t["id"]): str(t["en"]).strip() for t in data.get("translations", [])}
+    out = {}
+    for t in data.get("translations", []):
+        value = t.get("text", t.get("translation", t.get("en", "")))
+        out[int(t["id"])] = str(value).strip()
+    return out
 
 
 def translate_lines(lines: list[Segment], context: list[Segment], opts: Options) -> dict[int, str]:
-    """Translate `lines`; returns {segment id: English}."""
+    """Translate `lines`; returns {segment id: translation}."""
     if not lines:
         return {}
+    if opts.same_language:
+        return {s.id: s.text for s in lines}
     result = _parse(_complete(_build_prompt(lines, context, opts)))
     missing = [s for s in lines if s.id not in result]
     if missing and len(missing) < len(lines):  # model skipped a few: retry just those once
-        result.update(_parse_retry(missing, context, opts))
+        result.update(_retry(missing, context, opts))
     return result
 
 
-def _parse_retry(lines: list[Segment], context: list[Segment], opts: Options) -> dict[int, str]:
+def _retry(lines: list[Segment], context: list[Segment], opts: Options) -> dict[int, str]:
     try:
         return translate_lines(lines, context, opts)
     except Exception:
@@ -114,7 +139,7 @@ def _parse_retry(lines: list[Segment], context: list[Segment], opts: Options) ->
 
 
 def translate_all(segments: list[Segment], opts: Options) -> list[Segment]:
-    """Fill in `.en` for every segment, batch by batch, carrying context forward."""
+    """Fill in `.translation` for every segment, batch by batch, carrying context forward."""
     size = max(1, config.TRANSLATE_BATCH_SIZE)
     done: list[Segment] = []
     for i in range(0, len(segments), size):
@@ -122,6 +147,6 @@ def translate_all(segments: list[Segment], opts: Options) -> list[Segment]:
         context = done[-config.CONTEXT_SEGMENTS :]
         translations = translate_lines(batch, context, opts)
         for seg in batch:
-            seg.en = translations.get(seg.id, "")
+            seg.translation = translations.get(seg.id, "")
         done.extend(batch)
     return segments

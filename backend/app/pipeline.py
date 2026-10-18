@@ -1,6 +1,6 @@
 """The full record-then-translate pipeline, built from per-chunk steps.
 
-    audio -> asr.transcribe -> clean_segments -> translate.translate_all
+    audio -> asr.transcribe -> clean_segments -> translate.translate_all -> finish_translations
 
 Live mode (later) reuses the same steps on small chunks:
     every ~pause: asr on the new chunk -> clean_segments -> translate_lines(new, context=recent)
@@ -13,21 +13,33 @@ from .textproc import to_pinyin, to_script
 def clean_segments(raw: list[RawSegment], opts: Options, start_id: int = 0) -> list[Segment]:
     segments = []
     for i, r in enumerate(raw):
-        zh = to_script(r.text, opts.script)
+        text = to_script(r.text, opts.script) if opts.source_is_chinese else r.text
         segments.append(
             Segment(
                 id=start_id + i,
                 start=round(r.start, 2),
                 end=round(r.end, 2),
-                zh=zh,
-                pinyin=to_pinyin(zh) if opts.pinyin else None,
+                text=text,
+                pinyin=to_pinyin(text) if opts.pinyin and opts.source_is_chinese else None,
             )
         )
     return segments
+
+
+def finish_translation(text: str, opts: Options) -> tuple[str, str | None]:
+    """Fix the script of Chinese output and add its pinyin."""
+    if not opts.target_is_chinese or not text:
+        return text, None
+    text = to_script(text, opts.script)
+    return text, (to_pinyin(text) if opts.pinyin and not opts.source_is_chinese else None)
 
 
 def process_recording(path: str, opts: Options) -> TranslateResponse:
     raw, duration = asr.transcribe(path, opts)
     segments = clean_segments(raw, opts)
     translate.translate_all(segments, opts)
-    return TranslateResponse(language=opts.dialect, duration=round(duration, 2), segments=segments)
+    for seg in segments:
+        seg.translation, seg.translation_pinyin = finish_translation(seg.translation, opts)
+    return TranslateResponse(
+        source=opts.source, target=opts.target, language=opts.source, duration=round(duration, 2), segments=segments
+    )
