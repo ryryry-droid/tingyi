@@ -1562,10 +1562,11 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
   let wordMic = null;
   const cleanWord = (t) => String(t || '').replace(/[。，！？、；：,.!?;:"“”'‘’()（）]/g, ' ').replace(/\s+/g, ' ').trim();
 
+  const langName = (code) => (code === 'zh' ? 'Chinese' : LANGS[code] || code);
   function openAddWord() {
     const codes = wordLangs().map(([c]) => c), src = isHan(settings.source) ? 'zh' : settings.source;
     const lang = codes.includes(src) ? src : codes.includes(settings.target) ? settings.target : 'zh';
-    addState = { lang, text: '', entry: null, loading: false, error: '', recording: false };
+    addState = { lang, text: '', entry: null, loading: false, error: '', recording: false, fromEn: false };
     renderAddWord();
     setTimeout(() => $('add-input')?.focus(), 50);
   }
@@ -1578,6 +1579,7 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
     else if (a.loading) body = `<div class="working" style="padding:18px 0"><div class="dot"></div><div>${a.loading}</div></div>`;
     else if (a.error) body = `<p class="notice" style="margin:0">${esc(a.error)}</p>`;
     else if (e) body = `
+      ${a.fromEn ? `<p class="meta" style="margin:0">“${esc(a.text)}” in ${esc(langName(a.lang))}</p>` : ''}
       <div class="wc-head"><div style="min-width:0">
         <p class="wc-word${han ? ' han' : ''}">${esc(e.word)}</p>
         ${han && settings.pinyin && e.pinyin ? `<p class="wc-py py">${pinyinHtml(e.pinyin)}</p>` : ''}
@@ -1596,8 +1598,12 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
       <div class="seg wrap" role="group" aria-label="Language">
         ${wordLangs().map(([c, l]) => `<button type="button" data-aw="lang" data-v="${c}" aria-pressed="${a.lang === c}">${l}</button>`).join('')}
       </div>
+      <div class="seg" role="group" aria-label="I'm typing in">
+        <button type="button" data-aw="from" data-v="word" aria-pressed="${!a.fromEn}">Type in ${esc(langName(a.lang))}</button>
+        <button type="button" data-aw="from" data-v="en" aria-pressed="${a.fromEn}">Type in English</button>
+      </div>
       <div class="addrow">
-        <input id="add-input" type="text" autocomplete="off" autocapitalize="off" placeholder="Type or say a word${WORD_EXAMPLE[a.lang] ? `, e.g. ${WORD_EXAMPLE[a.lang]}` : ''}" value="${esc(a.text)}" lang="${a.lang}">
+        <input id="add-input" type="text" autocomplete="off" autocapitalize="off" placeholder="${a.fromEn ? 'Type or say an English word, e.g. weekend' : `Type or say a word${WORD_EXAMPLE[a.lang] ? `, e.g. ${WORD_EXAMPLE[a.lang]}` : ''}`}" value="${esc(a.text)}" lang="${a.fromEn ? 'en' : a.lang}">
         <button class="mic${a.recording ? ' on' : ''}" type="button" data-aw="mic" aria-label="${a.recording ? 'Stop listening' : 'Say the word'}">${a.recording ? '■' : '🎙'}</button>
       </div>
       ${!e && !a.loading && !a.recording ? `<button class="primary" type="button" data-aw="lookup" ${a.text.trim() ? '' : 'disabled'}>Look it up</button>` : ''}
@@ -1611,7 +1617,7 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
     a.text = word; a.error = ''; a.entry = null; a.loading = 'Looking it up…'; renderAddWord();
     try {
       const res = await fetch('/api/lookup', { method: 'POST', headers: { ...authHeaders(), 'Content-Type': 'application/json' },
-        body: JSON.stringify({ word, sentence: word, lang: a.lang, script: settings.script }) });
+        body: JSON.stringify({ word, sentence: a.fromEn ? '' : word, lang: a.lang, script: settings.script, from_english: a.fromEn }) });
       if (!res.ok) throw new Error(await apiError(res));
       if (addState !== a) return;
       a.entry = await res.json();
@@ -1643,7 +1649,7 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
     try {
       const form = new FormData();
       form.append('file', blob, `word.${extFor(blob.type)}`);
-      form.append('options', JSON.stringify({ ...options(), source: a.lang, target: 'en' }));
+      form.append('options', JSON.stringify({ ...options(), source: a.fromEn ? 'en' : a.lang, target: a.fromEn ? a.lang : 'en' }));
       const res = await fetch('/api/live/transcribe', { method: 'POST', headers: authHeaders(), body: form });
       if (!res.ok) throw new Error(await apiError(res));
       const text = cleanWord((await res.json()).segments.map((x) => x.text).join(' '));
@@ -1657,6 +1663,7 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
     const b = ev.target.closest('[data-aw]'); if (!b || !addState) return;
     const act = b.dataset.aw, a = addState;
     if (act === 'lang') { a.lang = b.dataset.v; a.entry = null; a.error = ''; renderAddWord(); }
+    else if (act === 'from') { a.fromEn = b.dataset.v === 'en'; a.entry = null; a.error = ''; a.text = ''; renderAddWord(); $('add-input')?.focus(); }
     else if (act === 'lookup') addLookup();
     else if (act === 'mic') { if (a.recording) stopWordMic(true); else startWordMic(); }
     else if (act === 'close') closePanel();

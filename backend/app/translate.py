@@ -210,7 +210,7 @@ def _complete_simple(prompt: str, max_tokens: int = 200) -> str:
 LOOKUP_LANG = {"zh": "Mandarin Chinese", "yue": "Cantonese", "id": "Indonesian", "ms": "Malay", "vi": "Vietnamese"}
 
 
-def lookup_word(word: str, sentence: str, lang: str, script: str) -> dict:
+def lookup_word(word: str, sentence: str, lang: str, script: str, from_english: bool = False) -> dict:
     """Dictionary entry for a word, aimed at an English-speaking learner."""
     language = LOOKUP_LANG.get(lang) or LANG_NAMES[lang]
     chinese = lang in ("zh", "yue")
@@ -227,9 +227,19 @@ def lookup_word(word: str, sentence: str, lang: str, script: str) -> dict:
             " Vietnamese words are often several syllables written separately (e.g. cảm ơn, học sinh): if the tapped"
             " syllable is part of a longer word in the sentence, look up the whole word."
         )
+    if from_english:
+        intro = (
+            f"You are a {language}–English learner's dictionary. The learner wants to know how to say the English "
+            f"word or phrase \"{word}\" in {language}. Give the most common everyday {language} word for it "
+            "(in its usual meaning), and describe that word.\n\n"
+        )
+    else:
+        intro = (
+            f"You are a {language}–English learner's dictionary. The learner tapped the {language} word "
+            f"\"{word}\" in this sentence:\n{sentence or word}\n\n"
+        )
     prompt = (
-        f"You are a {language}–English learner's dictionary. The learner tapped the {language} word "
-        f"\"{word}\" in this sentence:\n{sentence or word}\n\n"
+        intro +
         "Reply with JSON only, in this shape:\n"
         '{"word": "<the word as it should be looked up, written as in a dictionary: lowercase unless it is a proper noun>", '
         '"root": "", "part_of_speech": "<noun, verb, ..., or proper noun for names of people, places, brands>", '
@@ -238,7 +248,13 @@ def lookup_word(word: str, sentence: str, lang: str, script: str) -> dict:
         '"notes": "<one short usage note (register, slang, measure word, tone of a particle), or empty>", '
         f'"example": {{"text": "<a new, short, everyday {language} sentence using the word>", '
         '"translation": "<its English translation>"}}\n'
-        f"If the tapped text is only part of a word, look up the whole word.{root_note}{script_note}"
+        + (
+            f'"word" must be the {language} word, not the English one. Leave "in_context" empty.'
+            if from_english
+            else "If the tapped text is only part of a word, look up the whole word."
+        )
+        + root_note
+        + script_note
     )
     text = _complete_simple(prompt, max_tokens=500)
     match = re.search(r"\{.*\}", text, re.S)

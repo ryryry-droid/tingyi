@@ -153,6 +153,7 @@ class LookupRequest(BaseModel):
     sentence: str = Field(default="", max_length=600)
     lang: LookupLang
     script: Script = "simplified"
+    from_english: bool = False  # "word" is English: find how to say it in lang
 
 
 class Example(BaseModel):

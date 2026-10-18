@@ -379,3 +379,17 @@ def test_extra_languages(monkeypatch):
     assert r.json()["segments"][0]["lang"] == "ko" and r.json()["segments"][0]["target"] == "en"
     monkeypatch.setattr(translate, "_complete_simple", lambda p, max_tokens=200: '{"word": "hola", "meaning": "hello"}')
     assert client.post("/api/lookup", json={"word": "hola", "lang": "es"}).json()["meaning"] == "hello"
+
+
+def test_lookup_from_english(monkeypatch):
+    setup(monkeypatch)
+    seen = []
+
+    def fake(prompt, max_tokens=200):
+        seen.append(prompt)
+        return '{"word": "周末", "part_of_speech": "noun", "meaning": "weekend", "example": {"text": "周末愉快", "translation": "Have a nice weekend"}}'
+
+    monkeypatch.setattr(translate, "_complete_simple", fake)
+    r = client.post("/api/lookup", json={"word": "weekend", "lang": "zh", "from_english": True})
+    assert r.status_code == 200 and r.json()["word"] == "周末" and r.json()["pinyin"]
+    assert 'how to say the English word or phrase "weekend" in Mandarin' in seen[0] and "not the English one" in seen[0]
