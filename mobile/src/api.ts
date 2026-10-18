@@ -1,3 +1,5 @@
+import { File } from 'expo-file-system';
+
 import { Segment, Session, Settings, Source, Target } from './types';
 
 function baseUrl(s: Settings) {
@@ -61,10 +63,15 @@ export async function translateRecording(
   session: Session,
 ): Promise<{ duration: number; title: string; segments: Segment[] }> {
   if (!baseUrl(s)) throw new Error('Add your server address in Settings, then tap Try again.');
-  const ext = (session.audioUri.split('?')[0].split('.').pop() || 'm4a').toLowerCase();
+  const audio = new File(session.audioUri);
+  if (!audio.exists) throw new Error('The audio for this recording is no longer on your phone.');
+  const ext = (audio.name.split('.').pop() || 'm4a').toLowerCase();
   const form = new FormData();
-  // React Native's FormData accepts {uri, name, type} for local files.
-  form.append('file', { uri: session.audioUri, name: `recording.${ext}`, type: MIME[ext] || 'audio/mp4' } as any);
+  // Expo's fetch reads the file itself when given an expo-file-system File (a Blob);
+  // the older React Native {uri, name, type} object isn't supported by it.
+  // No filename argument: the File already carries its name (with the right extension).
+  form.append('file', audio as unknown as Blob);
+  if (!MIME[ext]) console.warn(`Uploading unusual audio type .${ext}`);
   form.append('options', JSON.stringify(options(s, session.source, session.target)));
   try {
     const res = await fetch(`${baseUrl(s)}/api/translate`, { method: 'POST', headers: headers(s), body: form });
