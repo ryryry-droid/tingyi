@@ -94,7 +94,6 @@ export default function TestScreen({ settings, words, setup, only, onUpdateWord,
     if (ok) playCry();
     else playWrong();
     buzzAnswer(ok);
-    setTimeout(() => scroller.current?.scrollToEnd({ animated: true }), 100);
   }
 
   function checkTyped() {
@@ -242,7 +241,7 @@ export default function TestScreen({ settings, words, setup, only, onUpdateWord,
 
   return (
     <View style={{ flex: 1 }}>
-      <ScrollView ref={scroller} contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 40 }} keyboardShouldPersistTaps="handled">
+      <ScrollView ref={scroller} contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 250 }} keyboardShouldPersistTaps="handled">
         <View style={styles.qtop}>
           <Pressable onPress={quit} style={[styles.qx, { backgroundColor: c.surface }]} accessibilityLabel="End test">
             <Text style={{ color: c.muted, fontSize: 15 }}>✕</Text>
@@ -254,12 +253,7 @@ export default function TestScreen({ settings, words, setup, only, onUpdateWord,
             {i + 1} / {count}
           </Text>
         </View>
-        {stats.streak >= 2 ? (
-          <Text style={[styles.streak, { color: c.yellowText, backgroundColor: c.yellowSoft }]}>🔥 {stats.streak} in a row</Text>
-        ) : (
-          <View style={{ height: 16 }} />
-        )}
-        <Text style={{ marginTop: 12, color: c.muted, fontWeight: '700', fontSize: 13.5 }}>{prompt}</Text>
+        <Text style={{ marginTop: 14, color: c.muted, fontWeight: '700', fontSize: 13.5 }}>{prompt}</Text>
         {card}
 
         {q.kind === 'type' ? (
@@ -322,8 +316,9 @@ export default function TestScreen({ settings, words, setup, only, onUpdateWord,
           </View>
         )}
 
+      </ScrollView>
         {answer ? (
-          <View style={[styles.feed, answer.ok ? { backgroundColor: c.okSoft, borderColor: '#5BC48A' } : { backgroundColor: c.badSoft, borderColor: c.rec }]}>
+          <View style={[styles.feed, { backgroundColor: c.surface }, answer.ok ? { backgroundColor: c.okSoft, borderColor: '#5BC48A' } : { backgroundColor: c.badSoft, borderColor: c.rec }]}>
             <Text style={{ fontWeight: '800', fontSize: 17, color: answer.ok ? c.ok : c.rec }}>{answer.ok ? 'Correct!' : 'Not quite'}</Text>
             <Text style={{ color: c.ink, fontSize: 15 }}>
               <Text style={[{ fontWeight: '800', fontSize: 17 }, han && { fontFamily: HAN_FONT, fontSize: 19 }]}>{w.word}</Text>
@@ -340,7 +335,6 @@ export default function TestScreen({ settings, words, setup, only, onUpdateWord,
             </View>
           </View>
         ) : null}
-      </ScrollView>
     </View>
   );
 }
@@ -349,14 +343,27 @@ const styles = StyleSheet.create({
   qtop: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 4 },
   qx: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
   qbar: { flex: 1, height: 10, borderRadius: 5, overflow: 'hidden' },
-  streak: { alignSelf: 'flex-start', marginTop: 16, fontSize: 12.5, fontWeight: '800', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999, overflow: 'hidden' },
   qcard: { marginTop: 10, borderRadius: 22, borderBottomLeftRadius: 6, paddingVertical: 24, paddingHorizontal: 18, alignItems: 'center' },
   big: { color: '#fff', fontSize: 40, fontWeight: '800', textAlign: 'center' },
   spk: { position: 'absolute', right: 12, top: 12, width: 34, height: 34, borderRadius: 17, backgroundColor: 'rgba(255,255,255,0.22)', alignItems: 'center', justifyContent: 'center' },
   qopt: { borderWidth: 1.5, borderRadius: 14, paddingVertical: 13, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', gap: 10 },
   k: { width: 24, height: 24, borderRadius: 7, alignItems: 'center', justifyContent: 'center' },
   typeInput: { borderWidth: 1.5, borderRadius: 14, paddingHorizontal: 14, paddingVertical: 13, fontSize: 19, fontWeight: '700' },
-  feed: { marginTop: 16, borderRadius: 16, borderWidth: 1.5, paddingVertical: 14, paddingHorizontal: 16, gap: 4 },
+  // the answer is pinned to the bottom, so the question and choices never move
+  feed: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    borderTopLeftRadius: 22,
+    borderTopRightRadius: 22,
+    borderTopWidth: 2,
+    paddingTop: 16,
+    paddingBottom: 14,
+    paddingHorizontal: 18,
+    gap: 4,
+    elevation: 12,
+  },
   ring: { width: 150, height: 150, alignItems: 'center', justifyContent: 'center' },
   ringDot: { position: 'absolute', width: 10, height: 10, borderRadius: 5 },
   rstats: { flexDirection: 'row', gap: 8, marginTop: 18 },

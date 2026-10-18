@@ -258,11 +258,6 @@ export default function RecordScreen({ settings, onLanguages, onRecorded, onStop
           >
             <Image source={BIRD} style={styles.bird} resizeMode="contain" />
           </Pressable>
-          {rec ? (
-            <View pointerEvents="none" style={[styles.stopBadge, { backgroundColor: c.rec, borderColor: c.bg }]}>
-              <View style={styles.stopIcon} />
-            </View>
-          ) : null}
         </View>
         <Text style={[styles.hint, { color: c.muted }]}>
           {rec
@@ -310,8 +305,6 @@ const styles = StyleSheet.create({
   halo: { position: 'absolute', width: 140, height: 140, borderRadius: 70 },
   recordButton: { width: 120, height: 120, borderRadius: 60, borderWidth: 5, backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
   bird: { width: 104, height: 104, borderRadius: 52 },
-  stopBadge: { position: 'absolute', right: 12, bottom: 12, width: 40, height: 40, borderRadius: 20, borderWidth: 3, alignItems: 'center', justifyContent: 'center' },
-  stopIcon: { width: 13, height: 13, borderRadius: 3, backgroundColor: '#FFFFFF' },
   hint: { fontSize: 14, textAlign: 'center', lineHeight: 20, fontWeight: '500' },
   upload: { alignSelf: 'center', borderWidth: 1.5, borderStyle: 'dashed', borderRadius: 14, paddingHorizontal: 16, paddingVertical: 10 },
   liveRow: { flexDirection: 'row', justifyContent: 'center', gap: 10, flexWrap: 'wrap', marginTop: 26 },
