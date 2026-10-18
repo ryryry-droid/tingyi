@@ -51,7 +51,8 @@ def health() -> dict:
     return {
         "ok": True,
         "asr": config.ASR_PROVIDER,
-        "translator": config.ANTHROPIC_MODEL,
+        "transcriber": config.OPENAI_TRANSCRIBE_MODEL if config.ASR_PROVIDER == "openai" else config.LOCAL_WHISPER_MODEL,
+        "translator": config.TRANSLATE_MODEL,
         "token_required": bool(config.API_TOKEN),
     }
 

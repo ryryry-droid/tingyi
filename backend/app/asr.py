@@ -37,7 +37,7 @@ def transcribe(path: str, opts: Options) -> tuple[list[RawSegment], float]:
 def _transcribe_openai(path: str, opts: Options) -> tuple[list[RawSegment], float]:
     from openai import OpenAI
 
-    client = OpenAI(base_url=config.OPENAI_BASE_URL)
+    client = OpenAI(base_url=config.OPENAI_BASE_URL, api_key=config.OPENAI_API_KEY or None, max_retries=4)
     # Hosted APIs only accept "zh" for Chinese; Cantonese still comes back as Chinese text.
     args = dict(
         model=config.OPENAI_TRANSCRIBE_MODEL,

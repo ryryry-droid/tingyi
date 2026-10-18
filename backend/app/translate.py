@@ -39,6 +39,36 @@ def _client():
     return Anthropic()
 
 
+def _openai_client():
+    from openai import OpenAI
+
+    # retries back off and honour "retry-after" when a free-plan rate limit is hit
+    return OpenAI(base_url=config.OPENAI_BASE_URL, api_key=config.OPENAI_API_KEY or None, max_retries=6)
+
+
+def _complete(prompt: str) -> str:
+    """Send one translation request to the configured provider; returns the reply text."""
+    if config.TRANSLATE_PROVIDER == "anthropic":
+        response = _client().messages.create(
+            model=config.ANTHROPIC_MODEL,
+            max_tokens=8000,
+            system=SYSTEM,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        return "".join(b.text for b in response.content if getattr(b, "type", "") == "text")
+
+    args = dict(
+        model=config.OPENAI_TRANSLATE_MODEL,
+        messages=[{"role": "system", "content": SYSTEM}, {"role": "user", "content": prompt}],
+        response_format={"type": "json_object"},
+        temperature=0.2,
+    )
+    if "gpt-oss" in config.OPENAI_TRANSLATE_MODEL:
+        args["reasoning_effort"] = "low"  # less hidden reasoning = fewer tokens against the limit
+    response = _openai_client().chat.completions.create(**args)
+    return response.choices[0].message.content or ""
+
+
 def _build_prompt(lines: list[Segment], context: list[Segment], opts: Options) -> str:
     parts = [STYLE[opts.style]]
     if opts.dialect == "cantonese":
@@ -69,14 +99,7 @@ def translate_lines(lines: list[Segment], context: list[Segment], opts: Options)
     """Translate `lines`; returns {segment id: English}."""
     if not lines:
         return {}
-    response = _client().messages.create(
-        model=config.ANTHROPIC_MODEL,
-        max_tokens=8000,
-        system=SYSTEM,
-        messages=[{"role": "user", "content": _build_prompt(lines, context, opts)}],
-    )
-    text = "".join(block.text for block in response.content if getattr(block, "type", "") == "text")
-    result = _parse(text)
+    result = _parse(_complete(_build_prompt(lines, context, opts)))
     missing = [s for s in lines if s.id not in result]
     if missing and len(missing) < len(lines):  # model skipped a few: retry just those once
         result.update(_parse_retry(missing, context, opts))

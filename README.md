@@ -20,23 +20,25 @@ phone: line-by-line view ◀──── segments JSON ──────┘
 - Natural or literal translation style
 - History of recordings saved on the phone; share a transcript as text
 
-## Quickest way: put it online and use it from your phone's browser
+## Quickest way: free, online, used from your phone's browser
 
 The server includes a phone recording page at `/`, so once it's hosted you don't need a computer
-or the Expo app at all.
+or the Expo app at all. With Groq's free plan it costs nothing: Groq runs Whisper large-v3 for
+speech recognition and an open model for translation, with one free API key (no card).
 
-1. Get an **Anthropic API key** (console.anthropic.com) and an **OpenAI API key** (platform.openai.com, used for Whisper).
+1. Get a free **Groq API key** at console.groq.com → API Keys.
 2. Put this project in a GitHub repository.
-3. On **render.com**: New → Blueprint → choose the repository. Fill in `ANTHROPIC_API_KEY`,
-   `OPENAI_API_KEY`, and `API_TOKEN` (any access code you make up). Deploy.
+3. On **render.com**: New → Blueprint → choose the repository. Fill in `GROQ_API_KEY` and
+   `API_TOKEN` (any access code you make up). Deploy.
 4. Open the `https://….onrender.com` address on your phone, enter the access code in Settings,
    and add the page to your home screen.
 
-Render's free plan sleeps after a period of no use, so the first request after a break can take
-about a minute while it wakes up.
+Free-plan limits (Groq's, checked October 2026; confirm in your Groq console): about 2 hours of audio
+per hour and 8 hours per day for Whisper, and 200K translation tokens per day. Render's free plan sleeps
+when unused, so the first request after a break can take about a minute.
 
-To use Groq's hosted `whisper-large-v3` instead of OpenAI, set `OPENAI_BASE_URL=https://api.groq.com/openai/v1`,
-`OPENAI_TRANSCRIBE_MODEL=whisper-large-v3`, and put your Groq key in `OPENAI_API_KEY`.
+To use Claude for translation instead (paid, best quality), add `ANTHROPIC_API_KEY` on Render; the server
+switches to it automatically and keeps Groq for Whisper.
 
 ## 1. Run the server on your computer
 

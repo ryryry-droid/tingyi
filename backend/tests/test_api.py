@@ -113,3 +113,28 @@ def test_unknown_extension_defaults(monkeypatch):
     monkeypatch.setattr(asr, "transcribe", lambda path, opts: (seen.setdefault("p", path), fake_transcribe(path, opts))[1])
     r = client.post("/api/translate", files={"file": ("x.exe", b"x", "audio/webm")})
     assert r.status_code == 200 and seen["p"].endswith(".m4a")
+
+
+def test_groq_style_translator(monkeypatch):
+    """TRANSLATE_PROVIDER=openai path (used for Groq's free plan)."""
+    calls = []
+
+    class FakeOpenAI:
+        def __init__(self):
+            self.chat = SimpleNamespace(completions=SimpleNamespace(create=self.create))
+
+        def create(self, **kwargs):
+            calls.append(kwargs)
+            prompt = kwargs["messages"][1]["content"]
+            lines = json.loads(prompt.split("Translate these lines:\n", 1)[1])
+            out = {"translations": [{"id": l["id"], "en": f"G<{l['zh']}>"} for l in lines]}
+            return SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content=json.dumps(out)))])
+
+    setup(monkeypatch)
+    monkeypatch.setattr(config, "TRANSLATE_PROVIDER", "openai")
+    monkeypatch.setattr(config, "OPENAI_TRANSLATE_MODEL", "openai/gpt-oss-120b")
+    monkeypatch.setattr(translate, "_openai_client", lambda: FakeOpenAI())
+    r = client.post("/api/translate", files={"file": ("a.webm", b"x", "audio/webm")}, data={"options": "{}"})
+    assert r.status_code == 200, r.text
+    assert r.json()["segments"][0]["en"] == "G<你好，我是王小明。>"
+    assert calls[0]["reasoning_effort"] == "low" and calls[0]["response_format"] == {"type": "json_object"}

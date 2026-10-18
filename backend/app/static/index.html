@@ -444,7 +444,7 @@ nav button[aria-selected="true"] { background: var(--surface); color: var(--ink)
     $('s-title').textContent = s.status === 'done' ? s.title : s.status === 'processing' ? 'Translating…' : 'Translation failed';
     $('s-meta').textContent = `${fmtDate(s.createdAt)}${s.duration ? ' · ' + fmtTime(s.duration) : ''}${s.status === 'done' ? ` · ${s.segments.length} lines` : ''}`;
     if (s.status === 'processing') {
-      $('s-body').innerHTML = `<div class="working"><div class="dot"></div><div>Whisper is transcribing, then Claude translates.<br>Longer recordings take a minute or two.</div></div>`;
+      $('s-body').innerHTML = `<div class="working"><div class="dot"></div><div>Transcribing with Whisper, then translating.<br>Longer recordings take a minute or two.</div></div>`;
       return;
     }
     const del = confirmDelete

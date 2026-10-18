@@ -1,5 +1,6 @@
-# Render blueprint: deploys the server (which also serves the phone recording page).
-# On render.com: New → Blueprint → pick this repo, then fill in the secret values it asks for.
+# Render blueprint: deploys the server, which also serves the phone recording page.
+# On render.com: New → Blueprint → pick this repo, then fill in the two secret values it asks for.
+# Free setup: Groq does both speech recognition (Whisper large-v3) and translation.
 services:
   - type: web
     name: tingyi
@@ -12,15 +13,7 @@ services:
     envVars:
       - key: PYTHON_VERSION
         value: 3.12.7
-      - key: ANTHROPIC_API_KEY
+      - key: GROQ_API_KEY      # from console.groq.com → API Keys (free, no card)
         sync: false
-      - key: OPENAI_API_KEY
+      - key: API_TOKEN         # any access code you make up; you'll type it into the page once
         sync: false
-      - key: API_TOKEN
-        sync: false
-      - key: ANTHROPIC_MODEL
-        value: claude-sonnet-5-5
-      - key: ASR_PROVIDER
-        value: openai
-      - key: OPENAI_TRANSCRIBE_MODEL
-        value: whisper-1
