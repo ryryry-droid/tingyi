@@ -332,7 +332,7 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
 .qbar i { display: block; height: 100%; background: linear-gradient(90deg, var(--sky), var(--yellow)); border-radius: 5px; transition: width .3s; }
 .qcount { font-size: 13px; color: var(--muted); font-weight: 700; font-variant-numeric: tabular-nums; }
 .qstreak { display: inline-flex; gap: 5px; align-items: center; margin-top: 16px; font-size: 12.5px; font-weight: 800; color: var(--yellow-text); background: var(--yellow-soft); padding: 4px 10px; border-radius: 999px; }
-.qprompt { margin-top: 12px; font-size: 13.5px; color: var(--muted); font-weight: 700; }
+.qprompt { margin-top: 14px; font-size: 13.5px; color: var(--muted); font-weight: 700; }
 .qcard { margin-top: 10px; background: var(--sky); color: #fff; border-radius: 22px; border-bottom-left-radius: 6px; padding: 24px 18px; text-align: center; position: relative; }
 .qcard .big { font-size: 40px; font-weight: 800; line-height: 1.2; overflow-wrap: anywhere; }
 .qcard .big.han { font-family: var(--han); font-size: 48px; letter-spacing: .06em; }
@@ -356,9 +356,15 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
 .qtype { display: grid; gap: 10px; margin-top: 18px; }
 .qtype input { width: 100%; border: 1.5px solid var(--line); border-radius: 14px; background: var(--surface); padding: 13px 14px; font-size: 19px; font-weight: 700; color: var(--ink); }
 .qtype input:focus { border-color: var(--accent); outline: none; }
-.qfeed { margin-top: 16px; border-radius: 16px; padding: 14px 16px; display: grid; gap: 4px; }
-.qfeed.ok { background: color-mix(in srgb, #5BC48A 16%, var(--surface)); border: 1.5px solid #5BC48A; }
-.qfeed.bad { background: color-mix(in srgb, var(--rec) 14%, var(--surface)); border: 1.5px solid var(--rec); }
+/* the answer slides up from the bottom, so the question and choices stay exactly where they are */
+#view-test { padding-bottom: 230px; }
+.qfeed { position: fixed; left: 0; right: 0; bottom: 0; z-index: 20; max-width: 600px; margin: 0 auto; border-radius: 22px 22px 0 0;
+  padding: 16px max(18px, env(safe-area-inset-right, 0px)) calc(16px + env(safe-area-inset-bottom, 0px)) max(18px, env(safe-area-inset-left, 0px));
+  display: grid; gap: 4px; box-shadow: 0 -8px 24px rgba(0,0,0,.18); animation: qup .18s ease-out; }
+@keyframes qup { from { transform: translateY(40px); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .qfeed { animation: none; } }
+.qfeed.ok { background: color-mix(in srgb, #5BC48A 16%, var(--surface)); border-top: 2px solid #5BC48A; }
+.qfeed.bad { background: color-mix(in srgb, var(--rec) 14%, var(--surface)); border-top: 2px solid var(--rec); }
 .qfeed .h { font-weight: 800; font-size: 17px; }
 .qfeed.ok .h { color: #3FAA6F; } .qfeed.bad .h { color: var(--rec); }
 .qfeed .x { font-size: 15px; }
@@ -1788,11 +1794,9 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
       <div class="qtop"><button class="qx" type="button" data-q="quit" aria-label="End test">✕</button>
         <span class="qbar"><i style="width:${Math.round(((t.i + (a ? 1 : 0)) / t.qs.length) * 100)}%"></i></span>
         <span class="qcount">${t.i + 1} / ${t.qs.length}</span></div>
-      ${t.streak >= 2 ? `<div class="qstreak">🔥 ${t.streak} in a row</div>` : '<div style="height:16px"></div>'}
       <div class="qprompt">${prompt}</div>
       ${card}${answers}${feedback}`;
     if (q.kind === 'type' && !a) { const inp = $('q-type'); inp.focus(); inp.onkeydown = (ev) => { if (ev.key === 'Enter') { ev.preventDefault(); checkTyped(); } }; }
-    if (a) $('view-test').querySelector('[data-q="next"]')?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
   }
   async function answer(ok, extra) {
     const t = test, w = t.qs[t.i].w;
