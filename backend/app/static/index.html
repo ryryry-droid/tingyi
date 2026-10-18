@@ -285,6 +285,94 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
 .wc-meaning { font-weight: 700; }
 .filter button[aria-pressed="true"] { font-weight: 700; }
 .hrow .hdel { font-weight: 800; }
+
+/* ===== Words: test + add word ===== */
+.wbtns { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; }
+.testbtn { display: flex; align-items: center; gap: 12px; border: 0; background: var(--yellow); color: var(--yellow-ink); border-radius: 18px; padding: 12px 14px; font-weight: 800; font-size: 16px; text-align: left; min-width: 0; }
+.testbtn .ic { width: 38px; height: 38px; border-radius: 12px; background: rgba(0,0,0,.12); display: grid; place-items: center; font-size: 18px; flex-shrink: 0; }
+.testbtn small { display: block; font-weight: 700; opacity: .75; font-size: 12.5px; }
+.testbtn .go { margin-left: auto; font-size: 22px; }
+.testbtn:disabled { opacity: .55; }
+.addbtn { border: 0; background: var(--accent); color: var(--accent-ink); border-radius: 18px; padding: 8px 14px; font-weight: 800; display: grid; justify-items: center; gap: 1px; font-size: 20px; }
+.addbtn small { font-size: 11.5px; }
+.lvl { display: inline-flex; gap: 3px; margin-left: auto; align-self: center; }
+.lvl i { width: 7px; height: 7px; border-radius: 50%; background: var(--line); }
+.lvl i.f { background: #5BC48A; }
+/* add-word sheet */
+.addrow { display: grid; grid-template-columns: minmax(0, 1fr) 52px; gap: 8px; }
+.addrow input { width: 100%; border: 1.5px solid var(--line); border-radius: 14px; background: var(--bg); padding: 12px 14px; font-size: 20px; font-weight: 700; color: var(--ink); }
+.addrow input:focus { border-color: var(--accent); outline: none; }
+.mic { width: 52px; height: 52px; border-radius: 50%; border: 0; background: var(--rec); color: #fff; font-size: 22px; display: grid; place-items: center; }
+.mic.on { animation: recglow 1.2s ease-in-out infinite; }
+.add-meaning { width: 100%; min-height: 64px; border: 1.5px solid var(--line); border-radius: 12px; background: var(--bg); padding: 10px 12px; font-size: 17px; font-weight: 700; color: var(--ink); resize: vertical; }
+.add-meaning:focus { border-color: var(--accent); outline: none; }
+.sheet h2 { margin: 0; font-size: 21px; font-weight: 800; }
+.sheet .seg { margin: 0; }
+/* test setup */
+.kinds { display: grid; gap: 8px; }
+.kind { display: flex; gap: 12px; align-items: center; background: var(--bg); border-radius: 14px; padding: 10px 12px; border: 1.5px solid transparent; text-align: left; width: 100%; }
+.kind[aria-pressed="true"] { border-color: var(--accent); }
+.kind .box { width: 22px; height: 22px; border-radius: 6px; border: 2px solid var(--line); display: grid; place-items: center; font-size: 13px; color: #fff; flex-shrink: 0; }
+.kind[aria-pressed="true"] .box { background: var(--accent); border-color: var(--accent); }
+.kind b { display: block; font-size: 15px; }
+.kind small { color: var(--muted); font-size: 12.5px; }
+/* test */
+.qtop { display: flex; align-items: center; gap: 12px; margin-top: 4px; }
+.qx { width: 34px; height: 34px; border-radius: 50%; border: 0; background: var(--surface); color: var(--muted); font-size: 15px; }
+.qbar { flex: 1; height: 10px; border-radius: 5px; background: var(--surface); overflow: hidden; }
+.qbar i { display: block; height: 100%; background: linear-gradient(90deg, var(--sky), var(--yellow)); border-radius: 5px; transition: width .3s; }
+.qcount { font-size: 13px; color: var(--muted); font-weight: 700; font-variant-numeric: tabular-nums; }
+.qstreak { display: inline-flex; gap: 5px; align-items: center; margin-top: 16px; font-size: 12.5px; font-weight: 800; color: var(--yellow-text); background: var(--yellow-soft); padding: 4px 10px; border-radius: 999px; }
+.qprompt { margin-top: 12px; font-size: 13.5px; color: var(--muted); font-weight: 700; }
+.qcard { margin-top: 10px; background: var(--sky); color: #fff; border-radius: 22px; border-bottom-left-radius: 6px; padding: 24px 18px; text-align: center; position: relative; }
+.qcard .big { font-size: 40px; font-weight: 800; line-height: 1.2; overflow-wrap: anywhere; }
+.qcard .big.han { font-family: var(--han); font-size: 48px; letter-spacing: .06em; }
+.qcard .p { font-size: 17px; opacity: .9; margin-top: 4px; }
+.qcard .mean { font-size: 24px; font-weight: 800; }
+.qcard .spk { position: absolute; right: 12px; top: 12px; width: 34px; height: 34px; border-radius: 50%; border: 0; background: rgba(255,255,255,.22); color: #fff; font-size: 15px; }
+.qcard.gap { background: var(--yellow); color: var(--yellow-ink); border-radius: 22px; border-bottom-right-radius: 6px; text-align: left; }
+.qcard.gap .s { font-size: 21px; font-weight: 800; line-height: 1.5; }
+.qcard.gap .s.han { font-family: var(--han); }
+.qcard.gap .blank { display: inline-block; min-width: 70px; border-bottom: 3px solid currentColor; margin: 0 3px; }
+.qcard.gap .t { font-size: 14px; margin-top: 6px; opacity: .8; font-weight: 700; }
+.qopts { display: grid; gap: 9px; margin-top: 18px; }
+.qopt { border: 1.5px solid var(--line); background: var(--surface); color: var(--ink); border-radius: 14px; padding: 13px 14px; font-size: 16px; font-weight: 700; display: flex; align-items: center; gap: 10px; text-align: left; width: 100%; }
+.qopt .han { font-family: var(--han); font-size: 20px; }
+.qopt .k { width: 24px; height: 24px; border-radius: 7px; background: var(--surface2); display: grid; place-items: center; font-size: 12px; color: var(--muted); flex-shrink: 0; }
+.qopt.ok { border-color: #5BC48A; background: color-mix(in srgb, #5BC48A 18%, var(--surface)); }
+.qopt.ok .k { background: #5BC48A; color: #0c2a1a; }
+.qopt.bad { border-color: var(--rec); background: color-mix(in srgb, var(--rec) 16%, var(--surface)); }
+.qopt.bad .k { background: var(--rec); color: #fff; }
+.qopt.dim { opacity: .45; }
+.qtype { display: grid; gap: 10px; margin-top: 18px; }
+.qtype input { width: 100%; border: 1.5px solid var(--line); border-radius: 14px; background: var(--surface); padding: 13px 14px; font-size: 19px; font-weight: 700; color: var(--ink); }
+.qtype input:focus { border-color: var(--accent); outline: none; }
+.qfeed { margin-top: 16px; border-radius: 16px; padding: 14px 16px; display: grid; gap: 4px; }
+.qfeed.ok { background: color-mix(in srgb, #5BC48A 16%, var(--surface)); border: 1.5px solid #5BC48A; }
+.qfeed.bad { background: color-mix(in srgb, var(--rec) 14%, var(--surface)); border: 1.5px solid var(--rec); }
+.qfeed .h { font-weight: 800; font-size: 17px; }
+.qfeed.ok .h { color: #3FAA6F; } .qfeed.bad .h { color: var(--rec); }
+.qfeed .x { font-size: 15px; }
+.qfeed .x.han { font-family: var(--han); font-size: 17px; }
+.qfeed .xt { color: var(--muted); font-size: 14px; }
+.rscore { text-align: center; margin-top: 18px; }
+.ring { width: 150px; height: 150px; border-radius: 50%; margin: 0 auto; display: grid; place-items: center; }
+.ring > div { width: 122px; height: 122px; border-radius: 50%; background: var(--bg); display: grid; place-items: center; }
+.ring b { font-size: 36px; font-weight: 800; display: block; text-align: center; }
+.ring small { display: block; font-size: 12px; color: var(--muted); font-weight: 700; text-align: center; }
+.rscore h2 { margin: 14px 0 2px; font-size: 22px; font-weight: 800; }
+.rscore p { margin: 0; color: var(--muted); }
+.rstats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 18px; }
+.rstats div { background: var(--surface); border-radius: 14px; padding: 10px; text-align: center; }
+.rstats b { display: block; font-size: 20px; font-weight: 800; }
+.rstats small { color: var(--muted); font-size: 12px; font-weight: 700; }
+.rv { display: flex; align-items: baseline; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--line); }
+.rv .wd { font-size: 19px; font-weight: 800; }
+.rv .wd.han { font-family: var(--han); }
+.rv .m { color: var(--muted); font-size: 14px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rv .tag { margin-left: auto; font-size: 11.5px; font-weight: 800; color: var(--rec); flex-shrink: 0; }
+.rbtns { display: flex; gap: 8px; margin-top: 16px; }
+.rbtns button { flex: 1; }
 </style>
 </head>
 <body>
@@ -358,6 +446,10 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
 
   <section id="view-words" hidden>
     <div class="words-tools">
+      <div class="wbtns">
+        <button class="testbtn" id="w-test" type="button"><span class="ic" aria-hidden="true">✎</span><span>Start a test<small id="w-test-sub"></small></span><span class="go" aria-hidden="true">›</span></button>
+        <button class="addbtn" id="w-add" type="button"><span aria-hidden="true">🎙</span><small>Add word</small></button>
+      </div>
       <input id="w-search" type="search" placeholder="Search your words" autocomplete="off">
       <div class="filter" id="w-filter">
         <button type="button" data-f="all" aria-pressed="true">All</button>
@@ -370,6 +462,8 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
     </div>
     <ul class="wlist" id="wlist"></ul>
   </section>
+
+  <section id="view-test" hidden></section>
 
   <section id="view-settings" hidden>
     <div class="field">
@@ -418,6 +512,7 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
 <div class="actionbar" id="actionbar" hidden><div class="inner" id="actions"></div></div>
 <div class="toast" id="toast" hidden></div>
 <div class="sheet-wrap" id="sheet" hidden></div>
+<div class="sheet-wrap" id="panel" hidden></div>
 
 <script>
 (() => {
@@ -722,8 +817,10 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
   function setView(v) {
     if (v !== 'session') stopPlayback();
     view = v; editing = null; confirmDelete = false;
-    ['record', 'history', 'words', 'settings'].forEach((n) => $('tab-' + n).setAttribute('aria-selected', String(n === v || (v === 'session' && n === 'history') || (v === 'live' && n === 'record'))));
-    ['record', 'live', 'session', 'history', 'words', 'settings'].forEach((n) => ($('view-' + n).hidden = n !== v));
+    ['record', 'history', 'words', 'settings'].forEach((n) => $('tab-' + n).setAttribute('aria-selected', String(n === v || (v === 'session' && n === 'history') || (v === 'live' && n === 'record') || (v === 'test' && n === 'words'))));
+    ['record', 'live', 'session', 'history', 'words', 'test', 'settings'].forEach((n) => ($('view-' + n).hidden = n !== v));
+    if (v !== 'test') test = null;
+    closePanel();
     closeSheet();
     rerender();
     window.scrollTo(0, 0);
@@ -745,6 +842,7 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
     if (view === 'session') renderSession();
     if (view === 'history') renderHistory();
     if (view === 'words') renderWords();
+    if (view === 'test') renderTest();
     if (view === 'settings') renderSettings();
     renderActions();
   }
@@ -1285,19 +1383,22 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
   function renderWords() {
     $('w-filter').querySelectorAll('[data-f]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.f === wordFilter)));
     const list = filteredWords();
+    $('w-test').disabled = !words.length;
+    $('w-test-sub').textContent = words.length >= 4 ? `${words.length} words saved` : words.length ? `Save ${4 - words.length} more to test yourself` : 'Save some words first';
     $('w-count').textContent = words.length
       ? `${list.length} of ${words.length} ${words.length === 1 ? 'word' : 'words'}`
       : '';
     $('w-copy').hidden = !list.length;
     $('wlist').innerHTML = !words.length
-      ? `<li class="empty">No saved words yet. Open a recording, tap a Chinese or Indonesian word, and choose Add to my words.</li>`
+      ? `<li class="empty">No saved words yet. Tap Add word to type or say one, or tap a word in any recording.</li>`
       : !list.length ? `<li class="empty">No words match.</li>`
       : list.map((w) => {
         const han = w.lang === 'zh';
         return `<li class="wcard">
           <div class="top"><span class="wd${han ? ' han' : ''}">${esc(w.word)}</span>
             ${settings.pinyin && w.pinyin ? `<span class="py">${pinyinHtml(w.pinyin)}</span>` : ''}
-            ${w.part_of_speech ? `<span class="pos" style="margin:0">${esc(w.part_of_speech)}</span>` : ''}</div>
+            ${w.part_of_speech ? `<span class="pos" style="margin:0">${esc(w.part_of_speech)}</span>` : ''}
+            <span class="lvl" title="How well you know it">${[0, 1, 2].map((k) => `<i class="${(w.level || 0) > k ? 'f' : ''}"></i>`).join('')}</span></div>
           <p class="m">${esc(w.meaning)}${w.root && w.root.toLowerCase() !== w.word.toLowerCase() ? ` <span class="meta">· base word ${esc(w.root)}</span>` : ''}</p>
           ${w.example ? `<p class="ex"><span class="${han ? 'han' : ''}">${esc(w.example.text)}</span><br>${esc(w.example.translation)}</p>` : ''}
           <div class="src"><span>${w.sessionTitle ? `From “${esc(w.sessionTitle)}” · ` : ''}${fmtDate(w.createdAt)}</span>
@@ -1325,6 +1426,306 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
       words = words.filter((w) => w.id !== b.dataset.del); confirmWord = null; renderWords(); toast('Deleted');
     }
   };
+
+  // ---------- bottom panel (add word, test setup) ----------
+  function openPanel(html) { $('panel').innerHTML = `<div class="sheet" role="dialog" aria-modal="true"><div class="grab"></div>${html}</div>`; $('panel').hidden = false; }
+  function closePanel() { stopWordMic(); $('panel').hidden = true; $('panel').innerHTML = ''; addState = null; }
+  $('panel').addEventListener('click', (ev) => { if (ev.target === $('panel')) closePanel(); });
+
+  // ---------- add a word by typing or speaking ----------
+  let addState = null; // { lang, text, entry, loading, error, recording }
+  let wordMic = null;
+  const cleanWord = (t) => String(t || '').replace(/[。，！？、；：,.!?;:"“”'‘’()（）]/g, ' ').replace(/\s+/g, ' ').trim();
+
+  function openAddWord() {
+    const lang = settings.source === 'id' ? 'id' : settings.target === 'id' && !isHan(settings.source) ? 'id' : 'zh';
+    addState = { lang, text: '', entry: null, loading: false, error: '', recording: false };
+    renderAddWord();
+    setTimeout(() => $('add-input')?.focus(), 50);
+  }
+  function renderAddWord() {
+    const a = addState; if (!a) return;
+    const han = a.lang === 'zh', e = a.entry;
+    const saved = e && words.some((w) => w.id === wordId(a.lang, e.word));
+    let body = '';
+    if (a.recording) body = `<p class="meta" style="text-align:center">Listening… say the word, then tap the microphone to stop.</p>`;
+    else if (a.loading) body = `<div class="working" style="padding:18px 0"><div class="dot"></div><div>${a.loading}</div></div>`;
+    else if (a.error) body = `<p class="notice" style="margin:0">${esc(a.error)}</p>`;
+    else if (e) body = `
+      <div class="wc-head"><div style="min-width:0">
+        <p class="wc-word${han ? ' han' : ''}">${esc(e.word)}</p>
+        ${han && settings.pinyin && e.pinyin ? `<p class="wc-py py">${pinyinHtml(e.pinyin)}</p>` : ''}
+        ${e.part_of_speech ? `<span class="pos">${esc(e.part_of_speech)}</span>` : ''}</div></div>
+      <div class="wc-row"><span class="k">Meaning · check and edit before adding</span></div>
+      <textarea class="add-meaning" id="add-meaning" aria-label="Meaning">${esc(e.meaning)}</textarea>
+      ${e.root && e.root.toLowerCase() !== e.word.toLowerCase() ? `<div class="wc-row"><span class="k">Base word</span><p>${esc(e.root)}</p></div>` : ''}
+      ${e.notes ? `<div class="wc-row"><span class="k">Note</span><p>${esc(e.notes)}</p></div>` : ''}
+      ${exampleHtml(e.example, han)}
+      <div class="wc-actions">
+        <button class="primary" type="button" data-aw="save">${saved ? 'Update my word' : 'Add to my words'}</button>
+        <button class="secondary" type="button" data-aw="close">Cancel</button>
+      </div>`;
+    openPanel(`
+      <h2>Add a word</h2>
+      <div class="seg" role="group" aria-label="Language">
+        <button type="button" data-aw="lang" data-v="zh" aria-pressed="${a.lang === 'zh'}">Chinese 中文</button>
+        <button type="button" data-aw="lang" data-v="id" aria-pressed="${a.lang === 'id'}">Indonesian</button>
+      </div>
+      <div class="addrow">
+        <input id="add-input" type="text" autocomplete="off" autocapitalize="off" placeholder="${han ? 'Type or say a word, e.g. 周末' : 'Type or say a word, e.g. belajar'}" value="${esc(a.text)}" lang="${han ? 'zh' : 'id'}">
+        <button class="mic${a.recording ? ' on' : ''}" type="button" data-aw="mic" aria-label="${a.recording ? 'Stop listening' : 'Say the word'}">${a.recording ? '■' : '🎙'}</button>
+      </div>
+      ${!e && !a.loading && !a.recording ? `<button class="primary" type="button" data-aw="lookup" ${a.text.trim() ? '' : 'disabled'}>Look it up</button>` : ''}
+      ${body}`);
+    const inp = $('add-input');
+    inp.oninput = () => { addState.text = inp.value; if (addState.entry) { addState.entry = null; renderAddWord(); $('add-input').focus(); } else { const b = $('panel').querySelector('[data-aw="lookup"]'); if (b) b.disabled = !inp.value.trim(); } };
+    inp.onkeydown = (ev) => { if (ev.key === 'Enter' && inp.value.trim()) { ev.preventDefault(); addLookup(); } };
+  }
+  async function addLookup() {
+    const a = addState; const word = cleanWord(a.text); if (!word) return;
+    a.text = word; a.error = ''; a.entry = null; a.loading = 'Looking it up…'; renderAddWord();
+    try {
+      const res = await fetch('/api/lookup', { method: 'POST', headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ word, sentence: word, lang: a.lang, script: settings.script }) });
+      if (!res.ok) throw new Error(await apiError(res));
+      if (addState !== a) return;
+      a.entry = await res.json();
+    } catch (e) { if (addState === a) a.error = e instanceof TypeError ? 'Couldn’t reach the server. Check your connection.' : e.message; }
+    if (addState === a) { a.loading = false; renderAddWord(); }
+  }
+  async function startWordMic() {
+    if (rec || live) return;
+    let stream;
+    try { stream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true } }); }
+    catch { addState.error = 'Microphone access was blocked. Allow it for this site, or type the word instead.'; renderAddWord(); return; }
+    const mime = pickMime(), chunks = [];
+    const r = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined);
+    r.ondataavailable = (e) => e.data.size && chunks.push(e.data);
+    wordMic = { r, stream, timer: setTimeout(() => stopWordMic(true), 6000) };
+    r.onstop = () => { stream.getTracks().forEach((t) => t.stop()); if (wordMic?.send) transcribeWord(new Blob(chunks, { type: r.mimeType || mime || 'audio/webm' })); wordMic = null; };
+    r.start(250);
+    addState.recording = true; addState.error = ''; addState.entry = null; renderAddWord();
+  }
+  function stopWordMic(send = false) {
+    if (!wordMic) return;
+    clearTimeout(wordMic.timer); wordMic.send = send;
+    try { wordMic.r.stop(); } catch { wordMic.stream.getTracks().forEach((t) => t.stop()); wordMic = null; }
+    if (addState) addState.recording = false;
+  }
+  async function transcribeWord(blob) {
+    const a = addState; if (!a) return;
+    a.loading = 'Listening back…'; renderAddWord();
+    try {
+      const form = new FormData();
+      form.append('file', blob, `word.${extFor(blob.type)}`);
+      form.append('options', JSON.stringify({ ...options(), source: a.lang, target: a.lang === 'id' ? 'en' : 'en' }));
+      const res = await fetch('/api/live/transcribe', { method: 'POST', headers: authHeaders(), body: form });
+      if (!res.ok) throw new Error(await apiError(res));
+      const text = cleanWord((await res.json()).segments.map((x) => x.text).join(' '));
+      if (addState !== a) return;
+      if (!text) { a.loading = false; a.error = 'Didn’t catch that. Try again a little louder, or type the word.'; renderAddWord(); return; }
+      a.text = text; a.loading = false; renderAddWord();
+      addLookup();
+    } catch (e) { if (addState === a) { a.loading = false; a.error = e instanceof TypeError ? 'Couldn’t reach the server. Check your connection.' : e.message; renderAddWord(); } }
+  }
+  $('panel').addEventListener('click', async (ev) => {
+    const b = ev.target.closest('[data-aw]'); if (!b || !addState) return;
+    const act = b.dataset.aw, a = addState;
+    if (act === 'lang') { a.lang = b.dataset.v; a.entry = null; a.error = ''; renderAddWord(); }
+    else if (act === 'lookup') addLookup();
+    else if (act === 'mic') { if (a.recording) stopWordMic(true); else startWordMic(); }
+    else if (act === 'close') closePanel();
+    else if (act === 'save') {
+      const e = a.entry, meaning = $('add-meaning').value.trim() || e.meaning;
+      const existing = words.find((w) => w.id === wordId(a.lang, e.word));
+      const w = {
+        ...(existing || {}), id: wordId(a.lang, e.word), word: e.word, lang: a.lang, pinyin: e.pinyin || '', root: e.root || '',
+        part_of_speech: e.part_of_speech || '', meaning, in_context: '', notes: e.notes || '', example: e.example || null,
+        sentence: existing?.sentence || '', sessionId: existing?.sessionId || '', sessionTitle: existing?.sessionTitle || 'Added by you',
+        createdAt: existing?.createdAt || Date.now(),
+      };
+      await putWord(w).catch(() => {});
+      words = [w, ...words.filter((x) => x.id !== w.id)];
+      closePanel(); renderWords(); toast(existing ? 'Word updated' : 'Added to your words');
+    }
+  });
+  $('w-add').onclick = openAddWord;
+
+  // ---------- word test ----------
+  const TEST_KINDS = [
+    { id: 'meaning', title: 'Word → meaning', hint: 'See the word, pick what it means' },
+    { id: 'word', title: 'Meaning → word', hint: 'See the meaning, pick the word' },
+    { id: 'gap', title: 'Fill the gap', hint: 'Pick the missing word in an example sentence' },
+    { id: 'type', title: 'Type it', hint: 'Type the pinyin or Indonesian word yourself' },
+  ];
+  let testSetup = { group: 'all', count: 10, kinds: ['meaning', 'word', 'gap'] };
+  try { testSetup = { ...testSetup, ...JSON.parse(localStorage.getItem('tingyi.testSetup') || '{}') }; } catch {}
+  let test = null;
+  const shuffle = (xs) => { const a = xs.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+  const toneless = (t) => String(t || '').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/ü/g, 'v').toLowerCase().replace(/[^a-z0-9㐀-鿿]/g, '');
+
+  function testPool(group) {
+    if (group === 'zh' || group === 'id') return words.filter((w) => w.lang === group);
+    if (group === 'weak') return words.slice().sort((a, b) => (a.level || 0) - (b.level || 0) || (b.wrong || 0) - (a.wrong || 0) || (a.lastTested || 0) - (b.lastTested || 0));
+    return words;
+  }
+
+  function openTestSetup() {
+    if (words.length < 4) { toast(words.length ? `Save ${4 - words.length} more words to start a test` : 'Save some words first'); return; }
+    const pool = testPool(testSetup.group);
+    const counts = [5, 10, 20].filter((n) => n < pool.length);
+    openPanel(`
+      <h2>New test</h2>
+      <p class="label" style="margin-top:6px">Words</p>
+      <div class="seg" role="group" aria-label="Words">
+        ${[['all', 'All'], ['zh', 'Chinese'], ['id', 'Indonesian'], ['weak', 'Weakest']].map(([v, l]) => `<button type="button" data-ts="group" data-v="${v}" aria-pressed="${testSetup.group === v}" ${v !== 'all' && v !== 'weak' && !words.some((w) => w.lang === v) ? 'disabled' : ''}>${l}</button>`).join('')}
+      </div>
+      <p class="label">Questions</p>
+      <div class="seg" role="group" aria-label="Number of questions">
+        ${counts.map((n) => `<button type="button" data-ts="count" data-v="${n}" aria-pressed="${testSetup.count === n}">${n}</button>`).join('')}
+        <button type="button" data-ts="count" data-v="0" aria-pressed="${!counts.includes(testSetup.count)}">All ${pool.length}</button>
+      </div>
+      <p class="label">Question types</p>
+      <div class="kinds">${TEST_KINDS.map((k) => `<button class="kind" type="button" data-ts="kind" data-v="${k.id}" aria-pressed="${testSetup.kinds.includes(k.id)}"><span class="box">${testSetup.kinds.includes(k.id) ? '✓' : ''}</span><span><b>${k.title}</b><small>${k.hint}</small></span></button>`).join('')}</div>
+      <button class="primary" type="button" data-ts="start" ${testSetup.kinds.length && pool.length ? '' : 'disabled'}>Start ${Math.min(pool.length, counts.includes(testSetup.count) ? testSetup.count : pool.length)} questions</button>`);
+  }
+  $('panel').addEventListener('click', (ev) => {
+    const b = ev.target.closest('[data-ts]'); if (!b) return;
+    const k = b.dataset.ts, v = b.dataset.v;
+    if (k === 'group') testSetup.group = v;
+    else if (k === 'count') testSetup.count = +v;
+    else if (k === 'kind') testSetup.kinds = testSetup.kinds.includes(v) ? testSetup.kinds.filter((x) => x !== v) : [...testSetup.kinds, v];
+    else if (k === 'start') { closePanel(); startTest(); return; }
+    try { localStorage.setItem('tingyi.testSetup', JSON.stringify(testSetup)); } catch {}
+    openTestSetup();
+  });
+  $('w-test').onclick = openTestSetup;
+
+  function makeQuestion(w, kinds) {
+    const others = shuffle(words.filter((x) => x.id !== w.id));
+    const sameLang = others.filter((x) => x.lang === w.lang);
+    const pickDistractors = (key) => {
+      const seen = new Set([String(w[key]).toLowerCase()]); const out = [];
+      for (const x of [...sameLang, ...others]) { const val = String(x[key] || ''); if (val && !seen.has(val.toLowerCase())) { seen.add(val.toLowerCase()); out.push(x); } if (out.length === 3) break; }
+      return out;
+    };
+    let options = kinds.filter((k) => k !== 'gap' || (w.example?.text || '').includes(w.word));
+    if (!options.length) options = ['meaning'];
+    const kind = options[Math.floor(Math.random() * options.length)];
+    if (kind === 'type') return { w, kind };
+    const key = kind === 'meaning' ? 'meaning' : 'word';
+    const choices = shuffle([w, ...pickDistractors(key)]);
+    return { w, kind, choices };
+  }
+  function startTest(only) {
+    let pool = only || testPool(testSetup.group);
+    if (!only) {
+      const n = [5, 10, 20].includes(testSetup.count) && testSetup.count < pool.length ? testSetup.count : pool.length;
+      pool = testSetup.group === 'weak' ? shuffle(pool.slice(0, n)) : shuffle(pool).slice(0, n);
+    }
+    const kinds = testSetup.kinds.length ? testSetup.kinds : ['meaning'];
+    test = { qs: pool.map((w) => makeQuestion(w, kinds)), i: 0, right: 0, streak: 0, best: 0, started: Date.now(), missed: [], answer: null, done: false };
+    setView('test');
+  }
+  function speak(w) {
+    try {
+      const u = new SpeechSynthesisUtterance(w.word);
+      u.lang = w.lang === 'zh' ? (settings.script === 'traditional' ? 'zh-TW' : 'zh-CN') : 'id-ID'; u.rate = 0.85;
+      speechSynthesis.cancel(); speechSynthesis.speak(u);
+    } catch {}
+  }
+  function renderTest() {
+    const t = test; if (!t) { setView('words'); return; }
+    if (t.done) return renderResults();
+    const q = t.qs[t.i], w = q.w, han = w.lang === 'zh';
+    const canSpeak = 'speechSynthesis' in window;
+    const pinyinLine = han && settings.pinyin && w.pinyin ? `<div class="p">${esc(w.pinyin)}</div>` : '';
+    let card, prompt;
+    if (q.kind === 'meaning') {
+      prompt = 'What does this mean?';
+      card = `<div class="qcard">${canSpeak ? `<button class="spk" type="button" data-q="speak" aria-label="Say it">🔊</button>` : ''}<div class="big${han ? ' han' : ''}">${esc(w.word)}</div>${pinyinLine}</div>`;
+    } else if (q.kind === 'gap') {
+      prompt = 'Which word fills the gap?';
+      const parts = w.example.text.split(w.word);
+      card = `<div class="qcard gap"><div class="s${han ? ' han' : ''}">${parts.map(esc).join('<span class="blank"></span>')}</div><div class="t">${esc(w.example.translation)}</div></div>`;
+    } else {
+      prompt = q.kind === 'type' ? (han ? 'Type this word, in characters or pinyin' : 'Type this word in Indonesian') : 'Which word means this?';
+      card = `<div class="qcard"><div class="mean">${esc(w.meaning)}</div></div>`;
+    }
+    let answers;
+    const a = t.answer;
+    if (q.kind === 'type') {
+      answers = `<div class="qtype"><input id="q-type" type="text" autocomplete="off" autocapitalize="off" placeholder="${han ? 'e.g. 周末 or zhoumo' : 'Type the word'}" ${a ? 'disabled' : ''} value="${a ? esc(a.typed) : ''}">
+        ${a ? '' : `<button class="primary" type="button" data-q="check">Check</button>`}</div>`;
+    } else {
+      answers = `<div class="qopts">${q.choices.map((c, k) => {
+        const label = q.kind === 'meaning' ? esc(c.meaning) : `<span class="${c.lang === 'zh' ? 'han' : ''}">${esc(c.word)}</span>`;
+        const cls = !a ? '' : c.id === w.id ? ' ok' : a.pick === c.id ? ' bad' : ' dim';
+        return `<button class="qopt${cls}" type="button" data-q="pick" data-id="${esc(c.id)}" ${a ? 'disabled' : ''}><span class="k">${a && c.id === w.id ? '✓' : a && a.pick === c.id ? '✕' : k + 1}</span>${label}</button>`;
+      }).join('')}</div>`;
+    }
+    const feedback = !a ? '' : `<div class="qfeed ${a.ok ? 'ok' : 'bad'}">
+      <div class="h">${a.ok ? 'Correct!' : 'Not quite'}</div>
+      <div><b class="${han ? 'han' : ''}" style="${han ? 'font-family:var(--han);font-size:19px' : 'font-size:17px'}">${esc(w.word)}</b>${han && w.pinyin ? ` <span class="meta">${esc(w.pinyin)}</span>` : ''} · ${esc(w.meaning)}</div>
+      ${w.example ? `<div class="x${han ? ' han' : ''}">${esc(w.example.text)}</div><div class="xt">${esc(w.example.translation)}</div>` : ''}
+      <button class="primary" type="button" data-q="next" style="margin-top:8px">${t.i + 1 < t.qs.length ? 'Next' : 'See results'}</button></div>`;
+    $('view-test').innerHTML = `
+      <div class="qtop"><button class="qx" type="button" data-q="quit" aria-label="End test">✕</button>
+        <span class="qbar"><i style="width:${Math.round(((t.i + (a ? 1 : 0)) / t.qs.length) * 100)}%"></i></span>
+        <span class="qcount">${t.i + 1} / ${t.qs.length}</span></div>
+      ${t.streak >= 2 ? `<div class="qstreak">🔥 ${t.streak} in a row</div>` : '<div style="height:16px"></div>'}
+      <div class="qprompt">${prompt}</div>
+      ${card}${answers}${feedback}`;
+    if (q.kind === 'type' && !a) { const inp = $('q-type'); inp.focus(); inp.onkeydown = (ev) => { if (ev.key === 'Enter') { ev.preventDefault(); checkTyped(); } }; }
+    if (a) $('view-test').querySelector('[data-q="next"]')?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  }
+  async function answer(ok, extra) {
+    const t = test, w = t.qs[t.i].w;
+    t.answer = { ok, ...extra };
+    if (ok) { t.right++; t.streak++; t.best = Math.max(t.best, t.streak); } else { t.streak = 0; t.missed.push(w); }
+    const updated = { ...w, level: ok ? Math.min(3, (w.level || 0) + 1) : Math.max(0, (w.level || 0) - 1),
+      right: (w.right || 0) + (ok ? 1 : 0), wrong: (w.wrong || 0) + (ok ? 0 : 1), lastTested: Date.now() };
+    words = words.map((x) => (x.id === w.id ? updated : x));
+    await putWord(updated).catch(() => {});
+    if (settings.vibrate && navigator.vibrate) { try { navigator.vibrate(ok ? 30 : [60, 60, 60]); } catch {} }
+    renderTest();
+  }
+  function checkTyped() {
+    const t = test, w = t.qs[t.i].w, typed = $('q-type').value.trim(); if (!typed) return;
+    const n = toneless(typed);
+    const ok = w.lang === 'zh'
+      ? typed.replace(/\s/g, '') === w.word || (n && n === toneless(w.pinyin))
+      : [w.word, w.root].filter(Boolean).some((x) => toneless(x) === n);
+    answer(ok, { typed });
+  }
+  function renderResults() {
+    const t = test, pct = Math.round((t.right / t.qs.length) * 100), secs = Math.round((Date.now() - t.started) / 1000);
+    t.secs = t.secs || secs;
+    const msg = pct === 100 ? 'Perfect!' : pct >= 80 ? 'Nice work!' : pct >= 50 ? 'Good effort' : 'Keep practising';
+    $('view-test').innerHTML = `
+      <div class="rscore">
+        <div class="ring" style="background:conic-gradient(var(--yellow) 0 ${pct}%, var(--surface) ${pct}% 100%)"><div><span><b>${t.right}/${t.qs.length}</b><small>correct</small></span></div></div>
+        <h2>${msg}</h2><p>${t.missed.length ? `${t.missed.length} ${t.missed.length === 1 ? 'word' : 'words'} to practise again` : 'You got every word right'}</p>
+      </div>
+      <div class="rstats"><div><b>${pct}%</b><small>score</small></div><div><b>${t.best}</b><small>best streak</small></div><div><b>${fmtTime(t.secs)}</b><small>time</small></div></div>
+      ${t.missed.length ? `<p class="label" style="margin-top:18px">Review these</p>${t.missed.map((w) => `<div class="rv"><span class="wd${w.lang === 'zh' ? ' han' : ''}">${esc(w.word)}</span><span class="m">${esc(w.meaning)}</span><span class="tag">missed</span></div>`).join('')}` : ''}
+      <div class="rbtns">${t.missed.length ? `<button class="primary" type="button" data-q="again">Practise the ${t.missed.length} missed</button>` : `<button class="primary" type="button" data-q="new">New test</button>`}
+        <button class="secondary" type="button" data-q="done">Done</button></div>`;
+  }
+  $('view-test').addEventListener('click', (ev) => {
+    const b = ev.target.closest('[data-q]'); if (!b || !test) return;
+    const t = test, q = t.qs[t.i];
+    switch (b.dataset.q) {
+      case 'pick': if (!t.answer) answer(b.dataset.id === q.w.id, { pick: b.dataset.id }); break;
+      case 'check': checkTyped(); break;
+      case 'speak': speak(q.w); break;
+      case 'next': if (t.i + 1 < t.qs.length) { t.i++; t.answer = null; } else t.done = true; renderTest(); window.scrollTo(0, 0); break;
+      case 'quit': if (t.i > 0 || t.answer) { t.qs = t.qs.slice(0, t.i + (t.answer ? 1 : 0)); t.done = true; renderTest(); } else setView('words'); break;
+      case 'again': { const missed = test.missed.map((m) => words.find((x) => x.id === m.id) || m); startTest(missed); break; }
+      case 'new': setView('words'); openTestSetup(); break;
+      case 'done': setView('words'); break;
+    }
+  });
 
   // ---------- events ----------
   $('s-body').addEventListener('click', async (ev) => {
