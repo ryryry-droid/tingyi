@@ -498,6 +498,10 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
       </div>
     </div>
     <div class="field">
+      <label class="switch" for="set-cry"><span>Chatot cry when you tap record</span><input type="checkbox" id="set-cry"></label>
+      <p class="hint">Plays just before recording starts. You'll still hear it for right answers in tests.</p>
+    </div>
+    <div class="field">
       <label class="switch" for="set-vibrate"><span>Vibrate when a recording stops</span><input type="checkbox" id="set-vibrate"></label>
       <p class="hint">One short buzz when you stop it. A long buzz if it stops by itself, for example when a call takes the microphone. Android only.</p>
     </div>
@@ -545,7 +549,7 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
   const WORD_EXAMPLE = Object.fromEntries(CATALOG.map(([c, , , e]) => [c, e]));
   const SPEECH_LANG = Object.fromEntries(CATALOG.map(([c, , , , v]) => [c, v]));
   const DEFAULT_LANGS = ['zh', 'yue', 'id', 'ms', 'vi', 'en'];
-  const DEFAULTS = { token: '', theme: 'dark', vibrate: true, source: 'zh', target: 'en', script: 'simplified', style: 'natural', pinyin: true, glossary: '', langs: DEFAULT_LANGS };
+  const DEFAULTS = { token: '', theme: 'dark', vibrate: true, cry: true, source: 'zh', target: 'en', script: 'simplified', style: 'natural', pinyin: true, glossary: '', langs: DEFAULT_LANGS };
   // Languages you can look words up in, save and test: your languages except English (Cantonese words are saved
   // as Chinese), plus any language you already have saved words in
   const wordLangs = () => {
@@ -636,8 +640,33 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
   }
   const extFor = (mime) => (mime.includes('mp4') ? 'm4a' : mime.includes('ogg') ? 'ogg' : mime.includes('wav') ? 'wav' : mime.includes('mpeg') ? 'mp3' : 'webm');
 
+  // Chatot's cry: when you tap record (can be turned off in Settings) and for a right answer in a test
+  const cry = new Audio('/assets/chatot.mp3');
+  cry.preload = 'auto';
+  const wrongSound = new Audio('/assets/wrong.mp3'); // for a wrong answer in a test
+  wrongSound.preload = 'auto';
+  function playWrong() { try { wrongSound.pause(); wrongSound.currentTime = 0; wrongSound.play().catch(() => {}); } catch {} }
+  function playCry() {
+    return new Promise((resolve) => {
+      try {
+        cry.pause(); cry.currentTime = 0;
+        const done = () => { clearTimeout(t); cry.onended = null; resolve(); };
+        const t = setTimeout(done, 1400);
+        cry.onended = done;
+        cry.play().catch(done);
+      } catch { resolve(); }
+    });
+  }
+
+  let starting = false;
   async function startRecording() {
+    if (starting) return; // a second tap while the cry plays
+    starting = true;
+    try { await beginRecording(); } finally { starting = false; }
+  }
+  async function beginRecording() {
     showNotice('');
+    if (settings.cry) await playCry(); // finish the cry before the microphone starts, so it isn't recorded
     if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) {
       showNotice('This browser can’t record audio. Use Safari on iPhone or Chrome on Android, or upload a file instead.');
       return;
@@ -956,6 +985,7 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
     document.querySelectorAll('.seg').forEach((g) => g.querySelectorAll('button').forEach((b) => b.setAttribute('aria-pressed', String(settings[g.dataset.setting] === b.dataset.value))));
     $('set-pinyin').checked = settings.pinyin;
     $('set-vibrate').checked = settings.vibrate;
+    $('set-cry').checked = settings.cry;
     if (document.activeElement !== $('set-glossary')) $('set-glossary').value = settings.glossary;
     if (document.activeElement !== $('set-token')) $('set-token').value = settings.token;
   }
@@ -1773,6 +1803,7 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
       right: (w.right || 0) + (ok ? 1 : 0), wrong: (w.wrong || 0) + (ok ? 0 : 1), lastTested: Date.now() };
     words = words.map((x) => (x.id === w.id ? updated : x));
     await putWord(updated).catch(() => {});
+    if (ok) playCry(); else playWrong();
     if (settings.vibrate && navigator.vibrate) { try { navigator.vibrate(ok ? 30 : [60, 60, 60]); } catch {} }
     renderTest();
   }
@@ -1916,6 +1947,7 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
     toast(on ? `${LANGS[c]} removed` : `${LANGS[c]} added`);
   };
   $('set-pinyin').onchange = (e) => { settings.pinyin = e.target.checked; saveSettings(); };
+  $('set-cry').onchange = (e) => { settings.cry = e.target.checked; saveSettings(); if (e.target.checked) playCry(); };
   $('set-vibrate').onchange = (e) => { settings.vibrate = e.target.checked; saveSettings(); if (e.target.checked) buzz('stopped'); };
   $('set-glossary').oninput = (e) => { settings.glossary = e.target.value; saveSettings(); };
   $('set-token').oninput = (e) => { settings.token = e.target.value.trim(); saveSettings(); };
