@@ -30,10 +30,7 @@ export function deleteAudio(uri: string) {
 
 export async function loadSettings(): Promise<Settings> {
   const raw = await AsyncStorage.getItem(SETTINGS_KEY);
-  const s = { ...DEFAULT_SETTINGS, ...(raw ? JSON.parse(raw) : {}) };
-  // Cantonese was removed as a choice; old recordings keep their label
-  if (s.source === 'yue') s.source = 'zh';
-  return s;
+  return { ...DEFAULT_SETTINGS, ...(raw ? JSON.parse(raw) : {}) };
 }
 
 export async function saveSettings(settings: Settings): Promise<void> {
