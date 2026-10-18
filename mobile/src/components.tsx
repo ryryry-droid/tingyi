@@ -15,6 +15,8 @@ import {
   ViewStyle,
 } from 'react-native';
 
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
 import { Colors, pinyinTones, useColors } from './theme';
 import { isTappable, Token } from './words';
 
@@ -55,6 +57,7 @@ export function LangBubble<T extends string>({
 }) {
   const c = useColors();
   const [open, setOpen] = useState(false);
+  const insets = useSafeAreaInsets();
   const current = options.find((o) => o.value === value)?.label ?? value;
   const bg = tone === 'sky' ? c.sky : c.yellow;
   const ink = tone === 'sky' ? c.skyInk : c.yellowInk;
@@ -73,9 +76,9 @@ export function LangBubble<T extends string>({
         </Text>
       </Pressable>
       <View style={[styles.tail, { backgroundColor: bg }, tone === 'sky' ? { left: 18 } : { right: 18 }]} />
-      <Modal visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)}>
+      <Modal visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)} statusBarTranslucent navigationBarTranslucent>
         <Pressable style={styles.backdrop} onPress={() => setOpen(false)}>
-          <View style={[styles.sheet, { backgroundColor: c.surface }]}>
+          <View style={[styles.sheet, { backgroundColor: c.surface, paddingBottom: 32 + insets.bottom }]}>
             <Text style={[styles.sheetTitle, { color: c.muted }]}>{label}</Text>
             {options.map((o) => {
               const off = disabled.includes(o.value);
@@ -189,11 +192,12 @@ export function TextBtn({ title, onPress, color, bold }: { title: string; onPres
 /** Bottom sheet. */
 export function Sheet({ visible, onClose, children }: { visible: boolean; onClose: () => void; children: ReactNode }) {
   const c = useColors();
+  const insets = useSafeAreaInsets();
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose} statusBarTranslucent>
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose} statusBarTranslucent navigationBarTranslucent>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.sheetWrap}>
         <Pressable style={StyleSheet.absoluteFill} onPress={onClose} accessibilityLabel="Close" />
-        <View style={[styles.bigSheet, { backgroundColor: c.surface }]}>
+        <View style={[styles.bigSheet, { backgroundColor: c.surface, paddingBottom: 26 + insets.bottom }]}>
           <View style={[styles.grab, { backgroundColor: c.line }]} />
           <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ gap: 12, paddingBottom: 8 }}>
             {children}
