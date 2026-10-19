@@ -189,7 +189,7 @@ def make_title(segments: list[Segment], opts: Options) -> str:
     return str(title).strip().strip("\"'“”「」。.!").strip()[:80]
 
 
-def _complete_simple(prompt: str, max_tokens: int = 200) -> str:
+def _complete_simple(prompt: str, max_tokens: int = 200, effort: str = "low") -> str:
     if config.TRANSLATE_PROVIDER == "anthropic":
         response = _client().messages.create(
             model=config.ANTHROPIC_MODEL, max_tokens=max_tokens, messages=[{"role": "user", "content": prompt}]
@@ -199,10 +199,12 @@ def _complete_simple(prompt: str, max_tokens: int = 200) -> str:
         model=config.OPENAI_TRANSLATE_MODEL,
         messages=[{"role": "user", "content": prompt}],
         response_format={"type": "json_object"},
-        temperature=0.3,
+        temperature=0.3 if effort == "low" else 0.1,
     )
     if "gpt-oss" in config.OPENAI_TRANSLATE_MODEL:
-        args["reasoning_effort"] = "low"
+        args["reasoning_effort"] = effort
+        if effort != "low":
+            args["max_completion_tokens"] = max_tokens + 3000  # room to think before answering
     response = _openai_client().chat.completions.create(**args)
     return response.choices[0].message.content or ""
 
@@ -278,9 +280,50 @@ def lookup_word(word: str, sentence: str, lang: str, script: str, from_english: 
         )
         + root_note
         + script_note
+        + _EXISTS_NOTE.format(language=language)
     )
-    text = _complete_simple(prompt, max_tokens=500)
-    match = re.search(r"\{.*\}", text, re.S)
-    if not match:
+    entry = _json(_complete_simple(prompt, max_tokens=600, effort="medium"))
+    if entry is None:
         raise ValueError("The dictionary didn't return an entry")
-    return json.loads(match.group(0))
+    # Second opinion: a separate check of the entry, so invented words and meanings get caught
+    try:
+        checked = _json(_complete_simple(_CHECK.format(language=language, entry=json.dumps(entry, ensure_ascii=False),
+                                                       sentence=sentence or word), max_tokens=600, effort="medium"))
+    except Exception:
+        checked = None
+    if checked and checked.get("word"):
+        entry = {**entry, **checked}
+    if entry.get("exists") is False:
+        entry["meaning"] = ""
+        entry["example"] = None
+    return entry
+
+
+_EXISTS_NOTE = (
+    '\nAlso include "exists": true or false, and "suggestions": [...].\n'
+    "Before answering, check carefully that this is a real {language} word (or a regular inflected / affixed form of one, "
+    "or an established slang or colloquial word) that a good dictionary or native speakers would recognise. "
+    "Never invent a meaning for a word you don't actually know. If it is not a real word — for example a mishearing "
+    'or a typo — set "exists" to false, leave "meaning" empty, and put in "suggestions" up to 3 real {language} words '
+    'that were most likely meant (use the sentence to judge). If it is real, set "exists" to true and "suggestions" to [].'
+)
+
+_CHECK = (
+    "You are checking an entry, written by someone else, for a {language}–English learner's dictionary. Be strict: "
+    "learners will memorise it.\n\nSentence it came from: {sentence}\nEntry: {entry}\n\n"
+    "Check: (1) Is \"word\" really a {language} word (or a regular affixed / inflected form, or established slang) "
+    "that native speakers would recognise? (2) Is the meaning right? (3) Is the example correct, natural {language} "
+    "using that word, and is its translation right? (4) Are part of speech, root and register right?\n"
+    "Reply with the corrected entry as JSON only, with the same keys. If the word does not exist, set "
+    '"exists": false, "meaning": "" and "suggestions" to up to 3 real words that were most likely meant.'
+)
+
+
+def _json(text: str):
+    match = re.search(r"\{.*\}", text or "", re.S)
+    if not match:
+        return None
+    try:
+        return json.loads(match.group(0))
+    except json.JSONDecodeError:
+        return None

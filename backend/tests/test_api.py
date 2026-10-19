@@ -210,7 +210,7 @@ def test_lookup_chinese(monkeypatch):
     setup(monkeypatch)
     calls = []
 
-    def fake(prompt, max_tokens=200):
+    def fake(prompt, max_tokens=200, **kw):
         calls.append(prompt)
         return json.dumps({"word": "醫院", "root": "x", "part_of_speech": "noun", "meaning": "hospital",
                            "in_context": "the hospital nearby", "notes": "",
@@ -227,7 +227,7 @@ def test_lookup_chinese(monkeypatch):
 
 def test_lookup_indonesian_root(monkeypatch):
     setup(monkeypatch)
-    monkeypatch.setattr(translate, "_complete_simple", lambda p, max_tokens=200: '{"word": "dimakan", "root": "makan", '
+    monkeypatch.setattr(translate, "_complete_simple", lambda p, max_tokens=200, **kw: '{"word": "dimakan", "root": "makan", '
                         '"part_of_speech": "verb", "meaning": "eaten", "in_context": "was eaten", "notes": "",'
                         ' "example": {"text": "Kuenya sudah dimakan.", "translation": "The cake has been eaten."}}')
     r = client.post("/api/lookup", json={"word": "dimakan", "sentence": "Nasinya udah dimakan.", "lang": "id"})
@@ -353,7 +353,7 @@ def test_vietnamese_and_malay_translation_prompts(monkeypatch):
 
 def test_lookup_malay_root(monkeypatch):
     setup(monkeypatch)
-    monkeypatch.setattr(translate, "_complete_simple", lambda p, max_tokens=200: '{"word": "makanan", "root": "makan", "meaning": "food"}')
+    monkeypatch.setattr(translate, "_complete_simple", lambda p, max_tokens=200, **kw: '{"word": "makanan", "root": "makan", "meaning": "food"}')
     r = client.post("/api/lookup", json={"word": "makanan", "lang": "ms"})
     assert r.status_code == 200 and r.json()["root"] == "makan"
 
@@ -377,7 +377,7 @@ def test_extra_languages(monkeypatch):
     r = client.post("/api/live/transcribe", files={"file": ("c.wav", b"x", "audio/wav")},
                     data={"options": json.dumps({"source": "en", "target": "ko"}), "detect": "true"})
     assert r.json()["segments"][0]["lang"] == "ko" and r.json()["segments"][0]["target"] == "en"
-    monkeypatch.setattr(translate, "_complete_simple", lambda p, max_tokens=200: '{"word": "hola", "meaning": "hello"}')
+    monkeypatch.setattr(translate, "_complete_simple", lambda p, max_tokens=200, **kw: '{"word": "hola", "meaning": "hello"}')
     assert client.post("/api/lookup", json={"word": "hola", "lang": "es"}).json()["meaning"] == "hello"
 
 
@@ -385,7 +385,7 @@ def test_lookup_from_english(monkeypatch):
     setup(monkeypatch)
     seen = []
 
-    def fake(prompt, max_tokens=200):
+    def fake(prompt, max_tokens=200, **kw):
         seen.append(prompt)
         return '{"word": "周末", "part_of_speech": "noun", "meaning": "weekend", "example": {"text": "周末愉快", "translation": "Have a nice weekend"}}'
 
@@ -397,10 +397,10 @@ def test_lookup_from_english(monkeypatch):
 
 def test_colloquial_register(monkeypatch):
     setup(monkeypatch)
-    monkeypatch.setattr(translate, "_complete_simple", lambda p, max_tokens=200: '{"word": "gak", "register": "colloquial", "standard": "tidak", "meaning": "no, not"}')
+    monkeypatch.setattr(translate, "_complete_simple", lambda p, max_tokens=200, **kw: '{"word": "gak", "register": "colloquial", "standard": "tidak", "meaning": "no, not"}')
     r = client.post("/api/lookup", json={"word": "gak", "lang": "id"}).json()
     assert r["register"] == "colloquial" and r["standard"] == "tidak"
-    monkeypatch.setattr(translate, "_complete_simple", lambda p, max_tokens=200: '{"words": [{"word": "gak", "register": "colloquial", "standard": "tidak"}, {"word": "makan", "register": "standard"}]}')
+    monkeypatch.setattr(translate, "_complete_simple", lambda p, max_tokens=200, **kw: '{"words": [{"word": "gak", "register": "colloquial", "standard": "tidak"}, {"word": "makan", "register": "standard"}]}')
     r = client.post("/api/register", json={"lang": "id", "words": ["gak", "makan", "banget"]}).json()["results"]
     assert r == [
         {"word": "gak", "register": "colloquial", "standard": "tidak"},
@@ -451,3 +451,21 @@ def test_redo_one_line(monkeypatch, tmp_path):
     assert body["pinyin"].startswith("wǒ men")
     assert 2.5 < heard["seconds"] < 3.0  # just that line, plus a little padding
     assert "Hello" in fake.prompts[0]  # earlier lines were given as context
+
+
+def test_lookup_flags_words_that_dont_exist(monkeypatch):
+    setup(monkeypatch)
+    calls = []
+
+    def fake(prompt, max_tokens=200, **kw):
+        calls.append((prompt, kw.get("effort")))
+        if len(calls) == 1:  # first pass is fooled and invents a meaning
+            return '{"word": "terlekar", "meaning": "abandoned", "exists": true, "example": {"text": "Rumah itu terlekar.", "translation": "The house is abandoned."}}'
+        return '{"word": "terlekar", "exists": false, "meaning": "", "suggestions": ["terlantar", "tergeletak"]}'
+
+    monkeypatch.setattr(translate, "_complete_simple", fake)
+    r = client.post("/api/lookup", json={"word": "terlekar", "sentence": "Rumahnya terlekar.", "lang": "id"}).json()
+    assert r["exists"] is False and r["meaning"] == "" and r["example"] is None
+    assert r["suggestions"] == ["terlantar", "tergeletak"]
+    assert len(calls) == 2 and "for a Indonesian–English" in calls[1][0] and calls[0][1] == "medium"
+    assert "Never invent a meaning" in calls[0][0]

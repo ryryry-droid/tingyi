@@ -172,6 +172,8 @@ class LookupResponse(BaseModel):
     in_context: str = ""
     notes: str = ""
     example: Optional[Example] = None
+    exists: bool = True  # False when it isn't a real word (often a mishearing); see suggestions
+    suggestions: list[str] = Field(default_factory=list)  # real words that were probably meant
     register: str = ""  # "colloquial" (slang, informal, everyday speech) or "standard"
     standard: str = ""  # for a colloquial word: its standard form (e.g. gak -> tidak)
 

@@ -213,6 +213,9 @@ nav button[aria-selected="true"] { background: var(--surface); color: var(--ink)
 .wcard .ex .han { font-family: var(--han); }
 .wspk { border: 0; background: var(--surface2); color: var(--accent); width: 30px; height: 30px; border-radius: 50%; font-size: 13px; display: inline-grid; place-items: center; align-self: center; flex-shrink: 0; }
 .seg.wrap { flex-wrap: wrap; }
+.notword { background: var(--warn-soft); color: var(--ink); border-radius: 14px; padding: 12px 14px; }
+.notword p { margin: 0; }
+.notword .filter button { font-size: 16px; padding: 6px 14px; color: var(--ink); background: var(--surface); }
 .wedit { margin-left: auto; align-self: center; padding: 2px 4px; font-weight: 700; color: var(--accent); }
 .ew { display: grid; gap: 4px; }
 .ew input, .ew textarea { width: 100%; border: 1.5px solid var(--line); border-radius: 12px; background: var(--bg); padding: 10px 12px; font-size: 17px; font-weight: 700; color: var(--ink); }
@@ -1461,6 +1464,15 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
     renderSheet();
   }
 
+  /** Shown instead of a meaning when the dictionary says the word doesn't exist (often a mishearing). */
+  function notAWord(word, lang, suggestions, kind) {
+    const han = isHan(lang);
+    return `<div class="notword">
+      <p><b>“${esc(word)}” doesn’t look like a real ${esc(langName(lang))} word.</b> It may have been misheard or mistyped, so it can’t be added.</p>
+      ${suggestions?.length ? `<p class="meta" style="margin:6px 0 4px">Did you mean</p><div class="filter">${suggestions.map((x) =>
+        `<button type="button" data-${kind}="sugg" data-v="${esc(x)}"${han ? ' style="font-family:var(--han)"' : ''}>${esc(x)}</button>`).join('')}</div>` : ''}
+    </div>`;
+  }
   function closeSheet() {
     clearTimeout(pickTimer);
     lookup = null; $('sheet').hidden = true; $('sheet').innerHTML = ''; highlight();
@@ -1483,6 +1495,7 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
     let body;
     if (lookup.loading) body = `<div class="working" style="padding:24px 0"><div class="dot"></div><div>Looking up…</div></div>`;
     else if (lookup.error) body = `<p class="notice" style="margin:0">${esc(lookup.error)}</p><div class="wc-actions"><button class="small-primary" type="button" data-wc="retry">Try again</button></div>`;
+    else if (e.exists === false) body = notAWord(e.word, lookup.lang, e.suggestions, 'wc') + `<div class="wc-actions"><button class="secondary" type="button" data-wc="close">Close</button></div>`;
     else body = `
       <p class="wc-meaning">${esc(e.meaning)}</p>
       ${e.in_context ? `<div class="wc-row"><span class="k">In this sentence</span><p>${esc(e.in_context)}</p></div>` : ''}
@@ -1524,6 +1537,7 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
     if (act === 'close') closeSheet();
     else if (act === 'retry') fetchLookup(lookup.query);
     else if (act === 'root') fetchLookup(e.root);
+    else if (act === 'sugg') fetchLookup(b.dataset.v);
     else if (act === 'save') {
       const w = {
         id: wordId(lookup.lang, e.word), word: caseFor(e.word, e.part_of_speech), lang: isHan(lookup.lang) ? 'zh' : lookup.lang, pinyin: e.pinyin || '',
@@ -1659,6 +1673,7 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
     if (a.recording) body = `<p class="meta" style="text-align:center">Listening… say the word, then tap the microphone to stop.</p>`;
     else if (a.loading) body = `<div class="working" style="padding:18px 0"><div class="dot"></div><div>${a.loading}</div></div>`;
     else if (a.error) body = `<p class="notice" style="margin:0">${esc(a.error)}</p>`;
+    else if (e && e.exists === false) body = notAWord(e.word, a.lang, e.suggestions, 'aw');
     else if (e) body = `
       ${a.fromEn ? `<p class="meta" style="margin:0">“${esc(a.text)}” in ${esc(langName(a.lang))}</p>` : ''}
       <div class="wc-head"><div style="min-width:0">
@@ -1776,6 +1791,7 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
     if (act === 'lang') { a.lang = b.dataset.v; a.entry = null; a.error = ''; renderAddWord(); }
     else if (act === 'from') { a.fromEn = !a.fromEn; a.entry = null; a.error = ''; a.text = ''; renderAddWord(); $('add-input')?.focus(); }
     else if (act === 'lookup') addLookup();
+    else if (act === 'sugg') { a.text = b.dataset.v; addLookup(); }
     else if (act === 'mic') { if (a.recording) stopWordMic(true); else startWordMic(); }
     else if (act === 'close') closePanel();
     else if (act === 'save') {
