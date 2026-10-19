@@ -1,10 +1,11 @@
 import { StatusBar } from 'expo-status-bar';
 import * as SystemUI from 'expo-system-ui';
 import { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, BackHandler, Image, ImageBackground, Pressable, StyleSheet, Text, Vibration, View } from 'react-native';
+import { ActivityIndicator, Alert, BackHandler, Image, ImageBackground, Pressable, StyleSheet, Text, Vibration, View } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 
 import { checkRegister, translateRecording } from './src/api';
+import { backUp, restore } from './src/backup';
 import { preloadSounds } from './src/sounds';
 import HistoryScreen from './src/screens/HistoryScreen';
 import LiveScreen, { LiveResult } from './src/screens/LiveScreen';
@@ -342,7 +343,34 @@ export default function App() {
       />
     );
   } else if (tab === 'settings') {
-    screen = <SettingsScreen settings={settings} onChange={updateSettings} toast={showToast} buzzPreview={() => Vibration.vibrate(90)} />;
+    screen = (
+      <SettingsScreen
+        settings={settings}
+        onChange={updateSettings}
+        toast={showToast}
+        buzzPreview={() => Vibration.vibrate(90)}
+        onBackup={async () => {
+          try {
+            const msg = await backUp(words, sessions, settingsRef.current);
+            if (msg) showToast(msg);
+          } catch (e: any) {
+            Alert.alert('Couldn’t back up', String(e?.message ?? e));
+          }
+        }}
+        onRestore={async () => {
+          try {
+            const r = await restore(words, sessions, settingsRef.current);
+            if (!r) return;
+            setWords(r.words);
+            setSessions(r.sessions);
+            updateSettings(r.settings);
+            showToast(r.message);
+          } catch (e: any) {
+            Alert.alert('Couldn’t restore', String(e?.message ?? e));
+          }
+        }}
+      />
+    );
   } else {
     screen = (
       <RecordScreen

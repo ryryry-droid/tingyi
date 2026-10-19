@@ -141,7 +141,9 @@ export async function redoLine(
   session: Session,
   seg: Segment,
   context: Segment[],
+  after: Segment[],
 ): Promise<{ text: string; pinyin?: string | null; translation: string; translation_pinyin?: string | null }> {
+  if (!session.audioUri) throw new Error('The audio for this recording isn’t on this phone.');
   let uri = session.audioUri;
   let start = seg.start;
   let end = seg.end;
@@ -159,6 +161,10 @@ export async function redoLine(
       start: String(start),
       end: String(end),
       context: JSON.stringify(context.map((c) => ({ text: c.text, translation: c.translation }))),
+      // the line as it is now, and what comes after: the server keeps what was right and only fixes mistakes
+      after: JSON.stringify(after.map((c) => c.text)),
+      original: seg.text,
+      original_translation: seg.translation || '',
     });
   } finally {
     try {

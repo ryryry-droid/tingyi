@@ -45,7 +45,7 @@ export default function SessionScreen(p: Props) {
   const { session, settings } = p;
   const c = useColors();
   const ss = sheetStyles(c);
-  const player = useAudioPlayer(session.audioUri);
+  const player = useAudioPlayer(session.audioUri || null);
   const status = useAudioPlayerStatus(player);
   const [playing, setPlaying] = useState<Segment | null>(null);
   const [editing, setEditing] = useState<Segment | null>(null);
@@ -84,6 +84,10 @@ export default function SessionScreen(p: Props) {
       setPlaying(null);
       return;
     }
+    if (!session.audioUri) {
+      Alert.alert('Can’t play this line', 'This recording was restored from a backup, which doesn’t include audio.');
+      return;
+    }
     try {
       await player.seekTo(seg.start);
       player.play();
@@ -115,7 +119,7 @@ export default function SessionScreen(p: Props) {
     setRedoing(seg.id);
     try {
       const idx = session.segments.findIndex((s) => s.id === seg.id);
-      const r = await redoLine(settings, session, seg, session.segments.slice(Math.max(0, idx - 6), idx));
+      const r = await redoLine(settings, session, seg, session.segments.slice(Math.max(0, idx - 6), idx), session.segments.slice(idx + 1, idx + 3));
       const before = { text: seg.text, pinyin: seg.pinyin, translation: seg.translation, translation_pinyin: seg.translation_pinyin };
       p.onUpdateSegment(seg.id, { text: r.text, pinyin: r.pinyin, translation: r.translation, translation_pinyin: r.translation_pinyin });
       p.toast('Line redone', { label: 'Undo', run: () => p.onUpdateSegment(seg.id, before) });

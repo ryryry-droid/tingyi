@@ -12,9 +12,11 @@ type Props = {
   onChange: (s: Settings) => void;
   toast: (msg: string) => void;
   buzzPreview: () => void;
+  onBackup: () => void;
+  onRestore: () => void;
 };
 
-export default function SettingsScreen({ settings: s, onChange, toast, buzzPreview }: Props) {
+export default function SettingsScreen({ settings: s, onChange, toast, buzzPreview, onBackup, onRestore }: Props) {
   const c = useColors();
   const [showCode, setShowCode] = useState(false);
   const [testing, setTesting] = useState(false);
@@ -182,6 +184,25 @@ export default function SettingsScreen({ settings: s, onChange, toast, buzzPrevi
         style={[input, { minHeight: 110, textAlignVertical: 'top' }]}
       />
       <Text style={hint}>One per line, in any of the languages. Helps names get heard correctly and translated consistently.</Text>
+
+      <Label style={styles.gap}>Back up and restore</Label>
+      <View style={{ flexDirection: 'row', gap: 10 }}>
+        {([['Back up', onBackup], ['Restore', onRestore]] as const).map(([label, run]) => (
+          <Pressable
+            key={label}
+            onPress={run}
+            accessibilityRole="button"
+            style={({ pressed }) => [styles.backupBtn, { backgroundColor: c.surface2, opacity: pressed ? 0.7 : 1 }]}
+          >
+            <Text style={{ color: c.ink, fontSize: 15, fontWeight: '700' }}>{label}</Text>
+          </Pressable>
+        ))}
+      </View>
+      <Text style={hint}>
+        Back up saves your words, history, glossary and languages to a file in a folder you choose. Restore adds them from a file, on this
+        phone or another device (the web app too). Nothing you already have is removed. Audio isn't included, so restored recordings can't
+        be played or redone.
+      </Text>
     </ScrollView>
   );
 }
@@ -194,5 +215,6 @@ const styles = StyleSheet.create({
   testButton: { alignSelf: 'flex-start', marginTop: 10, paddingVertical: 6 },
   switchRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 24, gap: 12 },
   langs: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  backupBtn: { flex: 1, alignItems: 'center', borderRadius: 14, paddingVertical: 14 },
   lang: { borderWidth: 1.5, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 6 },
 });
