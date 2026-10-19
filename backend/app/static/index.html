@@ -1794,9 +1794,9 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
         <input id="ew-pinyin" type="text" autocomplete="off" autocapitalize="off" value="${esc(w.pinyin || '')}"></label>` : ''}
       <label class="ew"><span class="k" style="font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--faint);font-weight:700">Meaning</span>
         <textarea id="ew-meaning">${esc(w.meaning)}</textarea></label>
-      <label class="ew"><span class="k" style="font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--faint);font-weight:700">Example sentence, in English</span>
+      <label class="ew"><span class="k" style="font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--faint);font-weight:700">Example sentence in English</span>
         <textarea id="ew-ex-tr" placeholder="Write a sentence in English">${esc(w.example?.translation || '')}</textarea></label>
-      <p class="hint" id="ew-ex-note" style="margin-top:-2px">${w.example?.text ? `Now: <span class="${han ? 'han' : ''}" lang="${w.lang}">${esc(w.example.text)}</span><br>` : ''}Change the English and the ${esc(langName(w.lang))} sentence is rewritten to match it, using this word.</p>
+      <p class="hint" id="ew-ex-note" style="margin-top:-2px">${w.example?.text ? `Now: <span class="${han ? 'han' : ''}" lang="${w.lang}">${esc(w.example.text)}</span>` : ''}</p>
       <div class="wc-actions">
         <button class="primary" type="button" data-ew="save">Save</button>
         <button class="secondary" type="button" data-ew="close">Cancel</button>
