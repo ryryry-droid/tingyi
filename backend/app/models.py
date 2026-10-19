@@ -155,6 +155,7 @@ class LookupRequest(BaseModel):
     lang: LookupLang
     script: Script = "simplified"
     from_english: bool = False  # "word" is English: find how to say it in lang
+    sense: str = Field(default="", max_length=80)  # with from_english: which meaning of the English word
     strict: bool = True  # think harder and have the entry checked a second time (all word lookups)
 
 
@@ -178,6 +179,18 @@ class LookupResponse(BaseModel):
     suggestions: list[str] = Field(default_factory=list)  # real words that were probably meant
     register: str = ""  # "colloquial" (slang, informal, everyday speech) or "standard"
     standard: str = ""  # for a colloquial word: its standard form (e.g. gak -> tidak)
+    # from English: the English word's different meanings, when they need different words ("track": running
+    # track / to follow someone). The first is the one this entry is for.
+    senses: list["Sense"] = Field(default_factory=list)
+
+
+class Sense(BaseModel):
+    sense: str  # the English meaning, e.g. "running track (noun)"
+    word: str  # the word for it in the language
+    pinyin: Optional[str] = None
+
+
+LookupResponse.model_rebuild()
 
 
 class RegisterRequest(BaseModel):

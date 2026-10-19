@@ -295,7 +295,8 @@ def classify_register(words: list[str], lang: str) -> dict[str, tuple[str, str]]
     return out
 
 
-def lookup_word(word: str, sentence: str, lang: str, script: str, from_english: bool = False, strict: bool = False) -> dict:
+def lookup_word(word: str, sentence: str, lang: str, script: str, from_english: bool = False, strict: bool = False,
+                sense: str = "") -> dict:
     """strict=True (Add word, Double-check): thinks harder and has the entry checked a second time."""
     """Dictionary entry for a word, aimed at an English-speaking learner."""
     language = LOOKUP_LANG.get(lang) or LANG_NAMES[lang]
@@ -313,11 +314,17 @@ def lookup_word(word: str, sentence: str, lang: str, script: str, from_english: 
             " Vietnamese words are often several syllables written separately (e.g. cảm ơn, học sinh): if the tapped"
             " syllable is part of a longer word in the sentence, look up the whole word."
         )
-    if from_english:
+    if from_english and sense:
+        intro = (
+            f"You are a {language}–English learner's dictionary. The learner wants to know how to say the English "
+            f"word or phrase \"{word}\" in {language}, in this meaning: {sense}. Give the most common everyday "
+            f"{language} word for that meaning, and describe that word.\n\n"
+        )
+    elif from_english:
         intro = (
             f"You are a {language}–English learner's dictionary. The learner wants to know how to say the English "
             f"word or phrase \"{word}\" in {language}. Give the most common everyday {language} word for it "
-            "(in its usual meaning), and describe that word.\n\n"
+            "(in its most common meaning), and describe that word.\n\n"
         )
     else:
         intro = (
@@ -338,6 +345,7 @@ def lookup_word(word: str, sentence: str, lang: str, script: str, from_english: 
         '"translation": "<its English translation>"}}\n'
         + (
             f'"word" must be the {language} word, not the English one. Leave "in_context" empty.'
+            + ("" if sense else _SENSES_NOTE.format(word=word, language=language))
             if from_english
             else "If the tapped text is only part of a word, look up the whole word."
         )
@@ -351,9 +359,11 @@ def lookup_word(word: str, sentence: str, lang: str, script: str, from_english: 
     if not strict:
         return entry
     # Second opinion: a separate check of the entry, so invented words and meanings get caught
+    asked = (f'the learner asked how to say the English "{word}"' + (f" meaning {sense}" if sense else "")
+             if from_english else sentence or word)
     try:
         checked = _json(_complete_simple(_CHECK.format(language=language, entry=json.dumps(entry, ensure_ascii=False),
-                                                       sentence=sentence or word), max_tokens=600, effort="medium"))
+                                                       sentence=asked), max_tokens=600, effort="medium"))
     except Exception:
         checked = None
     if checked and checked.get("word"):
@@ -363,6 +373,13 @@ def lookup_word(word: str, sentence: str, lang: str, script: str, from_english: 
         entry["example"] = None
     return entry
 
+
+_SENSES_NOTE = (
+    '\nAlso include "senses": if the English "{word}" has clearly different meanings that need different {language} '
+    'words (e.g. "track": a running track, or to follow someone), list them as [{{"sense": "<that meaning in plain '
+    'English, 6 words max, with (noun)/(verb) when it helps>", "word": "<the {language} word for it>"}}], the meaning '
+    "you described first, at most 5, everyday meanings only. If one {language} word covers it, use []."
+)
 
 _EXISTS_NOTE = (
     '\nAlso include "exists": true or false, and "suggestions": [...].\n'

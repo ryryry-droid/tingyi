@@ -15,6 +15,7 @@ from fastapi.staticfiles import StaticFiles
 from . import audioclip, config, translate
 from .models import (
     LiveSegment,
+    Sense,
     LiveTranscribeResponse,
     LiveTranslateRequest,
     LiveTranslateResponse,
@@ -203,7 +204,8 @@ async def lookup(req: LookupRequest) -> LookupResponse:
     word = req.word.strip()
     try:
         entry = await run_in_threadpool(
-            translate.lookup_word, word, req.sentence.strip(), req.lang, req.script, req.from_english, req.strict
+            translate.lookup_word, word, req.sentence.strip(), req.lang, req.script, req.from_english, req.strict,
+            req.sense.strip()
         )
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"Lookup failed: {e}")
@@ -233,7 +235,24 @@ async def lookup(req: LookupRequest) -> LookupResponse:
         register="colloquial" if clean(entry.get("register")).lower().startswith("colloq") else "standard",
         standard=clean(entry.get("standard")) if clean(entry.get("register")).lower().startswith("colloq") else "",
         example=example,
+        senses=_senses(entry.get("senses"), req) if req.from_english and not req.sense.strip() else [],
     )
+
+
+def _senses(raw, req: LookupRequest) -> list[Sense]:
+    """The English word's different meanings, each with its own word (none if there's only one)."""
+    chinese = req.lang in ("zh", "yue")
+    out: list[Sense] = []
+    for item in raw if isinstance(raw, list) else []:
+        if not isinstance(item, dict):
+            continue
+        sense, word = str(item.get("sense") or "").strip(), str(item.get("word") or "").strip()
+        if not sense or not word or any(s.sense.lower() == sense.lower() for s in out):
+            continue
+        if chinese:
+            word = to_script(word, req.script)
+        out.append(Sense(sense=sense[:60], word=word, pinyin=to_pinyin(word) if chinese else None))
+    return out[:5] if len(out) > 1 else []
 
 
 @app.post("/api/register", response_model=RegisterResponse, dependencies=[Depends(check_token)])

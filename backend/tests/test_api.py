@@ -397,6 +397,36 @@ def test_lookup_from_english(monkeypatch):
     assert 'how to say the English word or phrase "weekend" in Mandarin' in seen[0] and "not the English one" in seen[0]
 
 
+def test_lookup_english_word_with_several_meanings(monkeypatch):
+    setup(monkeypatch)
+    seen = []
+
+    def fake(prompt, max_tokens=200, **kw):
+        seen.append(prompt)
+        if "to follow someone (verb)" in prompt and "running track" not in prompt:
+            return '{"word": "melacak", "part_of_speech": "verb", "meaning": "to track, trace"}'
+        return ('{"word": "lintasan", "part_of_speech": "noun", "meaning": "track (for running)", "senses": ['
+                '{"sense": "running track (noun)", "word": "lintasan"}, {"sense": "to follow someone (verb)", "word": "melacak"},'
+                '{"sense": "Running track (noun)", "word": "trek"}]}')
+
+    monkeypatch.setattr(translate, "_complete_simple", fake)
+    r = client.post("/api/lookup", json={"word": "track", "lang": "id", "from_english": True}).json()
+    assert r["word"] == "lintasan"
+    assert r["senses"] == [
+        {"sense": "running track (noun)", "word": "lintasan", "pinyin": None},
+        {"sense": "to follow someone (verb)", "word": "melacak", "pinyin": None},
+    ]
+    assert "clearly different meanings" in seen[0]
+    # picking one of the other meanings looks that one up
+    seen.clear()
+    r = client.post("/api/lookup", json={"word": "track", "lang": "id", "from_english": True, "sense": "to follow someone (verb)"}).json()
+    assert r["word"] == "melacak" and r["senses"] == []
+    assert "clearly different meanings" not in seen[0]
+    # one meaning only, or a normal lookup: no list
+    monkeypatch.setattr(translate, "_complete_simple", lambda p, max_tokens=200, **kw: '{"word": "周末", "meaning": "weekend", "senses": [{"sense": "weekend", "word": "周末"}]}')
+    assert client.post("/api/lookup", json={"word": "weekend", "lang": "zh", "from_english": True}).json()["senses"] == []
+
+
 def test_colloquial_register(monkeypatch):
     setup(monkeypatch)
     monkeypatch.setattr(translate, "_complete_simple", lambda p, max_tokens=200, **kw: '{"word": "gak", "register": "colloquial", "standard": "tidak", "meaning": "no, not"}')

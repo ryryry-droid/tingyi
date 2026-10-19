@@ -181,6 +181,12 @@ nav button[aria-selected="true"] { background: var(--surface); color: var(--ink)
 .wc-word.han { font-family: var(--han); font-weight: 600; letter-spacing: .04em; }
 .wc-py { font-size: 16px; margin: 2px 0 0; }
 .pos { display: inline-block; font-size: 12px; color: var(--accent); background: var(--accent-soft); border-radius: 999px; padding: 2px 9px; margin-top: 6px; }
+.senses { display: grid; gap: 6px; }
+.senses button { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; text-align: left; border: 1.5px solid var(--line); background: var(--surface); border-radius: 12px; padding: 9px 12px; font-size: 14px; color: var(--muted); }
+.senses button b { font-weight: 600; color: var(--ink); }
+.senses button span { color: var(--muted); white-space: nowrap; }
+.senses button[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); }
+.senses button[aria-pressed="true"] span { color: var(--accent); font-weight: 600; }
 .picker { background: var(--bg); border-radius: 14px; padding: 10px 12px; display: grid; gap: 6px; }
 .picker .k { font-size: 12px; text-transform: uppercase; letter-spacing: .08em; color: var(--faint); font-weight: 700; }
 .ptoks { display: flex; flex-wrap: wrap; gap: 4px 2px; line-height: 1.2; }
@@ -1692,7 +1698,9 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
     else if (a.error) body = `<p class="notice" style="margin:0">${esc(a.error)}</p>`;
     else if (e && e.exists === false) body = notAWord(e.word, a.lang, e.suggestions, 'aw');
     else if (e) body = `
-      ${a.fromEn ? `<p class="meta" style="margin:0">“${esc(a.text)}” in ${esc(langName(a.lang))}</p>` : ''}
+      ${a.fromEn ? `<p class="meta" style="margin:0">“${esc(a.text)}” in ${esc(langName(a.lang))}${a.senses?.length > 1 ? ' has more than one meaning. Which one?' : ''}</p>` : ''}
+      ${a.fromEn && a.senses?.length > 1 ? `<div class="senses" role="group" aria-label="Meaning">${a.senses.map((x, i) => `
+        <button type="button" data-aw="sense" data-i="${i}" aria-pressed="${(a.sense || a.senses[0].sense) === x.sense}"><b>${esc(x.sense)}</b><span${han ? ' class="han"' : ''}>${esc(x.word)}</span></button>`).join('')}</div>` : ''}
       <div class="wc-head"><div style="min-width:0">
         <p class="wc-word${han ? ' han' : ''}">${esc(e.word)}</p>
         ${han && settings.pinyin && e.pinyin ? `<p class="wc-py py">${pinyinHtml(e.pinyin)}</p>` : ''}
@@ -1722,15 +1730,17 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
     inp.oninput = () => { addState.text = inp.value; if (addState.entry) { addState.entry = null; renderAddWord(); $('add-input').focus(); } else { const b = $('panel').querySelector('[data-aw="lookup"]'); if (b) b.disabled = !inp.value.trim(); } };
     inp.onkeydown = (ev) => { if (ev.key === 'Enter' && inp.value.trim()) { ev.preventDefault(); addLookup(); } };
   }
-  async function addLookup() {
+  async function addLookup(sense = '') {
     const a = addState; const word = cleanWord(a.text); if (!word) return;
-    a.text = word; a.error = ''; a.entry = null; a.loading = 'Looking it up…'; renderAddWord();
+    a.text = word; a.error = ''; a.entry = null; a.sense = sense; if (!sense) { a.senses = null; a.first = null; }
+    a.loading = sense ? `Looking up “${word}” as in ${sense}…` : 'Looking it up…'; renderAddWord();
     try {
       const res = await fetch('/api/lookup', { method: 'POST', headers: { ...authHeaders(), 'Content-Type': 'application/json' },
-        body: JSON.stringify({ word, sentence: a.fromEn ? '' : word, lang: a.lang, script: settings.script, from_english: a.fromEn, strict: true }) });
+        body: JSON.stringify({ word, sentence: a.fromEn ? '' : word, lang: a.lang, script: settings.script, from_english: a.fromEn, strict: true, sense }) });
       if (!res.ok) throw new Error(await apiError(res));
       if (addState !== a) return;
       a.entry = await res.json();
+      if (!sense) a.senses = a.entry.senses || null; // the English word's meanings, to switch between
     } catch (e) { if (addState === a) a.error = e instanceof TypeError ? 'Couldn’t reach the server. Check your connection.' : e.message; }
     if (addState === a) { a.loading = false; renderAddWord(); }
   }
@@ -1808,6 +1818,12 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
     if (act === 'lang') { a.lang = b.dataset.v; a.entry = null; a.error = ''; renderAddWord(); }
     else if (act === 'from') { a.fromEn = !a.fromEn; a.entry = null; a.error = ''; a.text = ''; renderAddWord(); $('add-input')?.focus(); }
     else if (act === 'lookup') addLookup();
+    else if (act === 'sense') {
+      const x = a.senses?.[+b.dataset.i]; if (!x || x.sense === (a.sense || a.senses[0].sense)) return;
+      if (x === a.senses[0] && a.first) { a.sense = ''; a.entry = a.first; renderAddWord(); return; }
+      if (!a.first) a.first = a.entry; // keep the first answer, so going back to it is instant
+      addLookup(x.sense);
+    }
     else if (act === 'sugg') { a.text = b.dataset.v; addLookup(); }
     else if (act === 'mic') { if (a.recording) stopWordMic(true); else startWordMic(); }
     else if (act === 'close') closePanel();
