@@ -619,6 +619,7 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
   let current = null;
   let editing = null;
   let confirmDelete = false;
+  let redoing = null; // index of the line being listened to again
   let player = null, playUrl = null, playingId = null, stopAt = 0;
 
   // ---------- pinyin colouring (server sends tone-marked pinyin) ----------
@@ -868,6 +869,32 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
     return res.json();
   }
 
+  // ---------- redo one line: listen to its audio again, then translate again ----------
+  async function redoLine(i) {
+    const s = current, seg = s?.segments[i];
+    if (!seg || redoing !== null) return;
+    if (!s.audio) { showNotice('The audio for this recording is no longer on this phone.'); return; }
+    redoing = i; renderSession();
+    try {
+      const form = new FormData();
+      form.append('file', s.audio, `recording.${extFor(s.audio.type || 'audio/webm')}`);
+      form.append('options', JSON.stringify({ ...options(), source: seg.lang || s.source || 'zh', target: seg.target || s.target || 'en', script: s.script || settings.script }));
+      form.append('start', String(seg.start)); form.append('end', String(seg.end));
+      form.append('context', JSON.stringify(s.segments.slice(Math.max(0, i - 6), i).map((c) => ({ text: segText(c), translation: segTr(c) }))));
+      const res = await fetch('/api/redo', { method: 'POST', headers: authHeaders(), body: form });
+      if (!res.ok) throw new Error(await apiError(res));
+      const r = await res.json();
+      const before = s.segments[i];
+      s.segments[i] = { ...before, text: r.text, zh: r.text, pinyin: r.pinyin, translation: r.translation, en: r.translation, translation_pinyin: r.translation_pinyin };
+      await putSession(s);
+      toast('Line redone', { label: 'Undo', run: async () => { s.segments[i] = before; await putSession(s); if (current === s) renderSession(); } });
+    } catch (e) {
+      showNotice(e instanceof TypeError ? 'Couldn’t reach the server. Check your connection and try again.' : e.message);
+    }
+    redoing = null;
+    if (current === s && view === 'session') renderSession();
+  }
+
   // ---------- playback ----------
   function stopPlayback() {
     if (player) { player.pause(); }
@@ -968,7 +995,7 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
     const src = s.source || 'zh', tgt = s.target || 'en';
     $('s-title').style.fontFamily = hasHan(s.title) ? 'var(--han)' : 'var(--f-ui)';
     const tappable = s.segments.some((seg) => LOOKUP_LANGS.includes(srcOf(seg)) || LOOKUP_LANGS.includes(tgtOf(seg)));
-    $('s-body').innerHTML = `<p class="tip">Tap ▶ to replay a line.${tappable ? ' Tap a word to look it up.' : ''} Tap Edit to fix a misheard line.</p><ol class="lines">${s.segments.map((seg, i) => { const src = srcOf(seg), tgt = tgtOf(seg); return `
+    $('s-body').innerHTML = `<p class="tip">Tap ▶ to replay a line.${tappable ? ' Tap a word to look it up.' : ''} Tap Edit to fix a line yourself, or Redo to have it listened to and translated again.</p><ol class="lines">${s.segments.map((seg, i) => { const src = srcOf(seg), tgt = tgtOf(seg); return `
       <li class="line${playingId === seg.id ? ' playing' : ''}" data-id="${seg.id}">
         <button class="time" type="button" data-act="play" data-i="${i}" aria-label="Play line ${i + 1}">${fmtTime(seg.start)}</button>
         <div>
@@ -981,7 +1008,8 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
             ? `<div class="editbox"><textarea id="edit-zh" aria-label="What was said">${esc(segText(seg))}</textarea>
                <div class="row"><button class="textbtn" type="button" data-act="cancel">Cancel</button>
                <button class="small-primary" type="button" data-act="save" data-i="${i}">Re-translate</button></div></div>`
-            : `<button class="textbtn" type="button" data-act="edit" data-i="${i}">Edit</button>`}
+            : `<button class="textbtn" type="button" data-act="edit" data-i="${i}">Edit</button>
+               <button class="textbtn" type="button" data-act="redo" data-i="${i}" ${redoing === i ? 'disabled' : ''}>${redoing === i ? 'Listening again…' : '↻ Redo'}</button>`}
         </div>
       </li>`; }).join('')}</ol>${del}`;
     $('edit-zh')?.focus();
@@ -1912,6 +1940,7 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
     const i = +b.dataset.i, act = b.dataset.act;
     if (act === 'play') playSegment(current.segments[i]);
     else if (act === 'edit') { editing = i; renderSession(); }
+    else if (act === 'redo') redoLine(i);
     else if (act === 'cancel') { editing = null; renderSession(); }
     else if (act === 'retry') process(current);
     else if (act === 'del') { confirmDelete = true; renderSession(); }

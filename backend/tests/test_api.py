@@ -407,3 +407,47 @@ def test_colloquial_register(monkeypatch):
         {"word": "makan", "register": "standard", "standard": ""},
         {"word": "banget", "register": "standard", "standard": ""},
     ]
+
+
+def test_redo_one_line(monkeypatch, tmp_path):
+    import av
+    import numpy as np
+
+    fake = setup(monkeypatch)
+    heard = {}
+
+    def one_line(path, opts):
+        import wave
+
+        with wave.open(path) as w:
+            heard["seconds"] = w.getnframes() / w.getframerate()
+        return [RawSegment(start=0, end=2, text="我们周末去公园吧。")], 2.0
+
+    monkeypatch.setattr(asr, "transcribe", one_line)
+    # a real 8-second recording to cut from
+    path = tmp_path / "rec.m4a"
+    out = av.open(str(path), "w")
+    st = out.add_stream("aac", rate=16000)
+    st.layout = "mono"
+    sig = (0.3 * np.sin(np.arange(16000 * 8) / 16000 * 2 * np.pi * 300)).astype(np.float32)
+    for i in range(0, len(sig), 1024):
+        chunk = np.pad(sig[i : i + 1024], (0, max(0, 1024 - len(sig[i : i + 1024]))))
+        fr = av.AudioFrame.from_ndarray(chunk.reshape(1, -1), format="flt", layout="mono")
+        fr.sample_rate, fr.pts = 16000, i
+        for pk in st.encode(fr):
+            out.mux(pk)
+    for pk in st.encode(None):
+        out.mux(pk)
+    out.close()
+    r = client.post(
+        "/api/redo",
+        files={"file": ("rec.m4a", path.read_bytes(), "audio/mp4")},
+        data={"options": json.dumps({"source": "zh", "target": "en"}), "start": "3", "end": "5",
+              "context": json.dumps([{"text": "你好", "translation": "Hello"}])},
+    )
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["text"] == "我们周末去公园吧。" and body["translation"] == "EN<我们周末去公园吧。>"
+    assert body["pinyin"].startswith("wǒ men")
+    assert 2.5 < heard["seconds"] < 3.0  # just that line, plus a little padding
+    assert "Hello" in fake.prompts[0]  # earlier lines were given as context

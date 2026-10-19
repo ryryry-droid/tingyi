@@ -12,7 +12,7 @@ from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from . import config, translate
+from . import audioclip, config, translate
 from .models import (
     LiveSegment,
     LiveTranscribeResponse,
@@ -123,6 +123,59 @@ async def retranslate(req: RetranslateRequest) -> RetranslateResponse:
     context = [c for c in req.context if c.translation][-config.CONTEXT_SEGMENTS :]
     try:
         result = await run_in_threadpool(translate.translate_lines, [line], context, opts)
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Translation failed: {e}")
+    translation, translation_pinyin = finish_translation(result.get(0, ""), opts)
+    return RetranslateResponse(
+        text=text,
+        pinyin=to_pinyin(text) if opts.pinyin and opts.source_is_chinese else None,
+        translation=translation,
+        translation_pinyin=translation_pinyin,
+    )
+
+
+@app.post("/api/redo", response_model=RetranslateResponse, dependencies=[Depends(check_token)])
+async def redo_line(
+    file: UploadFile = File(...),
+    options: str = Form("{}"),
+    start: float = Form(0.0),  # the line's place in the recording, in seconds
+    end: float = Form(0.0),
+    context: str = Form("[]"),  # a few lines before it: [{"text": ..., "translation": ...}]
+) -> RetranslateResponse:
+    """Listen to one line of a recording again, then translate it again."""
+    try:
+        opts = Options(**json.loads(options or "{}"))
+        ctx = [Segment(id=-1 - i, start=0, end=0, text=c.get("text", ""), translation=c.get("translation", ""))
+               for i, c in enumerate(json.loads(context or "[]")[-config.CONTEXT_SEGMENTS:])]
+    except Exception as e:
+        raise HTTPException(status_code=422, detail=f"Bad options: {e}")
+    if end <= start:
+        raise HTTPException(status_code=422, detail="This line has no audio range")
+    suffix = os.path.splitext(file.filename or "")[1].lower()
+    with tempfile.NamedTemporaryFile(suffix=suffix if suffix in AUDIO_EXTS else ".m4a", delete=False) as tmp:
+        tmp.write(await file.read())
+        path = tmp.name
+    clip = None
+    try:
+        clip, seconds = await run_in_threadpool(audioclip.cut, path, start, end)
+        if seconds < 0.3:
+            raise HTTPException(status_code=422, detail="That part of the recording is too short")
+        raw, _ = await run_in_threadpool(asr.transcribe, clip, opts)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Couldn't listen again: {e}")
+    finally:
+        os.unlink(path)
+        if clip:
+            os.unlink(clip)
+    lines = clean_segments(raw, opts)
+    text = (" " if not opts.source_is_chinese else "").join(s.text for s in lines).strip()
+    if not text:
+        raise HTTPException(status_code=422, detail="Couldn't hear any speech in that part")
+    line = Segment(id=0, start=0, end=0, text=text)
+    try:
+        result = await run_in_threadpool(translate.translate_lines, [line], ctx, opts)
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"Translation failed: {e}")
     translation, translation_pinyin = finish_translation(result.get(0, ""), opts)
