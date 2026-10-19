@@ -247,7 +247,7 @@ def _senses(raw, req: LookupRequest) -> list[Sense]:
         if not isinstance(item, dict):
             continue
         sense, word = str(item.get("sense") or "").strip(), str(item.get("word") or "").strip()
-        if not sense or not word or any(s.sense.lower() == sense.lower() for s in out):
+        if not sense or not word or any(s.sense.lower() == sense.lower() or s.word.lower() == word.lower() for s in out):
             continue
         if chinese:
             word = to_script(word, req.script)

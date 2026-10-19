@@ -314,6 +314,16 @@ def lookup_word(word: str, sentence: str, lang: str, script: str, from_english: 
             " Vietnamese words are often several syllables written separately (e.g. cảm ơn, học sinh): if the tapped"
             " syllable is part of a longer word in the sentence, look up the whole word."
         )
+    senses: list[dict] = []
+    if from_english and not sense:
+        # Words like "track" (running track / to follow someone) need different words: find those meanings
+        # first, in a separate step, then describe the most common one
+        try:
+            senses = english_senses(word, language)
+        except Exception:
+            senses = []
+        if len(senses) > 1:
+            sense = senses[0]["sense"]
     if from_english and sense:
         intro = (
             f"You are a {language}–English learner's dictionary. The learner wants to know how to say the English "
@@ -345,7 +355,6 @@ def lookup_word(word: str, sentence: str, lang: str, script: str, from_english: 
         '"translation": "<its English translation>"}}\n'
         + (
             f'"word" must be the {language} word, not the English one. Leave "in_context" empty.'
-            + ("" if sense else _SENSES_NOTE.format(word=word, language=language))
             if from_english
             else "If the tapped text is only part of a word, look up the whole word."
         )
@@ -356,6 +365,9 @@ def lookup_word(word: str, sentence: str, lang: str, script: str, from_english: 
     entry = _json(_complete_simple(prompt, max_tokens=600 if strict else 500, effort="medium" if strict else "low"))
     if entry is None:
         raise ValueError("The dictionary didn't return an entry")
+    entry.pop("senses", None)
+    if senses:
+        entry["senses"] = senses
     if not strict:
         return entry
     # Second opinion: a separate check of the entry, so invented words and meanings get caught
@@ -367,6 +379,7 @@ def lookup_word(word: str, sentence: str, lang: str, script: str, from_english: 
     except Exception:
         checked = None
     if checked and checked.get("word"):
+        checked.pop("senses", None)
         entry = {**entry, **checked}
     if entry.get("exists") is False:
         entry["meaning"] = ""
@@ -374,12 +387,31 @@ def lookup_word(word: str, sentence: str, lang: str, script: str, from_english: 
     return entry
 
 
-_SENSES_NOTE = (
-    '\nAlso include "senses": if the English "{word}" has clearly different meanings that need different {language} '
-    'words (e.g. "track": a running track, or to follow someone), list them as [{{"sense": "<that meaning in plain '
-    'English, 6 words max, with (noun)/(verb) when it helps>", "word": "<the {language} word for it>"}}], the meaning '
-    "you described first, at most 5, everyday meanings only. If one {language} word covers it, use []."
-)
+def english_senses(word: str, language: str) -> list[dict]:
+    """The everyday meanings of an English word that need different words in `language`, most common first.
+
+    [] when one word covers them all (e.g. "weekend")."""
+    prompt = (
+        f'A learner wants to say the English word "{word}" in {language}. In English it may have several quite '
+        f"different meanings (e.g. \"track\": a running track, a railway track, a song on an album, to follow "
+        "someone). List the common everyday meanings of the ENGLISH word — nouns and verbs both — and for each, "
+        f"the most common {language} word a native speaker would use for that meaning.\n"
+        "Rules: describe each meaning of the English word in plain English (6 words max, add (noun) or (verb)); "
+        f"each meaning must need a DIFFERENT {language} word — merge meanings that use the same word; most common "
+        f"meaning first; at most 5. If one {language} word covers every common meaning, return an empty list.\n"
+        'Reply with JSON only: {"senses": [{"sense": "...", "word": "..."}]}'
+    )
+    data = _json(_complete_simple(prompt, max_tokens=500, effort="medium")) or {}
+    out: list[dict] = []
+    for item in data.get("senses") or []:
+        if not isinstance(item, dict):
+            continue
+        sense, w = str(item.get("sense") or "").strip(), str(item.get("word") or "").strip()
+        # the point is to choose between different words: drop repeats of a word or a meaning
+        if sense and w and not any(o["word"].lower() == w.lower() or o["sense"].lower() == sense.lower() for o in out):
+            out.append({"sense": sense, "word": w})
+    return out[:5] if len(out) > 1 else []
+
 
 _EXISTS_NOTE = (
     '\nAlso include "exists": true or false, and "suggestions": [...].\n'
