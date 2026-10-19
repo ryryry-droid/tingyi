@@ -6,7 +6,7 @@ import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 
 import { checkRegister, checkServer, translateRecording } from './src/api';
 import { backUp, restore } from './src/backup';
-import { preloadSounds } from './src/sounds';
+import { preloadSounds, setSoundVolume } from './src/sounds';
 import Splash from './src/Splash';
 import HistoryScreen from './src/screens/HistoryScreen';
 import LiveScreen, { LiveResult } from './src/screens/LiveScreen';
@@ -76,6 +76,7 @@ export default function App() {
     });
   }, []);
 
+  useEffect(() => setSoundVolume(settings.volume), [settings.volume]);
   useEffect(() => {
     if (ready) saveSessions(sessions);
   }, [sessions, ready]);

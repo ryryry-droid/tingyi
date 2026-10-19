@@ -1,8 +1,8 @@
 import { useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 
 import { checkServer } from '../api';
-import { playCry } from '../sounds';
+import { LEVELS, levelOf, playCry, setSoundVolume } from '../sounds';
 import { Label, Segmented } from '../components';
 import { useColors } from '../theme';
 import { CATALOG, distinctLangs, fixPair, LANGS, learningLang, learnLangs, Settings } from '../types';
@@ -19,6 +19,7 @@ type Props = {
 export default function SettingsScreen({ settings: s, onChange, toast, buzzPreview, onBackup, onRestore }: Props) {
   const c = useColors();
   const [showCode, setShowCode] = useState(false);
+  const [langsOpen, setLangsOpen] = useState(false);
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<{ ok: boolean; text: string } | null>(null);
   const set = <K extends keyof Settings>(k: K, v: Settings[K]) => onChange({ ...s, [k]: v });
@@ -87,8 +88,22 @@ export default function SettingsScreen({ settings: s, onChange, toast, buzzPrevi
       {testResult && <Text style={[styles.help, { color: testResult.ok ? c.ok : c.rec }]}>{testResult.text}</Text>}
 
       <Label style={styles.gap}>Languages</Label>
-      <Text style={[hint, { marginTop: 0, marginBottom: 8 }]}>Tap to add or remove. Only your languages appear in the Spoken and Translate into lists.</Text>
-      <View style={styles.langs}>
+      <Pressable
+        onPress={() => setLangsOpen((v) => !v)}
+        accessibilityRole="button"
+        accessibilityState={{ expanded: langsOpen }}
+        style={[styles.langSum, { borderColor: c.line, backgroundColor: c.surface }]}
+      >
+        <Text numberOfLines={1} style={{ flex: 1, color: c.ink, fontSize: 15 }}>
+          {(() => {
+            const mine = CATALOG.filter(([code]) => s.langs.includes(code)).map(([, n]) => n);
+            return mine.length > 3 ? `${mine.slice(0, 3).join(', ')} +${mine.length - 3}` : mine.join(', ');
+          })()}
+        </Text>
+        <Text style={{ color: c.accent, fontWeight: '700', fontSize: 15 }}>{langsOpen ? 'Done' : 'Edit'}</Text>
+      </Pressable>
+      {langsOpen ? (
+      <View style={[styles.langs, { marginTop: 10 }]}>
         {CATALOG.map(([code, , label]) => {
           const on = s.langs.includes(code);
           return (
@@ -107,6 +122,7 @@ export default function SettingsScreen({ settings: s, onChange, toast, buzzPrevi
           );
         })}
       </View>
+      ) : null}
 
       <Label style={styles.gap}>Main learning language</Label>
       <Segmented
@@ -124,7 +140,6 @@ export default function SettingsScreen({ settings: s, onChange, toast, buzzPrevi
           { value: 'traditional', label: 'Traditional 繁體' },
         ]}
       />
-      <Text style={hint}>Used whenever Chinese is spoken or translated into.</Text>
 
       <Label style={styles.gap}>Appearance</Label>
       <Segmented
@@ -147,17 +162,30 @@ export default function SettingsScreen({ settings: s, onChange, toast, buzzPrevi
       />
 
       <View style={styles.switchRow}>
-        <Text style={{ fontSize: 16, color: c.ink, fontWeight: '600', flex: 1 }}>Chatot cry when you tap record</Text>
-        <Switch
-          value={s.cry}
-          onValueChange={(v) => {
-            set('cry', v);
-            if (v) playCry();
-          }}
-          trackColor={{ true: c.accent }}
-        />
+        <Text style={{ fontSize: 16, color: c.ink, fontWeight: '600', flex: 1 }}>Chatot slider</Text>
+        <Text style={{ fontSize: 14, color: c.muted, fontWeight: '700' }}>{levelOf(s.volume).name}</Text>
       </View>
-      <Text style={hint}>Plays just before recording starts. You'll still hear it for right answers in tests.</Text>
+      <View style={styles.levels}>
+        {LEVELS.map((l) => {
+          const on = levelOf(s.volume).id === l.id;
+          return (
+            <Pressable
+              key={l.id}
+              accessibilityRole="button"
+              accessibilityState={{ selected: on }}
+              onPress={() => {
+                set('volume', l.volume);
+                setSoundVolume(l.volume);
+                playCry(); // hear it at that level
+              }}
+              style={[styles.level, { backgroundColor: on ? c.accentSoft : c.surface2, borderColor: on ? c.accent : 'transparent' }]}
+            >
+              <Image source={l.img} style={[styles.levelImg, l.id === 'off' && { opacity: 0.55 }]} />
+              <Text style={{ fontSize: 13, fontWeight: '700', color: on ? c.ink : c.muted }}>{l.name}</Text>
+            </Pressable>
+          );
+        })}
+      </View>
 
       <View style={styles.switchRow}>
         <Text style={{ fontSize: 16, color: c.ink, fontWeight: '600', flex: 1 }}>Vibrate when a recording stops</Text>
@@ -170,7 +198,6 @@ export default function SettingsScreen({ settings: s, onChange, toast, buzzPrevi
           trackColor={{ true: c.accent }}
         />
       </View>
-      <Text style={hint}>One short buzz when you stop it. A long buzz if it stops by itself, for example when a call takes the microphone.</Text>
 
       <View style={styles.switchRow}>
         <Text style={{ fontSize: 16, color: c.ink, fontWeight: '600', flex: 1 }}>Show pinyin</Text>
@@ -223,5 +250,9 @@ const styles = StyleSheet.create({
   switchRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 24, gap: 12 },
   langs: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   backupBtn: { flex: 1, alignItems: 'center', borderRadius: 14, paddingVertical: 14 },
+  langSum: { flexDirection: 'row', alignItems: 'center', gap: 12, borderWidth: 1, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12 },
+  levels: { flexDirection: 'row', gap: 8, marginTop: 10 },
+  level: { flex: 1, alignItems: 'center', gap: 6, borderRadius: 16, borderWidth: 2, paddingVertical: 8, paddingHorizontal: 4 },
+  levelImg: { width: 60, height: 60, borderRadius: 30 },
   lang: { borderWidth: 1.5, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 6 },
 });

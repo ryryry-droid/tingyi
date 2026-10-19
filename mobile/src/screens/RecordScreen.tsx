@@ -133,7 +133,7 @@ export default function RecordScreen({ settings, onLanguages, onRecorded, onStop
           await requestNotificationPermissionsAsync();
         } catch {}
       }
-      if (settings.cry) {
+      if (settings.volume > 0) {
         // play the cry before the microphone starts, so it isn't recorded
         await setAudioModeAsync({ allowsRecording: false, playsInSilentMode: true }).catch(() => {});
         await playCry();

@@ -84,7 +84,8 @@ export type Settings = {
   glossary: string; // one term per line, e.g. "王小明 = Wang Xiaoming"
   theme: 'dark' | 'light';
   vibrate: boolean;
-  cry: boolean; // Chatot's cry when you tap record
+  cry: boolean; // old on/off for the cry (replaced by volume)
+  volume: number; // Chatot slider: cry and wrong-answer sound, 0 (off) / 10 / 30 / 100
   langs: string[]; // the languages shown in the pickers
   mainLang: string; // the language you're mainly learning: Words opens on it, Add word starts in it ('' = first)
 };
@@ -101,6 +102,7 @@ export const DEFAULT_SETTINGS: Settings = {
   theme: 'dark',
   vibrate: true,
   cry: true,
+  volume: 10,
   langs: DEFAULT_LANGS,
   mainLang: '',
 };

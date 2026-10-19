@@ -39,7 +39,9 @@ export function deleteAudio(uri: string) {
 }
 
 export async function loadSettings(): Promise<Settings> {
-  const s = { ...DEFAULT_SETTINGS, ...(await readJson<Partial<Settings>>(SETTINGS_KEY, {})) };
+  const saved = await readJson<Partial<Settings>>(SETTINGS_KEY, {});
+  const s = { ...DEFAULT_SETTINGS, ...saved };
+  if (typeof saved.volume !== 'number') s.volume = saved.cry === false ? 0 : 10; // the old on/off switch: off = volume off
   if (s.theme !== 'light') s.theme = 'dark'; // dark is the default
   s.langs = (Array.isArray(s.langs) ? s.langs : DEFAULT_LANGS).filter((c) => LANGS[c]);
   if (distinctLangs(s.langs) < 2) s.langs = DEFAULT_LANGS.slice();
