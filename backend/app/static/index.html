@@ -1538,10 +1538,11 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
   function renderWords() {
     const have = wordLangs().filter(([code]) => words.some((w) => w.lang === code));
     if (wordFilter !== 'all' && !have.some(([c]) => c === wordFilter)) wordFilter = 'all';
+    if (wordFilter !== 'id') colloqOnly = false;
     $('w-langs').innerHTML = [['all', 'All'], ...(have.length > 1 ? have : [])]
       .map(([code, label]) => `<button type="button" data-f="${code}" aria-pressed="${wordFilter === code}">${label}</button>`).join('')
-      // Colloquial: shown when the words in view include some colloquial ones
-      + (words.some((w) => isColloq(w) && (wordFilter === 'all' || w.lang === wordFilter)) || colloqOnly
+      // Colloquial: only once Indonesian is picked
+      + (wordFilter === 'id'
         ? `<button type="button" data-f="colloq" class="colloq" aria-pressed="${colloqOnly}">Colloquial</button>` : '');
     const list = filteredWords();
     $('w-test').disabled = !words.length;
@@ -1573,7 +1574,7 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
   $('w-search').oninput = (e) => { wordSearch = e.target.value; renderWords(); };
   $('w-filter').onclick = async (ev) => {
     const b = ev.target.closest('[data-f]');
-    if (b) { if (b.dataset.f === 'colloq') colloqOnly = !colloqOnly; else wordFilter = b.dataset.f; renderWords(); }
+    if (b) { if (b.dataset.f === 'colloq') colloqOnly = !colloqOnly; else { wordFilter = b.dataset.f; colloqOnly = false; } renderWords(); }
   };
   $('w-copy').onclick = async () => {
     const text = filteredWords().map((w) => `${w.word}${w.pinyin ? ` (${w.pinyin})` : ''} — ${w.meaning}${w.example ? `\n  ${w.example.text}\n  ${w.example.translation}` : ''}`).join('\n');
