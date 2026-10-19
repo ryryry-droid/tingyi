@@ -173,9 +173,9 @@ export default function WordsScreen(p: Props) {
                 </Pressable>
                 <Text style={[{ fontSize: 22, color: c.ink }, han && { fontFamily: HAN_FONT, fontWeight: '600' }]}>{w.word}</Text>
                 {settings.pinyin && w.pinyin ? <Pinyin value={w.pinyin} /> : null}
-                {w.part_of_speech ? <Text style={[sheetStyles(c).pos, { marginTop: 0 }]}>{w.part_of_speech}</Text> : null}
+                {w.part_of_speech ? <Text style={[sheetStyles(c).pos, { marginTop: 0, alignSelf: 'center' }]}>{w.part_of_speech}</Text> : null}
                 {isColloq(w) ? (
-                  <Text style={[sheetStyles(c).pos, { marginTop: 0, color: c.yellowText, backgroundColor: c.yellowSoft }]}>colloquial</Text>
+                  <Text style={[sheetStyles(c).pos, { marginTop: 0, alignSelf: 'center', color: c.yellowText, backgroundColor: c.yellowSoft }]}>colloquial</Text>
                 ) : null}
                 <View style={{ flex: 1 }} />
                 <TextBtn title="Edit" color={c.accent} bold onPress={() => setEditingWord(w)} />

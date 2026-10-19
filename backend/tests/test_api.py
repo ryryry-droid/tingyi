@@ -554,6 +554,11 @@ def test_in_depth_checks_go_to_gemini(monkeypatch):
     ])
     monkeypatch.setattr(openai, "OpenAI", FakeOpenAI)
     monkeypatch.setattr(translate, "_resting", {})
+    # default: Gemini is only a backup, so lookups use Groq too
+    client.post("/api/lookup", json={"word": "makan", "lang": "id"})
+    assert used == [("openai/gpt-oss-120b", "medium"), ("openai/gpt-oss-120b", "medium")]
+    used.clear()
+    monkeypatch.setattr(config, "CAREFUL_SERVICE", "gemini")
     client.post("/api/retranslate", json={"text": "你好", "options": {"source": "zh", "target": "en"}})
     assert used == [("openai/gpt-oss-120b", "low")]  # everyday translation: Groq
     used.clear()

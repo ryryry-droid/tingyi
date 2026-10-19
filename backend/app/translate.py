@@ -76,7 +76,7 @@ def _chat(messages: list[dict], temperature: float, effort: str = "low", max_tok
     from openai import BadRequestError, OpenAI, RateLimitError
 
     services = config.CHAT_SERVICES
-    if effort != "low":
+    if effort != "low" and config.CAREFUL_SERVICE:
         # in-depth work (word lookups and their second check, Redo) goes to Gemini first when it's set up
         services = sorted(services, key=lambda s: s[0] != config.CAREFUL_SERVICE)
     available = [s for s in services if _resting.get(s[0], 0) <= time.time()] or services[-1:]
