@@ -450,7 +450,8 @@ def test_redo_one_line(monkeypatch, tmp_path):
     assert body["text"] == "我们周末去公园吧。" and body["translation"] == "EN<我们周末去公园吧。>"
     assert body["pinyin"].startswith("wǒ men")
     assert 2.5 < heard["seconds"] < 3.0  # just that line, plus a little padding
-    assert "Hello" in fake.prompts[0]  # earlier lines were given as context
+    assert any("Hello" in p for p in fake.prompts)  # earlier lines were given as context
+    assert any("misheard words" in p for p in fake.prompts)  # Redo checks for mishearings first
 
 
 def test_lookup_flags_words_that_dont_exist(monkeypatch):
@@ -464,8 +465,22 @@ def test_lookup_flags_words_that_dont_exist(monkeypatch):
         return '{"word": "terlekar", "exists": false, "meaning": "", "suggestions": ["terlantar", "tergeletak"]}'
 
     monkeypatch.setattr(translate, "_complete_simple", fake)
-    r = client.post("/api/lookup", json={"word": "terlekar", "sentence": "Rumahnya terlekar.", "lang": "id"}).json()
+    r = client.post("/api/lookup", json={"word": "terlekar", "sentence": "Rumahnya terlekar.", "lang": "id", "strict": True}).json()
     assert r["exists"] is False and r["meaning"] == "" and r["example"] is None
     assert r["suggestions"] == ["terlantar", "tergeletak"]
     assert len(calls) == 2 and "for a Indonesian–English" in calls[1][0] and calls[0][1] == "medium"
     assert "Never invent a meaning" in calls[0][0]
+
+
+
+def test_normal_lookup_stays_quick(monkeypatch):
+    setup(monkeypatch)
+    calls = []
+
+    def fake(prompt, max_tokens=200, **kw):
+        calls.append(kw.get("effort", "low"))
+        return '{"word": "makan", "meaning": "to eat", "exists": true}'
+
+    monkeypatch.setattr(translate, "_complete_simple", fake)
+    r = client.post("/api/lookup", json={"word": "makan", "lang": "id"}).json()
+    assert r["meaning"] == "to eat" and calls == ["low"]  # one quick call, no second check

@@ -173,9 +173,15 @@ async def redo_line(
     text = (" " if not opts.source_is_chinese else "").join(s.text for s in lines).strip()
     if not text:
         raise HTTPException(status_code=422, detail="Couldn't hear any speech in that part")
+    # Redo is the careful path: fix probable mishearings, then translate with more thought
+    try:
+        fixed = await run_in_threadpool(translate.correct_transcript, text, ctx, opts)
+        text = to_script(fixed, opts.script) if opts.source_is_chinese else fixed
+    except Exception:
+        pass
     line = Segment(id=0, start=0, end=0, text=text)
     try:
-        result = await run_in_threadpool(translate.translate_lines, [line], ctx, opts)
+        result = await run_in_threadpool(translate.translate_lines, [line], ctx, opts, True)
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"Translation failed: {e}")
     translation, translation_pinyin = finish_translation(result.get(0, ""), opts)
@@ -193,7 +199,7 @@ async def lookup(req: LookupRequest) -> LookupResponse:
     word = req.word.strip()
     try:
         entry = await run_in_threadpool(
-            translate.lookup_word, word, req.sentence.strip(), req.lang, req.script, req.from_english
+            translate.lookup_word, word, req.sentence.strip(), req.lang, req.script, req.from_english, req.strict
         )
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"Lookup failed: {e}")

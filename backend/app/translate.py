@@ -69,7 +69,7 @@ def _openai_client():
     return OpenAI(base_url=config.OPENAI_BASE_URL, api_key=config.OPENAI_API_KEY or None, max_retries=6)
 
 
-def _complete(prompt: str) -> str:
+def _complete(prompt: str, effort: str = "low") -> str:
     """Send one translation request to the configured provider; returns the reply text."""
     if config.TRANSLATE_PROVIDER == "anthropic":
         response = _client().messages.create(
@@ -87,7 +87,7 @@ def _complete(prompt: str) -> str:
         temperature=0.2,
     )
     if "gpt-oss" in config.OPENAI_TRANSLATE_MODEL:
-        args["reasoning_effort"] = "low"  # less hidden reasoning = fewer tokens against the limit
+        args["reasoning_effort"] = effort  # "low" normally: less hidden reasoning = fewer tokens against the limit
     response = _openai_client().chat.completions.create(**args)
     return response.choices[0].message.content or ""
 
@@ -126,13 +126,13 @@ def _parse(text: str) -> dict[int, str]:
     return out
 
 
-def translate_lines(lines: list[Segment], context: list[Segment], opts: Options) -> dict[int, str]:
-    """Translate `lines`; returns {segment id: translation}."""
+def translate_lines(lines: list[Segment], context: list[Segment], opts: Options, careful: bool = False) -> dict[int, str]:
+    """Translate `lines`; returns {segment id: translation}. careful=True thinks harder (used for Redo)."""
     if not lines:
         return {}
     if opts.same_language:
         return {s.id: s.text for s in lines}
-    result = _parse(_complete(_build_prompt(lines, context, opts)))
+    result = _parse(_complete(_build_prompt(lines, context, opts), effort="medium" if careful else "low"))
     missing = [s for s in lines if s.id not in result]
     if missing and len(missing) < len(lines):  # model skipped a few: retry just those once
         result.update(_retry(missing, context, opts))
@@ -212,6 +212,24 @@ def _complete_simple(prompt: str, max_tokens: int = 200, effort: str = "low") ->
 LOOKUP_LANG = {"zh": "Mandarin Chinese", "yue": "Cantonese", "id": "Indonesian", "ms": "Malay", "vi": "Vietnamese"}
 
 
+def correct_transcript(text: str, context: list[Segment], opts: Options) -> str:
+    """Redo: fix words speech recognition probably misheard (ones that don't exist or don't fit)."""
+    language = LANG_NAMES[opts.source]
+    before = "\n".join(c.text for c in context[-4:])
+    prompt = (
+        f"This {language} line was transcribed by speech recognition and may contain misheard words — for example "
+        f"words that don't exist in {language}, or that make no sense here. Fix only clear mistakes: replace them with "
+        "the real words that were most likely said (similar sound, fits the context). Keep everything else exactly as it "
+        "is, including casual or slang words that are real. Do not translate, rephrase or add anything."
+        + (f"\n\nEarlier lines:\n{before}" if before else "")
+        + f"\n\nLine: {text}\n\n"
+        'Reply with JSON only: {"text": "<the corrected line>"}'
+    )
+    fixed = _json(_complete_simple(prompt, max_tokens=300, effort="medium"))
+    out = str((fixed or {}).get("text") or "").strip()
+    return out or text
+
+
 def classify_register(words: list[str], lang: str) -> dict[str, tuple[str, str]]:
     """For each word: ("colloquial" | "standard", standard form if colloquial)."""
     language = LOOKUP_LANG.get(lang) or LANG_NAMES[lang]
@@ -233,7 +251,8 @@ def classify_register(words: list[str], lang: str) -> dict[str, tuple[str, str]]
     return out
 
 
-def lookup_word(word: str, sentence: str, lang: str, script: str, from_english: bool = False) -> dict:
+def lookup_word(word: str, sentence: str, lang: str, script: str, from_english: bool = False, strict: bool = False) -> dict:
+    """strict=True (Add word, Double-check): thinks harder and has the entry checked a second time."""
     """Dictionary entry for a word, aimed at an English-speaking learner."""
     language = LOOKUP_LANG.get(lang) or LANG_NAMES[lang]
     chinese = lang in ("zh", "yue")
@@ -282,9 +301,11 @@ def lookup_word(word: str, sentence: str, lang: str, script: str, from_english: 
         + script_note
         + _EXISTS_NOTE.format(language=language)
     )
-    entry = _json(_complete_simple(prompt, max_tokens=600, effort="medium"))
+    entry = _json(_complete_simple(prompt, max_tokens=600 if strict else 500, effort="medium" if strict else "low"))
     if entry is None:
         raise ValueError("The dictionary didn't return an entry")
+    if not strict:
+        return entry
     # Second opinion: a separate check of the entry, so invented words and meanings get caught
     try:
         checked = _json(_complete_simple(_CHECK.format(language=language, entry=json.dumps(entry, ensure_ascii=False),
