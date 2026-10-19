@@ -213,7 +213,14 @@ nav button[aria-selected="true"] { background: var(--surface); color: var(--ink)
 .filter button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
 .filter .grow { flex: 1; }
 .wlist { list-style: none; margin: 0; padding: 0; }
-.wcard { padding: 14px 0; border-bottom: 1px solid var(--line); display: grid; gap: 4px; }
+.wrow { position: relative; overflow: hidden; border-bottom: 1px solid var(--line); touch-action: pan-y; }
+.wdel { position: absolute; inset: 0 0 0 auto; width: 96px; border: 0; background: var(--rec); color: #fff; font-weight: 800; font-size: 15px; display: grid; place-items: center; visibility: hidden; }
+.wrow.dragging .wdel, .wrow.open .wdel { visibility: visible; }
+.wrow > .wcard { position: relative; background: transparent; transition: transform .2s ease; will-change: transform; }
+.wrow.dragging > .wcard { background: var(--bg); transition: none; }
+.wrow.open > .wcard { transform: translateX(-96px); background: var(--bg); }
+@media (prefers-reduced-motion: reduce) { .wrow > .wcard { transition: none; } }
+.wcard { padding: 14px 0; display: grid; gap: 4px; }
 .wcard .top { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .wcard .wd { font-size: 22px; }
 .wcard .wd.han { font-family: var(--han); font-weight: 600; }
@@ -225,7 +232,7 @@ nav button[aria-selected="true"] { background: var(--surface); color: var(--ink)
 .notword { background: var(--warn-soft); color: var(--ink); border-radius: 14px; padding: 12px 14px; }
 .notword p { margin: 0; }
 .notword .filter button { font-size: 16px; padding: 6px 14px; color: var(--ink); background: var(--surface); }
-.wedit { margin-left: auto; align-self: center; padding: 2px 4px; font-weight: 700; color: var(--accent); }
+.wedit { padding: 2px 4px; font-weight: 700; color: var(--accent); font-size: 14px; }
 .ew { display: grid; gap: 4px; }
 .ew input, .ew textarea { width: 100%; border: 1.5px solid var(--line); border-radius: 12px; background: var(--bg); padding: 10px 12px; font-size: 17px; font-weight: 700; color: var(--ink); }
 .ew textarea { min-height: 64px; resize: vertical; }
@@ -1581,7 +1588,7 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
   document.addEventListener('keydown', (ev) => { if (ev.key === 'Escape' && lookup) closeSheet(); });
 
   // ---------- vocabulary bank ----------
-  let wordFilter = 'all', wordSearch = '', confirmWord = null, colloqOnly = false;
+  let wordFilter = 'all', wordSearch = '', colloqOnly = false;
   const isColloq = (w) => w.register === 'colloquial';
   function filteredWords() {
     const q = wordSearch.trim().toLowerCase();
@@ -1626,7 +1633,7 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
     $('w-test').disabled = !words.length;
     $('w-test-sub').textContent = words.length >= 4 ? `${words.length} words saved` : words.length ? `Save ${4 - words.length} more to test yourself` : 'Save some words first';
     $('w-count').textContent = words.length
-      ? `${list.length} of ${words.length} ${words.length === 1 ? 'word' : 'words'}`
+      ? `${list.length} of ${words.length} ${words.length === 1 ? 'word' : 'words'} · swipe a word left to delete it`
       : '';
     $('w-copy').hidden = !list.length;
     $('wlist').innerHTML = !words.length
@@ -1634,19 +1641,16 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
       : !list.length ? `<li class="empty">No words match.</li>`
       : list.map((w) => {
         const han = w.lang === 'zh';
-        return `<li class="wcard">
+        return `<li class="wrow" data-id="${esc(w.id)}"><button class="wdel" type="button" data-del="${esc(w.id)}" tabindex="-1">Delete</button><div class="wcard">
           <div class="top">${'speechSynthesis' in window ? `<button class="wspk" type="button" data-speak="${esc(w.id)}" aria-label="Hear ${esc(w.word)}">🔊</button>` : ''}<span class="wd${han ? ' han' : ''}">${esc(w.word)}</span>
             ${settings.pinyin && w.pinyin ? `<span class="py">${pinyinHtml(w.pinyin)}</span>` : ''}
             ${w.part_of_speech ? `<span class="pos" style="margin:0">${esc(w.part_of_speech)}</span>` : ''}
-            ${isColloq(w) ? `<span class="pos colloq-tag" style="margin:0">colloquial</span>` : ''}
-            <button class="textbtn wedit" type="button" data-edit="${esc(w.id)}">Edit</button></div>
+            ${isColloq(w) ? `<span class="pos colloq-tag" style="margin:0">colloquial</span>` : ''}</div>
           <p class="m">${esc(w.meaning)}${isColloq(w) && w.standard ? ` <span class="meta">· standard: ${esc(w.standard)}</span>` : ''}${w.root && w.root.toLowerCase() !== w.word.toLowerCase() ? ` <span class="meta">· base word ${esc(w.root)}</span>` : ''}</p>
           ${w.example ? `<p class="ex"><span class="${han ? 'han' : ''}">${esc(w.example.text)}</span><br>${esc(w.example.translation)}</p>` : ''}
           <div class="src"><span>${w.sessionTitle ? `From “${esc(w.sessionTitle)}” · ` : ''}${fmtDate(w.createdAt)}</span>
-            ${confirmWord === w.id
-              ? `<span><button class="textbtn danger" type="button" data-del="${esc(w.id)}">Delete</button><button class="textbtn" type="button" data-keep="1">Keep</button></span>`
-              : `<button class="textbtn" type="button" data-ask="${esc(w.id)}">Delete</button>`}</div>
-        </li>`;
+            <button class="textbtn wedit" type="button" data-edit="${esc(w.id)}">Edit</button></div>
+        </div></li>`;
       }).join('');
   }
   $('w-search').oninput = (e) => { wordSearch = e.target.value; renderWords(); };
@@ -1658,17 +1662,30 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
     const text = filteredWords().map((w) => `${w.word}${w.pinyin ? ` (${w.pinyin})` : ''} — ${w.meaning}${w.example ? `\n  ${w.example.text}\n  ${w.example.translation}` : ''}`).join('\n');
     try { await navigator.clipboard.writeText(text); toast('Copied'); } catch { toast('Couldn’t copy.'); }
   };
-  $('wlist').onclick = async (ev) => {
-    const b = ev.target.closest('button'); if (!b) return;
+  $('wlist').addEventListener('click', async (ev) => {
+    if (swipeGuard.justSwiped) return;
+    const b = ev.target.closest('button');
+    const row = ev.target.closest('.wrow');
+    if (b?.dataset.del) { await deleteWordWithUndo(b.dataset.del); return; }
+    if (row?.classList.contains('open')) { row.classList.remove('open'); return; } // a tap closes an open row
+    if ($('wlist').querySelector('.wrow.open')) { $('wlist').querySelectorAll('.wrow.open').forEach((r) => r.classList.remove('open')); return; }
+    if (!b) return;
     if (b.dataset.speak) { const w = words.find((x) => x.id === b.dataset.speak); if (w) speak(w); }
     else if (b.dataset.edit) { const w = words.find((x) => x.id === b.dataset.edit); if (w) openEditWord(w); }
-    else if (b.dataset.ask) { confirmWord = b.dataset.ask; renderWords(); }
-    else if (b.dataset.keep) { confirmWord = null; renderWords(); }
-    else if (b.dataset.del) {
-      await deleteWord(b.dataset.del).catch(() => {});
-      words = words.filter((w) => w.id !== b.dataset.del); confirmWord = null; renderWords(); toast('Deleted');
-    }
-  };
+  });
+  async function deleteWordWithUndo(id) {
+    const w = words.find((x) => x.id === id); if (!w) return;
+    await deleteWord(id).catch(() => {});
+    words = words.filter((x) => x.id !== id); renderWords();
+    toast('Word deleted', {
+      label: 'Undo',
+      run: async () => {
+        await putWord(w).catch(() => {});
+        words = [w, ...words.filter((x) => x.id !== w.id)].sort((a, c) => c.createdAt - a.createdAt);
+        if (view === 'words') renderWords();
+      },
+    });
+  }
 
   // ---------- bottom panel (add word, test setup) ----------
   function openPanel(html) { $('panel').innerHTML = `<div class="sheet" role="dialog" aria-modal="true"><div class="grab"></div>${html}</div>`; $('panel').hidden = false; }
@@ -1792,8 +1809,10 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
         <input id="ew-pinyin" type="text" autocomplete="off" autocapitalize="off" value="${esc(w.pinyin || '')}"></label>` : ''}
       <label class="ew"><span class="k" style="font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--faint);font-weight:700">Meaning</span>
         <textarea id="ew-meaning">${esc(w.meaning)}</textarea></label>
-      <label class="ew"><span class="k" style="font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--faint);font-weight:700">Note</span>
-        <textarea id="ew-notes" placeholder="Anything you want to remember about it">${esc(w.notes || '')}</textarea></label>
+      <label class="ew"><span class="k" style="font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--faint);font-weight:700">Example sentence</span>
+        <textarea id="ew-ex" lang="${w.lang}" placeholder="A sentence using the word" ${han ? 'style="font-family:var(--han)"' : ''}>${esc(w.example?.text || '')}</textarea></label>
+      <label class="ew"><span class="k" style="font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--faint);font-weight:700">Example in English</span>
+        <textarea id="ew-ex-tr" placeholder="What the sentence means">${esc(w.example?.translation || '')}</textarea></label>
       <div class="wc-actions">
         <button class="primary" type="button" data-ew="save">Save</button>
         <button class="secondary" type="button" data-ew="close">Cancel</button>
@@ -1804,8 +1823,10 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
     if (b.dataset.ew === 'close') { editWord = null; closePanel(); return; }
     const old = editWord, word = $('ew-word').value.trim();
     if (!word) { toast('The word can’t be empty'); return; }
+    const exText = $('ew-ex').value.trim(), exTr = $('ew-ex-tr').value.trim();
+    const example = exText ? { ...(old.example || {}), text: exText, translation: exTr, pinyin: exText === old.example?.text ? old.example?.pinyin : null } : null;
     const w = { ...old, word: caseFor(word, old.part_of_speech), id: wordId(old.lang, word), meaning: $('ew-meaning').value.trim() || old.meaning,
-      notes: $('ew-notes').value.trim(), pinyin: $('ew-pinyin') ? $('ew-pinyin').value.trim() : old.pinyin };
+      example, pinyin: $('ew-pinyin') ? $('ew-pinyin').value.trim() : old.pinyin };
     if (w.id !== old.id) await deleteWord(old.id).catch(() => {});
     await putWord(w).catch(() => {});
     words = words.filter((x) => x.id !== old.id && x.id !== w.id); words.unshift(w);
@@ -2047,41 +2068,48 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
       } catch (e) { showNotice(e.message); b.disabled = false; b.textContent = 'Re-translate'; }
     }
   });
-  // ---------- history: swipe right to reveal Delete ----------
+  // ---------- history and words: swipe a row left to reveal Delete ----------
   const REVEAL = 96;
-  let swipe = null, justSwiped = false;
-  const closeRows = (except) => $('history').querySelectorAll('.hrow.open').forEach((r) => { if (r !== except) r.classList.remove('open'); });
-  $('history').addEventListener('pointerdown', (ev) => {
-    const row = ev.target.closest('.hrow'); if (!row || ev.target.closest('.hdel')) return;
-    swipe = { row, x: ev.clientX, y: ev.clientY, dx: 0, start: row.classList.contains('open') ? -REVEAL : 0, active: false, id: ev.pointerId };
-  });
-  $('history').addEventListener('pointermove', (ev) => {
-    if (!swipe || ev.pointerId !== swipe.id) return;
-    const dx = ev.clientX - swipe.x, dy = ev.clientY - swipe.y;
-    if (!swipe.active) {
-      if (Math.abs(dy) > 10 && Math.abs(dy) > Math.abs(dx)) { swipe = null; return; } // vertical scroll
-      if (Math.abs(dx) < 10) return;
-      swipe.active = true; swipe.row.classList.add('dragging'); closeRows(swipe.row);
-      try { swipe.row.setPointerCapture(ev.pointerId); } catch {}
+  const swipeGuard = { justSwiped: false };
+  function swipeToDelete(list, rowSel, faceSel) {
+    let swipe = null;
+    const closeRows = (except) => list.querySelectorAll(`${rowSel}.open`).forEach((r) => { if (r !== except) r.classList.remove('open'); });
+    list.addEventListener('pointerdown', (ev) => {
+      const row = ev.target.closest(rowSel); if (!row || ev.target.closest('[data-del]')) return;
+      swipe = { row, x: ev.clientX, y: ev.clientY, dx: 0, start: row.classList.contains('open') ? -REVEAL : 0, active: false, id: ev.pointerId };
+    });
+    list.addEventListener('pointermove', (ev) => {
+      if (!swipe || ev.pointerId !== swipe.id) return;
+      const dx = ev.clientX - swipe.x, dy = ev.clientY - swipe.y;
+      if (!swipe.active) {
+        if (Math.abs(dy) > 10 && Math.abs(dy) > Math.abs(dx)) { swipe = null; return; } // vertical scroll
+        if (Math.abs(dx) < 10) return;
+        swipe.active = true; swipe.row.classList.add('dragging'); closeRows(swipe.row);
+        try { swipe.row.setPointerCapture(ev.pointerId); } catch {}
+      }
+      swipe.dx = dx;
+      const pos = Math.min(0, Math.max(-REVEAL - 24, swipe.start + dx));
+      swipe.row.querySelector(faceSel).style.transform = `translateX(${pos}px)`;
+    });
+    function endSwipe() {
+      if (!swipe) return;
+      const { row, active, start, dx } = swipe; swipe = null;
+      if (!active) return;
+      swipeGuard.justSwiped = true; setTimeout(() => (swipeGuard.justSwiped = false), 50);
+      row.classList.remove('dragging');
+      row.querySelector(faceSel).style.transform = '';
+      row.classList.toggle('open', start + dx < -REVEAL / 2);
     }
-    swipe.dx = dx;
-    const pos = Math.min(0, Math.max(-REVEAL - 24, swipe.start + dx));
-    swipe.row.querySelector('button[data-open]').style.transform = `translateX(${pos}px)`;
-  });
-  function endSwipe() {
-    if (!swipe) return;
-    const { row, active, start, dx } = swipe; swipe = null;
-    if (!active) return;
-    justSwiped = true; setTimeout(() => (justSwiped = false), 50);
-    row.classList.remove('dragging');
-    row.querySelector('button[data-open]').style.transform = '';
-    row.classList.toggle('open', start + dx < -REVEAL / 2);
+    list.addEventListener('pointerup', endSwipe);
+    list.addEventListener('pointercancel', endSwipe);
+    document.addEventListener('pointerdown', (ev) => { if (!list.contains(ev.target)) closeRows(); });
+    return closeRows;
   }
-  $('history').addEventListener('pointerup', endSwipe);
-  $('history').addEventListener('pointercancel', endSwipe);
+  const closeRows = swipeToDelete($('history'), '.hrow', 'button[data-open]');
+  swipeToDelete($('wlist'), '.wrow', '.wcard');
 
   $('history').addEventListener('click', async (ev) => {
-    if (justSwiped) return;
+    if (swipeGuard.justSwiped) return;
     const del = ev.target.closest('button[data-del]');
     if (del) { await deleteWithUndo(del.dataset.del); return; }
     const b = ev.target.closest('button[data-open]'); if (!b) return;
@@ -2091,7 +2119,6 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
     current = sessions.find((s) => s.id === b.dataset.open);
     if (current) setView('session');
   });
-  document.addEventListener('pointerdown', (ev) => { if (!ev.target.closest('#history')) closeRows(); });
 
   async function deleteWithUndo(id) {
     const idx = sessions.findIndex((s) => s.id === id); if (idx < 0) return;
