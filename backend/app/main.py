@@ -25,6 +25,9 @@ from .models import (
     LookupRequest,
     LookupResponse,
     Options,
+    RegisterRequest,
+    RegisterResponse,
+    RegisterResult,
     RetranslateRequest,
     RetranslateResponse,
     Segment,
@@ -162,8 +165,24 @@ async def lookup(req: LookupRequest) -> LookupResponse:
         meaning=clean(entry.get("meaning")) or "No meaning found",
         in_context=clean(entry.get("in_context")),
         notes=clean(entry.get("notes")),
+        register="colloquial" if clean(entry.get("register")).lower().startswith("colloq") else "standard",
+        standard=clean(entry.get("standard")) if clean(entry.get("register")).lower().startswith("colloq") else "",
         example=example,
     )
+
+
+@app.post("/api/register", response_model=RegisterResponse, dependencies=[Depends(check_token)])
+async def word_register(req: RegisterRequest) -> RegisterResponse:
+    words = [w.strip() for w in req.words if w.strip()]
+    try:
+        found = await run_in_threadpool(translate.classify_register, words, req.lang)
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Check failed: {e}")
+    results = []
+    for w in words:
+        reg, std = found.get(w.lower(), ("standard", ""))
+        results.append(RegisterResult(word=w, register=reg, standard=std))
+    return RegisterResponse(results=results)
 
 
 # ---------------- live mode ----------------

@@ -210,6 +210,27 @@ def _complete_simple(prompt: str, max_tokens: int = 200) -> str:
 LOOKUP_LANG = {"zh": "Mandarin Chinese", "yue": "Cantonese", "id": "Indonesian", "ms": "Malay", "vi": "Vietnamese"}
 
 
+def classify_register(words: list[str], lang: str) -> dict[str, tuple[str, str]]:
+    """For each word: ("colloquial" | "standard", standard form if colloquial)."""
+    language = LOOKUP_LANG.get(lang) or LANG_NAMES[lang]
+    prompt = (
+        f"For each {language} word below, say whether it is colloquial (slang, informal, or mainly casual spoken "
+        f"{language}) or standard. For colloquial words, also give the standard/formal word with the same meaning.\n\n"
+        + "\n".join(words)
+        + '\n\nReply with JSON only: {"words": [{"word": "...", "register": "colloquial" or "standard", "standard": "..."}]}'
+    )
+    text = _complete_simple(prompt, max_tokens=60 + 40 * len(words))
+    match = re.search(r"\{.*\}", text, re.S)
+    out: dict[str, tuple[str, str]] = {}
+    if match:
+        for item in json.loads(match.group(0)).get("words", []):
+            w = str(item.get("word") or "").strip()
+            reg = "colloquial" if str(item.get("register") or "").lower().startswith("colloq") else "standard"
+            if w:
+                out[w.lower()] = (reg, str(item.get("standard") or "").strip() if reg == "colloquial" else "")
+    return out
+
+
 def lookup_word(word: str, sentence: str, lang: str, script: str, from_english: bool = False) -> dict:
     """Dictionary entry for a word, aimed at an English-speaking learner."""
     language = LOOKUP_LANG.get(lang) or LANG_NAMES[lang]
@@ -246,6 +267,8 @@ def lookup_word(word: str, sentence: str, lang: str, script: str, from_english: 
         '"meaning": "<its common English meanings, 12 words max>", '
         '"in_context": "<what it means in this sentence, 15 words max>", '
         '"notes": "<one short usage note (register, slang, measure word, tone of a particle), or empty>", '
+        '"register": "<colloquial if it is slang, informal or mainly casual spoken language, else standard>", '
+        '"standard": "<if colloquial: the standard/formal word with the same meaning, else empty>", '
         f'"example": {{"text": "<a new, short, everyday {language} sentence using the word>", '
         '"translation": "<its English translation>"}}\n'
         + (

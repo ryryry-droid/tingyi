@@ -223,6 +223,8 @@ nav button[aria-selected="true"] { background: var(--surface); color: var(--ink)
 .langs { display: flex; flex-wrap: wrap; gap: 8px; }
 .langs button { border: 1.5px solid var(--line); background: var(--surface); color: var(--muted); border-radius: 999px; padding: 6px 12px; font-size: 14px; font-weight: 700; }
 .langs button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.pos.colloq-tag { color: var(--yellow-text); background: var(--yellow-soft); }
+.filter button.colloq[aria-pressed="true"] { background: var(--yellow); border-color: var(--yellow); color: var(--yellow-ink); }
 .wcard .src { font-size: 12px; color: var(--faint); display: flex; justify-content: space-between; gap: 10px; align-items: center; }
 .toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(96px + env(safe-area-inset-bottom, 0px)); background: var(--ink); color: var(--bg); padding: 8px 16px; border-radius: 999px; font-size: 14px; display: flex; gap: 14px; align-items: center; white-space: nowrap; z-index: 40; }
 .toast button { border: 0; background: none; color: var(--accent-soft); font-weight: 700; font-size: 14px; padding: 2px 0; text-decoration: underline; text-underline-offset: 3px; }
@@ -1485,7 +1487,7 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
       const w = {
         id: wordId(lookup.lang, e.word), word: caseFor(e.word, e.part_of_speech), lang: isHan(lookup.lang) ? 'zh' : lookup.lang, pinyin: e.pinyin || '',
         root: caseFor(e.root, e.part_of_speech), part_of_speech: e.part_of_speech || '', meaning: e.meaning, in_context: e.in_context || '',
-        notes: e.notes || '', example: e.example || null, sentence: lookup.text,
+        notes: e.notes || '', example: e.example || null, sentence: lookup.text, register: e.register || '', standard: e.standard || '',
         sessionId: current?.id || '', sessionTitle: current?.title || '', createdAt: Date.now(),
       };
       await putWord(w).catch(() => {});
@@ -1501,18 +1503,46 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
   document.addEventListener('keydown', (ev) => { if (ev.key === 'Escape' && lookup) closeSheet(); });
 
   // ---------- vocabulary bank ----------
-  let wordFilter = 'all', wordSearch = '', confirmWord = null;
+  let wordFilter = 'all', wordSearch = '', confirmWord = null, colloqOnly = false;
+  const isColloq = (w) => w.register === 'colloquial';
   function filteredWords() {
     const q = wordSearch.trim().toLowerCase();
-    return words.filter((w) => (wordFilter === 'all' || w.lang === wordFilter)
+    return words.filter((w) => (wordFilter === 'all' || w.lang === wordFilter) && (!colloqOnly || isColloq(w))
       && (!q || [w.word, w.pinyin, w.meaning, w.root].join(' ').toLowerCase().includes(q)
         || (w.pinyin || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().includes(q)));
+  }
+  // Words saved before colloquial/standard was recorded: ask the server once, in the background
+  async function checkRegisters() {
+    const todo = words.filter((w) => !w.register && w.lang !== 'zh');
+    const byLang = {};
+    todo.forEach((w) => (byLang[w.lang] = byLang[w.lang] || []).push(w));
+    for (const [lang, list] of Object.entries(byLang)) {
+      for (let i = 0; i < list.length; i += 100) {
+        const batch = list.slice(i, i + 100);
+        try {
+          const res = await fetch('/api/register', { method: 'POST', headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+            body: JSON.stringify({ lang, words: batch.map((w) => w.word) }) });
+          if (!res.ok) return;
+          const { results } = await res.json();
+          for (const r of results) {
+            const w = batch.find((x) => x.word === r.word); if (!w) continue;
+            const nw = { ...w, register: r.register, standard: r.standard || '' };
+            words = words.map((x) => (x.id === w.id ? nw : x));
+            await putWord(nw).catch(() => {});
+          }
+          if (view === 'words') renderWords();
+        } catch { return; }
+      }
+    }
   }
   function renderWords() {
     const have = wordLangs().filter(([code]) => words.some((w) => w.lang === code));
     if (wordFilter !== 'all' && !have.some(([c]) => c === wordFilter)) wordFilter = 'all';
     $('w-langs').innerHTML = [['all', 'All'], ...(have.length > 1 ? have : [])]
-      .map(([code, label]) => `<button type="button" data-f="${code}" aria-pressed="${wordFilter === code}">${label}</button>`).join('');
+      .map(([code, label]) => `<button type="button" data-f="${code}" aria-pressed="${wordFilter === code}">${label}</button>`).join('')
+      // Colloquial: shown when the words in view include some colloquial ones
+      + (words.some((w) => isColloq(w) && (wordFilter === 'all' || w.lang === wordFilter)) || colloqOnly
+        ? `<button type="button" data-f="colloq" class="colloq" aria-pressed="${colloqOnly}">Colloquial</button>` : '');
     const list = filteredWords();
     $('w-test').disabled = !words.length;
     $('w-test-sub').textContent = words.length >= 4 ? `${words.length} words saved` : words.length ? `Save ${4 - words.length} more to test yourself` : 'Save some words first';
@@ -1529,8 +1559,9 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
           <div class="top">${'speechSynthesis' in window ? `<button class="wspk" type="button" data-speak="${esc(w.id)}" aria-label="Hear ${esc(w.word)}">🔊</button>` : ''}<span class="wd${han ? ' han' : ''}">${esc(w.word)}</span>
             ${settings.pinyin && w.pinyin ? `<span class="py">${pinyinHtml(w.pinyin)}</span>` : ''}
             ${w.part_of_speech ? `<span class="pos" style="margin:0">${esc(w.part_of_speech)}</span>` : ''}
+            ${isColloq(w) ? `<span class="pos colloq-tag" style="margin:0">colloquial</span>` : ''}
             <span class="lvl" title="How well you know it">${[0, 1, 2].map((k) => `<i class="${(w.level || 0) > k ? 'f' : ''}"></i>`).join('')}</span></div>
-          <p class="m">${esc(w.meaning)}${w.root && w.root.toLowerCase() !== w.word.toLowerCase() ? ` <span class="meta">· base word ${esc(w.root)}</span>` : ''}</p>
+          <p class="m">${esc(w.meaning)}${isColloq(w) && w.standard ? ` <span class="meta">· standard: ${esc(w.standard)}</span>` : ''}${w.root && w.root.toLowerCase() !== w.word.toLowerCase() ? ` <span class="meta">· base word ${esc(w.root)}</span>` : ''}</p>
           ${w.example ? `<p class="ex"><span class="${han ? 'han' : ''}">${esc(w.example.text)}</span><br>${esc(w.example.translation)}</p>` : ''}
           <div class="src"><span>${w.sessionTitle ? `From “${esc(w.sessionTitle)}” · ` : ''}${fmtDate(w.createdAt)}</span>
             ${confirmWord === w.id
@@ -1542,7 +1573,7 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
   $('w-search').oninput = (e) => { wordSearch = e.target.value; renderWords(); };
   $('w-filter').onclick = async (ev) => {
     const b = ev.target.closest('[data-f]');
-    if (b) { wordFilter = b.dataset.f; renderWords(); }
+    if (b) { if (b.dataset.f === 'colloq') colloqOnly = !colloqOnly; else wordFilter = b.dataset.f; renderWords(); }
   };
   $('w-copy').onclick = async () => {
     const text = filteredWords().map((w) => `${w.word}${w.pinyin ? ` (${w.pinyin})` : ''} — ${w.meaning}${w.example ? `\n  ${w.example.text}\n  ${w.example.translation}` : ''}`).join('\n');
@@ -1677,6 +1708,7 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
       const w = {
         ...(existing || {}), id: wordId(a.lang, e.word), word: caseFor(e.word, e.part_of_speech), lang: a.lang, pinyin: e.pinyin || '', root: caseFor(e.root, e.part_of_speech),
         part_of_speech: e.part_of_speech || '', meaning, in_context: '', notes: e.notes || '', example: e.example || null,
+        register: e.register || '', standard: e.standard || '',
         sentence: existing?.sentence || '', sessionId: existing?.sessionId || '', sessionTitle: existing?.sessionTitle || 'Added by you',
         createdAt: existing?.createdAt || Date.now(),
       };
@@ -1986,6 +2018,7 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
       seen.add(id); fixed.push(nw); await putWord(nw).catch(() => {});
     }
     words = fixed;
+    checkRegisters();
     fixPair(); saveSettings();
     sessions.forEach((s) => { if (s.status === 'processing') { s.status = 'error'; s.error = 'Interrupted before it finished. Tap Try again.'; } });
     try {

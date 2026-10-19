@@ -393,3 +393,17 @@ def test_lookup_from_english(monkeypatch):
     r = client.post("/api/lookup", json={"word": "weekend", "lang": "zh", "from_english": True})
     assert r.status_code == 200 and r.json()["word"] == "周末" and r.json()["pinyin"]
     assert 'how to say the English word or phrase "weekend" in Mandarin' in seen[0] and "not the English one" in seen[0]
+
+
+def test_colloquial_register(monkeypatch):
+    setup(monkeypatch)
+    monkeypatch.setattr(translate, "_complete_simple", lambda p, max_tokens=200: '{"word": "gak", "register": "colloquial", "standard": "tidak", "meaning": "no, not"}')
+    r = client.post("/api/lookup", json={"word": "gak", "lang": "id"}).json()
+    assert r["register"] == "colloquial" and r["standard"] == "tidak"
+    monkeypatch.setattr(translate, "_complete_simple", lambda p, max_tokens=200: '{"words": [{"word": "gak", "register": "colloquial", "standard": "tidak"}, {"word": "makan", "register": "standard"}]}')
+    r = client.post("/api/register", json={"lang": "id", "words": ["gak", "makan", "banget"]}).json()["results"]
+    assert r == [
+        {"word": "gak", "register": "colloquial", "standard": "tidak"},
+        {"word": "makan", "register": "standard", "standard": ""},
+        {"word": "banget", "register": "standard", "standard": ""},
+    ]

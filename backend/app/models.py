@@ -172,6 +172,25 @@ class LookupResponse(BaseModel):
     in_context: str = ""
     notes: str = ""
     example: Optional[Example] = None
+    register: str = ""  # "colloquial" (slang, informal, everyday speech) or "standard"
+    standard: str = ""  # for a colloquial word: its standard form (e.g. gak -> tidak)
+
+
+class RegisterRequest(BaseModel):
+    """Check which saved words are colloquial (for words saved before this was recorded)."""
+
+    lang: LookupLang
+    words: list[str] = Field(min_length=1, max_length=100)
+
+
+class RegisterResult(BaseModel):
+    word: str
+    register: str
+    standard: str = ""
+
+
+class RegisterResponse(BaseModel):
+    results: list[RegisterResult]
 
 
 class LiveSegment(BaseModel):
