@@ -4,9 +4,10 @@ import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, BackHandler, Image, ImageBackground, Pressable, StyleSheet, Text, Vibration, View } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 
-import { checkRegister, translateRecording } from './src/api';
+import { checkRegister, checkServer, translateRecording } from './src/api';
 import { backUp, restore } from './src/backup';
 import { preloadSounds } from './src/sounds';
+import Splash from './src/Splash';
 import HistoryScreen from './src/screens/HistoryScreen';
 import LiveScreen, { LiveResult } from './src/screens/LiveScreen';
 import RecordScreen, { StopReason } from './src/screens/RecordScreen';
@@ -47,6 +48,7 @@ const BG_LIGHT = require('./assets/bg-light.jpg');
 
 export default function App() {
   const [ready, setReady] = useState(false);
+  const [splash, setSplash] = useState(true); // the opening animation, every time the app opens
   const [sessions, setSessions] = useState<Session[]>([]);
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
   const [words, setWords] = useState<Word[]>([]);
@@ -69,6 +71,8 @@ export default function App() {
       setWords(w);
       setTestSetup(t);
       setReady(true);
+      // wake the free server while the opening animation plays (it sleeps when unused), so the first recording is quicker
+      if (sett.serverUrl) checkServer(sett).catch(() => {});
     });
   }, []);
 
@@ -448,6 +452,9 @@ export default function App() {
           <ImageBackground source={BG_LIGHT} resizeMode="cover" style={{ flex: 1, backgroundColor: c.bg }}>
             {body}
           </ImageBackground>
+        )}
+        {ready && splash && (
+          <Splash bg={c.bg} wordmark={WORDMARK[settings.theme] || WORDMARK.dark} hint={c.faint} onDone={() => setSplash(false)} />
         )}
       </SafeAreaProvider>
     </ThemeContext.Provider>
