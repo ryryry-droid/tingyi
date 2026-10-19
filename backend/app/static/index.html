@@ -511,11 +511,6 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
 
   <section id="view-settings" hidden>
     <div class="field">
-      <label class="label" for="set-token">Access code</label>
-      <input id="set-token" type="password" autocomplete="off" autocapitalize="off" placeholder="The API_TOKEN you set on the server">
-      <p class="hint">Keeps strangers from using your API credits. Stored only on this phone.</p>
-    </div>
-    <div class="field">
       <p class="label">Languages</p>
       <button type="button" class="langsum" id="set-langs-sum" aria-expanded="false"><span id="set-langs-names"></span><b id="set-langs-btn">Edit</b></button>
       <div class="langs" id="set-langs" hidden></div>
@@ -560,6 +555,11 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
       <label class="label" for="set-glossary">Glossary</label>
       <textarea id="set-glossary" placeholder="王小明 = Wang Xiaoming&#10;云计算 = cloud computing"></textarea>
       <p class="hint">One per line, in any of the languages. Helps Whisper hear names correctly and keeps translations consistent.</p>
+    </div>
+    <div class="field">
+      <label class="label" for="set-token">Access code</label>
+      <input id="set-token" type="password" autocomplete="off" autocapitalize="off" placeholder="The API_TOKEN you set on the server">
+      <p class="hint">Keeps strangers from using your API credits. Stored only on this phone.</p>
     </div>
     <div class="field">
       <p class="label">Back up and restore</p>
@@ -1057,8 +1057,7 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
     const langAttr = (code) => (isHan(code) ? han : code);
     const src = s.source || 'zh', tgt = s.target || 'en';
     $('s-title').style.fontFamily = hasHan(s.title) ? 'var(--han)' : 'var(--f-ui)';
-    const tappable = s.segments.some((seg) => LOOKUP_LANGS.includes(srcOf(seg)) || LOOKUP_LANGS.includes(tgtOf(seg)));
-    $('s-body').innerHTML = `<p class="tip">Tap ▶ to replay a line.${tappable ? ' Tap a word to look it up.' : ''} Tap Edit to fix a line yourself, or Redo to have it listened to and translated again.</p><ol class="lines">${s.segments.map((seg, i) => { const src = srcOf(seg), tgt = tgtOf(seg); return `
+    $('s-body').innerHTML = `<ol class="lines">${s.segments.map((seg, i) => { const src = srcOf(seg), tgt = tgtOf(seg); return `
       <li class="line${playingId === seg.id ? ' playing' : ''}" data-id="${seg.id}">
         <button class="time" type="button" data-act="play" data-i="${i}" aria-label="Play line ${i + 1}">${fmtTime(seg.start)}</button>
         <div>
