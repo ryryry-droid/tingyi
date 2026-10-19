@@ -132,6 +132,8 @@ nav button[aria-selected="true"] { background: var(--surface); color: var(--ink)
 .seg button[aria-pressed="true"] { background: var(--surface); color: var(--ink); font-weight: 600; }
 .switch { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
 .switch input { width: 22px; height: 22px; accent-color: var(--accent); }
+.vol { width: 100%; accent-color: var(--accent); height: 28px; }
+.volv { font-size: 14px; font-weight: 700; color: var(--muted); }
 .field input[type=password], .field textarea { width: 100%; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); padding: 10px 12px; font-size: 16px; }
 .field textarea { min-height: 110px; }
 .hint { font-size: 13px; color: var(--muted); margin: 0; }
@@ -538,8 +540,8 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
       </div>
     </div>
     <div class="field">
-      <label class="switch" for="set-cry"><span>Chatot cry when you tap record</span><input type="checkbox" id="set-cry"></label>
-      <p class="hint">Plays just before recording starts. You'll still hear it for right answers in tests.</p>
+      <label class="switch" for="set-vol"><span>Chatot cry volume</span><span class="volv" id="set-vol-v"></span></label>
+      <input type="range" id="set-vol" class="vol" min="0" max="100" step="5" aria-label="Chatot cry volume">
     </div>
     <div class="field">
       <label class="switch" for="set-vibrate"><span>Vibrate when a recording stops</span><input type="checkbox" id="set-vibrate"></label>
@@ -599,7 +601,7 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
   const WORD_EXAMPLE = Object.fromEntries(CATALOG.map(([c, , , e]) => [c, e]));
   const SPEECH_LANG = Object.fromEntries(CATALOG.map(([c, , , , v]) => [c, v]));
   const DEFAULT_LANGS = ['zh', 'yue', 'id', 'ms', 'vi', 'en'];
-  const DEFAULTS = { token: '', theme: 'dark', vibrate: true, cry: true, source: 'zh', target: 'en', script: 'simplified', style: 'natural', pinyin: true, glossary: '', langs: DEFAULT_LANGS, mainLang: '' };
+  const DEFAULTS = { token: '', theme: 'dark', vibrate: true, cry: true, source: 'zh', target: 'en', script: 'simplified', style: 'natural', pinyin: true, glossary: '', langs: DEFAULT_LANGS, mainLang: '', volume: 30 };
   // Languages you can look words up in, save and test: your languages except English (Cantonese words are saved
   // as Chinese), plus any language you already have saved words in
   const wordLangs = () => {
@@ -615,7 +617,11 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
   const isHan = (code) => code === 'zh' || code === 'yue';
   const hasHan = (text) => /[\u3400-\u9fff]/.test(text || '');
   let settings = { ...DEFAULTS };
-  try { settings = { ...DEFAULTS, ...JSON.parse(localStorage.getItem('tingyi.settings') || '{}') }; } catch {}
+  try {
+    const saved = JSON.parse(localStorage.getItem('tingyi.settings') || '{}');
+    settings = { ...DEFAULTS, ...saved };
+    if (typeof saved.volume !== 'number') settings.volume = saved.cry === false ? 0 : 30; // the old on/off switch: off = volume off
+  } catch {}
   if (settings.dialect) { if (settings.dialect === 'cantonese') settings.source = 'yue'; delete settings.dialect; }
   settings.langs = (Array.isArray(settings.langs) ? settings.langs : DEFAULT_LANGS).filter((c) => LANGS[c]);
   if (new Set(settings.langs.map((c) => (c === 'yue' ? 'zh' : c))).size < 2) settings.langs = DEFAULT_LANGS.slice();
@@ -697,14 +703,18 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
   const extFor = (mime) => (mime.includes('mp4') ? 'm4a' : mime.includes('ogg') ? 'ogg' : mime.includes('wav') ? 'wav' : mime.includes('mpeg') ? 'mp3' : 'webm');
 
   // Chatot's cry: when you tap record (can be turned off in Settings) and for a right answer in a test
-  const cry = new Audio('/assets/chatot.mp3?v=2'); // the file itself is made quieter (phones can ignore a page's volume setting)
+  // Chatot's cry (tap record, right answers) and the wrong-answer sound, at the volume set in Settings (0 = off)
+  const cry = new Audio('/assets/chatot.mp3?v=3');
   cry.preload = 'auto';
   const wrongSound = new Audio('/assets/wrong.mp3'); // for a wrong answer in a test
   wrongSound.preload = 'auto';
-  function playWrong() { try { wrongSound.pause(); wrongSound.currentTime = 0; wrongSound.play().catch(() => {}); } catch {} }
+  const soundVol = () => Math.max(0, Math.min(100, Number(settings.volume ?? 30))) / 100;
+  function playWrong() { if (!soundVol()) return; try { wrongSound.volume = soundVol(); wrongSound.pause(); wrongSound.currentTime = 0; wrongSound.play().catch(() => {}); } catch {} }
   function playCry() {
     return new Promise((resolve) => {
+      if (!soundVol()) { resolve(); return; } // off: no cry and no wait
       try {
+        cry.volume = soundVol();
         cry.pause(); cry.currentTime = 0;
         const done = () => { clearTimeout(t); cry.onended = null; resolve(); };
         const t = setTimeout(done, 1400);
@@ -722,7 +732,7 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
   }
   async function beginRecording() {
     showNotice('');
-    if (settings.cry) await playCry(); // finish the cry before the microphone starts, so it isn't recorded
+    await playCry(); // finish the cry (unless the volume is off) before the microphone starts, so it isn't recorded
     if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) {
       showNotice('This browser can’t record audio. Use Safari on iPhone or Chrome on Android, or upload a file instead.');
       return;
@@ -1082,7 +1092,8 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
     $('set-main').innerHTML = mains.map((c) => `<button type="button" data-main="${c}" aria-pressed="${learningLang() === c}">${c === 'zh' ? 'Chinese' : esc(LANGS[c])}</button>`).join('');
     $('set-pinyin').checked = settings.pinyin;
     $('set-vibrate').checked = settings.vibrate;
-    $('set-cry').checked = settings.cry;
+    $('set-vol').value = String(settings.volume ?? 30);
+    $('set-vol-v').textContent = Number(settings.volume) ? `${settings.volume}%` : 'Off';
     if (document.activeElement !== $('set-glossary')) $('set-glossary').value = settings.glossary;
     if (document.activeElement !== $('set-token')) $('set-token').value = settings.token;
   }
@@ -2152,7 +2163,8 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
     settings.mainLang = b.dataset.main; saveSettings(); renderSettings();
   };
   $('set-pinyin').onchange = (e) => { settings.pinyin = e.target.checked; saveSettings(); };
-  $('set-cry').onchange = (e) => { settings.cry = e.target.checked; saveSettings(); if (e.target.checked) playCry(); };
+  $('set-vol').oninput = (e) => { settings.volume = Number(e.target.value); $('set-vol-v').textContent = settings.volume ? `${settings.volume}%` : 'Off'; };
+  $('set-vol').onchange = (e) => { settings.volume = Number(e.target.value); saveSettings(); playCry(); }; // let go: hear it at that volume
   $('set-vibrate').onchange = (e) => { settings.vibrate = e.target.checked; saveSettings(); if (e.target.checked) buzz('stopped'); };
   $('set-glossary').oninput = (e) => { settings.glossary = e.target.value; saveSettings(); };
   $('set-token').oninput = (e) => { settings.token = e.target.value.trim(); saveSettings(); };
