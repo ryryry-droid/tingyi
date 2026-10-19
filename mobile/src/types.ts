@@ -116,6 +116,8 @@ export type LookupEntry = {
   example?: Example | null;
   register?: string; // "colloquial" or "standard"
   standard?: string; // standard form of a colloquial word (gak -> tidak)
+  exists?: boolean; // false when it isn't a real word (often a mishearing)
+  suggestions?: string[]; // real words that were probably meant
 };
 
 export type Word = {

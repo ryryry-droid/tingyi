@@ -66,7 +66,14 @@ export default function HistoryScreen({ sessions, onOpen, onDelete }: Props) {
                   ? 'Failed. Tap to retry.'
                   : item.segments[0]?.translation || 'No speech found'}
             </Text>
-              <Text style={[styles.lang, { backgroundColor: c.accentSoft, color: c.accent }]}>{LANGS[mainLang(item)] || ''}</Text>
+              <Text
+                style={[
+                  styles.lang,
+                  mainLang(item) === 'en' ? { backgroundColor: c.accentSoft, color: c.accent } : { backgroundColor: c.yellowSoft, color: c.yellowText },
+                ]}
+              >
+                {LANGS[mainLang(item)] || ''}
+              </Text>
             </View>
           </SwipeRow>
         )}

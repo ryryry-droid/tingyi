@@ -1,4 +1,4 @@
-import { File } from 'expo-file-system';
+import { File, Paths } from 'expo-file-system';
 
 import { LookupEntry, Segment, Session, Settings } from './types';
 
@@ -130,6 +130,87 @@ export function checkRegister(
   words: string[],
 ): Promise<{ results: { word: string; register: string; standard: string }[] }> {
   return postJson(s, '/api/register', { lang, words });
+}
+
+/**
+ * Redo one line: the server listens to that part of the recording again and translates it again.
+ * Live sessions are long WAV files, so just the part around the line is cut out here and sent.
+ */
+export async function redoLine(
+  s: Settings,
+  session: Session,
+  seg: Segment,
+  context: Segment[],
+): Promise<{ text: string; pinyin?: string | null; translation: string; translation_pinyin?: string | null }> {
+  let uri = session.audioUri;
+  let start = seg.start;
+  let end = seg.end;
+  let clip: File | null = null;
+  if (uri.toLowerCase().endsWith('.wav')) {
+    try {
+      const cut = cutWav(uri, start, end);
+      if (cut) ({ file: clip, start, end } = cut);
+      if (clip) uri = clip.uri;
+    } catch {}
+  }
+  try {
+    return await postFile(s, '/api/redo', uri, {
+      options: JSON.stringify(options(s, seg.lang || session.source, seg.target || session.target, session.script)),
+      start: String(start),
+      end: String(end),
+      context: JSON.stringify(context.map((c) => ({ text: c.text, translation: c.translation }))),
+    });
+  } finally {
+    try {
+      clip?.delete();
+    } catch {}
+  }
+}
+
+function cutWav(uri: string, start: number, end: number): { file: File; start: number; end: number } | null {
+  const bytes = new File(uri).bytesSync();
+  const v = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  const tag = (o: number) => String.fromCharCode(bytes[o], bytes[o + 1], bytes[o + 2], bytes[o + 3]);
+  if (tag(0) !== 'RIFF' || tag(8) !== 'WAVE') return null;
+  let o = 12;
+  let rate = 0;
+  let block = 0;
+  let fmt: Uint8Array | null = null;
+  while (o + 8 <= bytes.length) {
+    const id = tag(o);
+    const size = v.getUint32(o + 4, true);
+    if (id === 'fmt ') {
+      rate = v.getUint32(o + 12, true);
+      block = v.getUint16(o + 20, true);
+      fmt = bytes.slice(o + 8, o + 8 + Math.min(size, 16));
+    } else if (id === 'data' && rate && block && fmt) {
+      const dataStart = o + 8;
+      const dataLen = Math.min(size || bytes.length - dataStart, bytes.length - dataStart);
+      const lo = Math.max(0, start - 1);
+      const hi = end + 1;
+      const a = dataStart + Math.min(dataLen, Math.floor(lo * rate) * block);
+      const b = dataStart + Math.min(dataLen, Math.ceil(hi * rate) * block);
+      const pcm = bytes.slice(a, b);
+      const out = new Uint8Array(44 + pcm.length);
+      const w = new DataView(out.buffer);
+      const put = (p: number, t: string) => [...t].forEach((ch, i) => (out[p + i] = ch.charCodeAt(0)));
+      put(0, 'RIFF');
+      w.setUint32(4, 36 + pcm.length, true);
+      put(8, 'WAVE');
+      put(12, 'fmt ');
+      w.setUint32(16, 16, true);
+      out.set(fmt, 20);
+      put(36, 'data');
+      w.setUint32(40, pcm.length, true);
+      out.set(pcm, 44);
+      const file = new File(Paths.cache, `redo-${Date.now()}.wav`);
+      file.create({ overwrite: true });
+      file.write(out);
+      return { file, start: start - lo, end: end - lo };
+    }
+    o += 8 + size + (size % 2);
+  }
+  return null;
 }
 
 export type LiveSegment = { start: number; end: number; text: string; pinyin?: string | null; lang: string; target: string };

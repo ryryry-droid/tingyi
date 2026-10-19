@@ -3,8 +3,8 @@ import { useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, FlatList, Pressable, Share, StyleSheet, Text, TextInput, View } from 'react-native';
 
-import { lookupWord, retranslate } from '../api';
-import { Btn, Pinyin, Sheet, sheetStyles, TextBtn, WordText, Working } from '../components';
+import { lookupWord, redoLine, retranslate } from '../api';
+import { Btn, NotAWord, Pinyin, Sheet, sheetStyles, TextBtn, WordText, Working } from '../components';
 import { formatDate, formatTime, HAN_FONT, useColors } from '../theme';
 import { caseFor, hasHan, isChinese, LANGS, LookupEntry, LOOKUP_LANGS, Segment, Session, Settings, Word, wordId, wordLangOf } from '../types';
 import { joinTokens, mainsFor, pickByChar, picksFor, pickTokens, rangeFor, tapPick, Token, tokenize } from '../words';
@@ -21,7 +21,7 @@ type Props = {
   onUpdateSegment: (segmentId: number, changes: Partial<Segment>) => void;
   onSaveWord: (w: Word) => void;
   onRemoveWord: (id: string) => void;
-  toast: (msg: string) => void;
+  toast: (msg: string, action?: { label: string; run: () => void }) => void;
 };
 
 type Lookup = {
@@ -49,6 +49,7 @@ export default function SessionScreen(p: Props) {
   const status = useAudioPlayerStatus(player);
   const [playing, setPlaying] = useState<Segment | null>(null);
   const [editing, setEditing] = useState<Segment | null>(null);
+  const [redoing, setRedoing] = useState<number | null>(null); // id of the line being listened to again
   const [draft, setDraft] = useState('');
   const [saving, setSaving] = useState(false);
   const [renaming, setRenaming] = useState(false);
@@ -105,6 +106,23 @@ export default function SessionScreen(p: Props) {
       Alert.alert('Couldn’t re-translate', String(e?.message ?? e));
     } finally {
       setSaving(false);
+    }
+  }
+
+  // Redo one line: the server listens to its audio again (fixing likely mishearings) and translates it again
+  async function redo(seg: Segment) {
+    if (redoing !== null) return;
+    setRedoing(seg.id);
+    try {
+      const idx = session.segments.findIndex((s) => s.id === seg.id);
+      const r = await redoLine(settings, session, seg, session.segments.slice(Math.max(0, idx - 6), idx));
+      const before = { text: seg.text, pinyin: seg.pinyin, translation: seg.translation, translation_pinyin: seg.translation_pinyin };
+      p.onUpdateSegment(seg.id, { text: r.text, pinyin: r.pinyin, translation: r.translation, translation_pinyin: r.translation_pinyin });
+      p.toast('Line redone', { label: 'Undo', run: () => p.onUpdateSegment(seg.id, before) });
+    } catch (e: any) {
+      Alert.alert('Couldn’t redo this line', String(e?.message ?? e));
+    } finally {
+      setRedoing(null);
     }
   }
 
@@ -249,7 +267,7 @@ export default function SessionScreen(p: Props) {
           ListHeaderComponent={
             lineCount ? (
               <Text style={[styles.tip, { color: c.faint }]}>
-                Tap ▶ to replay a line.{tappable ? ' Tap a word to look it up.' : ''} Tap Edit to fix a misheard line. Tap the title to rename.
+                Tap ▶ to replay a line.{tappable ? ' Tap a word to look it up.' : ''} Tap Edit to fix a line yourself, or Redo to have it listened to and translated again. Tap the title to rename.
               </Text>
             ) : (
               <Text style={[styles.tip, { color: c.muted, fontSize: 15 }]}>No speech was found in this recording.</Text>
@@ -290,7 +308,7 @@ export default function SessionScreen(p: Props) {
                     <Text style={[styles.tr, { color: c.ink }]}>—</Text>
                   )}
                   {settings.pinyin && item.translation_pinyin ? <Pinyin value={item.translation_pinyin} /> : null}
-                  <View style={{ alignSelf: 'flex-start' }}>
+                  <View style={{ alignSelf: 'flex-start', flexDirection: 'row', gap: 18 }}>
                     <TextBtn
                       title="Edit"
                       onPress={() => {
@@ -298,6 +316,7 @@ export default function SessionScreen(p: Props) {
                         setEditing(item);
                       }}
                     />
+                    <TextBtn title={redoing === item.id ? 'Listening again…' : '↻ Redo'} onPress={() => redo(item)} />
                   </View>
                 </View>
               </View>
@@ -357,6 +376,19 @@ export default function SessionScreen(p: Props) {
               <>
                 <Text style={ss.notice}>{lookup.error}</Text>
                 <Btn title="Try again" kind="small" onPress={() => fetchLookup(lookup, lookup.query)} />
+              </>
+            ) : e && e.exists === false ? (
+              <>
+                <NotAWord
+                  word={e.word}
+                  language={isChinese(lookup.lang) ? 'Chinese' : LANGS[lookup.lang] || lookup.lang}
+                  suggestions={e.suggestions}
+                  han={lookHan}
+                  onPick={(w) => fetchLookup(lookup, w)}
+                />
+                <View style={{ flexDirection: 'row' }}>
+                  <Btn title="Close" kind="secondary" onPress={() => setLookup(null)} />
+                </View>
               </>
             ) : e ? (
               <>

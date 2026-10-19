@@ -317,3 +317,44 @@ const styles = StyleSheet.create({
   grab: { width: 40, height: 4, borderRadius: 2, alignSelf: 'center', marginTop: -6, marginBottom: 12 },
   label: { fontSize: 12, textTransform: 'uppercase', letterSpacing: 1, fontWeight: '700', marginBottom: 8 },
 });
+
+/** Shown instead of a meaning when the dictionary says the word doesn't exist (often a mishearing). */
+export function NotAWord({
+  word,
+  language,
+  suggestions,
+  han,
+  onPick,
+}: {
+  word: string;
+  language: string;
+  suggestions?: string[];
+  han?: boolean;
+  onPick: (w: string) => void;
+}) {
+  const c = useColors();
+  return (
+    <View style={{ backgroundColor: c.warnSoft, borderRadius: 14, padding: 14, gap: 8 }}>
+      <Text style={{ color: c.ink, fontSize: 15, lineHeight: 21 }}>
+        <Text style={{ fontWeight: '800' }}>“{word}” doesn’t look like a real {language} word.</Text> It may have been misheard or
+        mistyped, so it can’t be added.
+      </Text>
+      {suggestions?.length ? (
+        <>
+          <Text style={{ color: c.muted, fontSize: 13, fontWeight: '600' }}>Did you mean</Text>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+            {suggestions.map((x) => (
+              <Pressable
+                key={x}
+                onPress={() => onPick(x)}
+                style={{ backgroundColor: c.surface, borderRadius: 999, paddingHorizontal: 14, paddingVertical: 6, borderWidth: 1, borderColor: c.line }}
+              >
+                <Text style={[{ color: c.ink, fontSize: 16, fontWeight: '600' }, han && { fontFamily: 'serif' }]}>{x}</Text>
+              </Pressable>
+            ))}
+          </View>
+        </>
+      ) : null}
+    </View>
+  );
+}

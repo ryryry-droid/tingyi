@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { FlatList, Pressable, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 
 import { liveTranscribe, lookupWord, options } from '../api';
-import { Btn, Label, Pinyin, Segmented, Sheet, sheetStyles, TextBtn, Working } from '../components';
+import { Btn, Label, NotAWord, Pinyin, Segmented, Sheet, sheetStyles, TextBtn, Working } from '../components';
 import { speakWord } from '../speech';
 import { deaccent, formatDate, HAN_FONT, useColors } from '../theme';
 import { caseFor, DEFAULT_TEST_SETUP, LANGS, LookupEntry, Settings, TestKind, TestSetup, Word, WORD_EXAMPLE, wordId, wordLangOf, wordLangs } from '../types';
@@ -49,6 +49,7 @@ export default function WordsScreen(p: Props) {
   const [confirm, setConfirm] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
   const [setup, setSetup] = useState(false);
+  const [editingWord, setEditingWord] = useState<Word | null>(null);
 
   const have = wordLangs([], words); // languages you have words in
   const f = filter !== 'all' && !have.some(([code]) => code === filter) ? 'all' : filter;
@@ -177,11 +178,7 @@ export default function WordsScreen(p: Props) {
                   <Text style={[sheetStyles(c).pos, { marginTop: 0, color: c.yellowText, backgroundColor: c.yellowSoft }]}>colloquial</Text>
                 ) : null}
                 <View style={{ flex: 1 }} />
-                <View style={styles.lvl} accessibilityLabel={`Known: ${w.level || 0} of 3`}>
-                  {[0, 1, 2].map((k) => (
-                    <View key={k} style={[styles.dot, { backgroundColor: (w.level || 0) > k ? '#5BC48A' : c.line }]} />
-                  ))}
-                </View>
+                <TextBtn title="Edit" color={c.accent} bold onPress={() => setEditingWord(w)} />
               </View>
               <Text style={{ color: c.ink, fontSize: 16 }}>
                 {w.meaning}
@@ -224,6 +221,18 @@ export default function WordsScreen(p: Props) {
       />
 
       {adding ? <AddWordSheet {...p} onClose={() => setAdding(false)} /> : null}
+      {editingWord ? (
+        <EditWordSheet
+          word={editingWord}
+          onClose={() => setEditingWord(null)}
+          onSave={(w) => {
+            if (w.id !== editingWord.id) p.onDeleteWord(editingWord.id);
+            p.onSaveWord(w);
+            setEditingWord(null);
+            p.toast('Word updated');
+          }}
+        />
+      ) : null}
       {setup ? (
         <TestSetupSheet
           words={words}
@@ -425,6 +434,18 @@ function AddWordSheet({ settings, words, onSaveWord, toast, onClose }: Props & {
         <Working text={loading} />
       ) : error ? (
         <Text style={ss.notice}>{error}</Text>
+      ) : entry && entry.exists === false ? (
+        <NotAWord
+          word={entry.word}
+          language={lang === 'zh' ? 'Chinese' : LANGS[lang] || lang}
+          suggestions={entry.suggestions}
+          han={han}
+          onPick={(w) => {
+            setFromEn(false);
+            setText(w);
+            doLookup(w);
+          }}
+        />
       ) : entry ? (
         <>
           {fromEn ? (
@@ -463,6 +484,59 @@ function AddWordSheet({ settings, words, onSaveWord, toast, onClose }: Props & {
           </View>
         </>
       ) : null}
+    </Sheet>
+  );
+}
+
+// ---------- edit a saved word ----------
+function EditWordSheet({ word: w, onClose, onSave }: { word: Word; onClose: () => void; onSave: (w: Word) => void }) {
+  const c = useColors();
+  const ss = sheetStyles(c);
+  const han = w.lang === 'zh';
+  const [word, setWord] = useState(w.word);
+  const [pinyin, setPinyin] = useState(w.pinyin || '');
+  const [meaning, setMeaning] = useState(w.meaning);
+  const [notes, setNotes] = useState(w.notes || '');
+  const field = [styles.meaning, { borderColor: c.line, backgroundColor: c.bg, color: c.ink, minHeight: 0 }];
+  return (
+    <Sheet visible onClose={onClose}>
+      <Text style={ss.h2}>Edit word</Text>
+      <Text style={ss.k}>Word</Text>
+      <TextInput value={word} onChangeText={setWord} autoCapitalize="none" style={[field, han && { fontFamily: HAN_FONT }]} />
+      {han ? (
+        <>
+          <Text style={ss.k}>Pinyin</Text>
+          <TextInput value={pinyin} onChangeText={setPinyin} autoCapitalize="none" style={field} />
+        </>
+      ) : null}
+      <Text style={ss.k}>Meaning</Text>
+      <TextInput value={meaning} onChangeText={setMeaning} multiline style={[field, { minHeight: 64 }]} />
+      <Text style={ss.k}>Note</Text>
+      <TextInput
+        value={notes}
+        onChangeText={setNotes}
+        multiline
+        placeholder="Anything you want to remember about it"
+        placeholderTextColor={c.faint}
+        style={[field, { minHeight: 64 }]}
+      />
+      <View style={{ flexDirection: 'row', gap: 10 }}>
+        <Btn
+          title="Save"
+          disabled={!word.trim()}
+          onPress={() =>
+            onSave({
+              ...w,
+              id: wordId(w.lang, word.trim()),
+              word: caseFor(word.trim(), w.part_of_speech),
+              pinyin: pinyin.trim(),
+              meaning: meaning.trim() || w.meaning,
+              notes: notes.trim(),
+            })
+          }
+        />
+        <Btn title="Cancel" kind="secondary" onPress={onClose} />
+      </View>
     </Sheet>
   );
 }
@@ -549,8 +623,6 @@ const styles = StyleSheet.create({
   card: { paddingVertical: 14, borderBottomWidth: StyleSheet.hairlineWidth, gap: 4 },
   top: { flexDirection: 'row', alignItems: 'center', gap: 10, flexWrap: 'wrap' },
   spk: { width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center' },
-  lvl: { flexDirection: 'row', gap: 3 },
-  dot: { width: 7, height: 7, borderRadius: 4 },
   src: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   addInput: { flex: 1, minWidth: 0, borderWidth: 1.5, borderRadius: 14, paddingHorizontal: 14, paddingVertical: 12, fontSize: 20, fontWeight: '700' },
   mic: { width: 52, height: 52, borderRadius: 26, alignItems: 'center', justifyContent: 'center' },
