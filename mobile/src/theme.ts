@@ -86,7 +86,7 @@ export function pinyinTones(py: string): { syl: string; tone: number }[] {
 const ACCENTS: Record<string, string> = {
   a: 'àáâãäåāăąǎạảấầẩẫậắằẳẵặ',
   e: 'èéêëēĕėęěẹẻẽếềểễệ',
-  i: 'ìíîïĩīĭįǐỉị',
+  i: 'ìíîïĩīĭįǐỉịı',
   o: 'òóôõöōŏőǒơọỏốồổỗộớờởỡợø',
   u: 'ùúûüũūŭůűųǔưụủứừửữựǖǘǚǜ',
   y: 'ýÿŷỳỵỷỹ',

@@ -24,6 +24,7 @@ export const CATALOG: [string, string, string, string, string][] = [
   ['pt', 'Portuguese', 'Portuguese Português', 'obrigado', 'pt-BR'],
   ['ru', 'Russian', 'Russian Русский', 'спасибо', 'ru-RU'],
   ['ar', 'Arabic', 'Arabic العربية', 'شكرا', 'ar-SA'],
+  ['tr', 'Turkish', 'Turkish Türkçe', 'teşekkürler', 'tr-TR'],
 ];
 export const LANGS: Record<string, string> = Object.fromEntries(CATALOG.map(([c, n]) => [c, n]));
 export const LANG_LABEL: Record<string, string> = Object.fromEntries(CATALOG.map(([c, , l]) => [c, l]));
