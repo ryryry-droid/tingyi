@@ -605,7 +605,7 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
   const WORD_EXAMPLE = Object.fromEntries(CATALOG.map(([c, , , e]) => [c, e]));
   const SPEECH_LANG = Object.fromEntries(CATALOG.map(([c, , , , v]) => [c, v]));
   const DEFAULT_LANGS = ['zh', 'yue', 'id', 'ms', 'vi', 'en'];
-  const DEFAULTS = { token: '', theme: 'dark', vibrate: true, cry: true, source: 'zh', target: 'en', script: 'simplified', style: 'natural', pinyin: true, glossary: '', langs: DEFAULT_LANGS, mainLang: '', volume: 25 };
+  const DEFAULTS = { token: '', theme: 'dark', vibrate: true, cry: true, source: 'zh', target: 'en', script: 'simplified', style: 'natural', pinyin: true, glossary: '', langs: DEFAULT_LANGS, mainLang: '', volume: 10 };
   // Languages you can look words up in, save and test: your languages except English (Cantonese words are saved
   // as Chinese), plus any language you already have saved words in
   const wordLangs = () => {
@@ -624,7 +624,7 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
   try {
     const saved = JSON.parse(localStorage.getItem('tingyi.settings') || '{}');
     settings = { ...DEFAULTS, ...saved };
-    if (typeof saved.volume !== 'number') settings.volume = saved.cry === false ? 0 : 25; // the old on/off switch: off = volume off
+    if (typeof saved.volume !== 'number') settings.volume = saved.cry === false ? 0 : 10; // the old on/off switch: off = volume off
   } catch {}
   if (settings.dialect) { if (settings.dialect === 'cantonese') settings.source = 'yue'; delete settings.dialect; }
   settings.langs = (Array.isArray(settings.langs) ? settings.langs : DEFAULT_LANGS).filter((c) => LANGS[c]);
@@ -713,9 +713,9 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
   const wrongSound = new Audio('/assets/wrong.mp3'); // for a wrong answer in a test
   wrongSound.preload = 'auto';
   // Volume levels in Settings, each shown with a frame of the opening animation
-  const LEVELS = [['off', 'Off', 0, 'lv-f1'], ['soft', 'Soft', 25, 'lv-f3'], ['medium', 'Medium', 50, 'lv-f4'], ['loud', 'Loud', 100, 'lv-f5']];
+  const LEVELS = [['off', 'Off', 0, 'lv-f1'], ['soft', 'Soft', 10, 'lv-f3'], ['medium', 'Medium', 50, 'lv-f4'], ['loud', 'Loud', 100, 'lv-f5']];
   const levelOf = (v) => LEVELS.reduce((best, l) => (Math.abs(l[2] - v) < Math.abs(best[2] - v) ? l : best));
-  const soundVol = () => Math.max(0, Math.min(100, Number(settings.volume ?? 25))) / 100;
+  const soundVol = () => levelOf(Number(settings.volume ?? 10))[2] / 100; // always one of the four levels
   function playWrong() { if (!soundVol()) return; try { wrongSound.volume = soundVol(); wrongSound.pause(); wrongSound.currentTime = 0; wrongSound.play().catch(() => {}); } catch {} }
   function playCry() {
     return new Promise((resolve) => {
@@ -1099,7 +1099,7 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
     $('set-main').innerHTML = mains.map((c) => `<button type="button" data-main="${c}" aria-pressed="${learningLang() === c}">${c === 'zh' ? 'Chinese' : esc(LANGS[c])}</button>`).join('');
     $('set-pinyin').checked = settings.pinyin;
     $('set-vibrate').checked = settings.vibrate;
-    const lv = levelOf(Number(settings.volume ?? 25));
+    const lv = levelOf(Number(settings.volume ?? 10));
     $('set-vol').innerHTML = LEVELS.map(([id, name, , img]) => `<button type="button" data-lv="${id}" class="${id}" aria-pressed="${lv[0] === id}"><img src="/assets/${img}.jpg" alt="">${name}</button>`).join('');
     $('set-vol-v').textContent = lv[1];
     if (document.activeElement !== $('set-glossary')) $('set-glossary').value = settings.glossary;
