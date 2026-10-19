@@ -699,6 +699,7 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
   // Chatot's cry: when you tap record (can be turned off in Settings) and for a right answer in a test
   const cry = new Audio('/assets/chatot.mp3');
   cry.preload = 'auto';
+  cry.volume = 0.5; // softer than full volume
   const wrongSound = new Audio('/assets/wrong.mp3'); // for a wrong answer in a test
   wrongSound.preload = 'auto';
   function playWrong() { try { wrongSound.pause(); wrongSound.currentTime = 0; wrongSound.play().catch(() => {}); } catch {} }
