@@ -3,9 +3,19 @@ import { Animated, FlatList, PanResponder, Pressable, StyleSheet, Text, View } f
 
 import { Label } from '../components';
 import { formatDate, HAN_FONT, useColors } from '../theme';
-import { hasHan, Session } from '../types';
+import { hasHan, LANGS, Session } from '../types';
 
 const REVEAL = 96;
+
+/** The language most of a recording is in (for conversations, the one spoken most). */
+function mainLang(s: Session): string {
+  const n: Record<string, number> = {};
+  for (const g of s.segments || []) {
+    const l = g.lang || s.source;
+    n[l] = (n[l] || 0) + Math.max(1, (g.end || 0) - (g.start || 0));
+  }
+  return Object.keys(n).sort((a, b) => n[b] - n[a])[0] || s.source;
+}
 
 type Props = {
   sessions: Session[];
@@ -48,13 +58,16 @@ export default function HistoryScreen({ sessions, onOpen, onDelete }: Props) {
               </Text>
               <Text style={{ fontSize: 13, color: c.faint, fontVariant: ['tabular-nums'] }}>{formatDate(item.createdAt)}</Text>
             </View>
-            <Text style={{ fontSize: 14, color: item.status === 'error' ? c.rec : c.muted, marginTop: 3 }} numberOfLines={1}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 3 }}>
+            <Text style={{ flex: 1, fontSize: 14, color: item.status === 'error' ? c.rec : c.muted }} numberOfLines={1}>
               {item.status === 'processing'
                 ? 'Translating…'
                 : item.status === 'error'
                   ? 'Failed. Tap to retry.'
                   : item.segments[0]?.translation || 'No speech found'}
             </Text>
+              <Text style={[styles.lang, { backgroundColor: c.accentSoft, color: c.accent }]}>{LANGS[mainLang(item)] || ''}</Text>
+            </View>
           </SwipeRow>
         )}
       />
@@ -138,4 +151,5 @@ const styles = StyleSheet.create({
   row: { borderBottomWidth: StyleSheet.hairlineWidth, overflow: 'hidden' },
   del: { position: 'absolute', right: 0, top: 0, bottom: 0, width: REVEAL, alignItems: 'center', justifyContent: 'center' },
   title: { flex: 1, fontSize: 17, fontWeight: '600' },
+  lang: { fontSize: 11.5, fontWeight: '800', paddingHorizontal: 9, paddingVertical: 2, borderRadius: 999, overflow: 'hidden' },
 });
