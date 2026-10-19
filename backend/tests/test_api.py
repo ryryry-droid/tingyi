@@ -527,3 +527,35 @@ def test_backup_translator_when_groq_runs_out(monkeypatch):
     used.clear()
     client.post("/api/retranslate", json={"text": "再见", "options": {"source": "zh", "target": "en"}})
     assert used == ["gemini-3.8-flash"]
+
+
+
+def test_in_depth_checks_go_to_gemini(monkeypatch):
+    import openai
+
+    used = []
+
+    class FakeOpenAI:
+        def __init__(self, base_url=None, **kw):
+            self.chat = SimpleNamespace(completions=SimpleNamespace(create=self.create))
+
+        def create(self, **kwargs):
+            used.append((kwargs["model"], kwargs.get("reasoning_effort")))
+            text = kwargs["messages"][-1]["content"]
+            if "Translate these lines" in text:
+                return SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content='{"translations": [{"id": 0, "text": "Hi"}]}'))])
+            return SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content='{"word": "makan", "meaning": "to eat", "exists": true}'))])
+
+    setup(monkeypatch)
+    monkeypatch.setattr(config, "TRANSLATE_PROVIDER", "openai")
+    monkeypatch.setattr(config, "CHAT_SERVICES", [
+        ("groq", "https://groq", "k1", "openai/gpt-oss-120b"),
+        ("gemini", "https://gemini", "k2", "gemini-3.8-flash"),
+    ])
+    monkeypatch.setattr(openai, "OpenAI", FakeOpenAI)
+    monkeypatch.setattr(translate, "_resting", {})
+    client.post("/api/retranslate", json={"text": "你好", "options": {"source": "zh", "target": "en"}})
+    assert used == [("openai/gpt-oss-120b", "low")]  # everyday translation: Groq
+    used.clear()
+    client.post("/api/lookup", json={"word": "makan", "lang": "id"})
+    assert used == [("gemini-3.8-flash", "medium"), ("gemini-3.8-flash", "medium")]  # lookup + its check: Gemini

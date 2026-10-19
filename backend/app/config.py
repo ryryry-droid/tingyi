@@ -51,6 +51,8 @@ if GEMINI_API_KEY:
     CHAT_SERVICES.append(("gemini", GEMINI_BASE_URL, GEMINI_API_KEY, GEMINI_MODEL))
 if not CHAT_SERVICES:  # plain OpenAI (or another compatible API set with OPENAI_BASE_URL)
     CHAT_SERVICES.append(("openai", _env("OPENAI_BASE_URL") or None, _env("OPENAI_API_KEY"), _env("TRANSLATE_MODEL", "gpt-4.1-mini")))
+# In-depth checks (word lookups and their second check, Redo) go to this service first
+CAREFUL_SERVICE = _env("CAREFUL_SERVICE", "gemini")
 OPENAI_TRANSLATE_MODEL = CHAT_SERVICES[0][3]
 TRANSLATE_MODEL = ANTHROPIC_MODEL if TRANSLATE_PROVIDER == "anthropic" else " → ".join(s[3] for s in CHAT_SERVICES)
 

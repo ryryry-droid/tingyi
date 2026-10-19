@@ -39,8 +39,9 @@ Free-plan limits (Groq's, checked October 2026; confirm in your Groq console): a
 per hour and 8 hours per day for Whisper, and 200K translation tokens per day. Render's free plan sleeps
 when unused, so the first request after a break can take about a minute.
 
-**Free backup for translation:** add `GEMINI_API_KEY` (from aistudio.google.com, free tier) on Render. Groq stays first;
-when its translation allowance runs out (or it's busy for a minute), the server uses Gemini instead and goes back to Groq later.
+**Gemini (free tier) for in-depth checks and as backup:** add `GEMINI_API_KEY` (from aistudio.google.com) on Render.
+Everyday translation stays on Groq; word lookups (with their second check) and Redo go to Gemini first; and when Groq's
+translation allowance runs out (or it's busy for a minute), everything uses Gemini and goes back to Groq later.
 Speech-to-text stays on Groq either way (its 8 hours/day allowance is separate).
 
 To use Claude for translation instead (paid, best quality), add `ANTHROPIC_API_KEY` on Render; the server
