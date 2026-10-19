@@ -154,7 +154,7 @@ class LookupRequest(BaseModel):
     lang: LookupLang
     script: Script = "simplified"
     from_english: bool = False  # "word" is English: find how to say it in lang
-    strict: bool = False  # think harder and double-check (Add word, Double-check button)
+    strict: bool = True  # think harder and have the entry checked a second time (all word lookups)
 
 
 class Example(BaseModel):

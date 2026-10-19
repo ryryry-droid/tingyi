@@ -1438,10 +1438,10 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
     });
   }
 
-  async function fetchLookup(wordOverride, strict = false) {
+  async function fetchLookup(wordOverride, strict = true) {
     const word = wordOverride || lookupWord();
     const key = `${lookup.lang}|${settings.script}|${word}|${lookup.text}|${strict ? 'strict' : ''}`;
-    lookup.entry = null; lookup.error = ''; lookup.loading = strict ? 'Double-checking…' : true; lookup.query = word; lookup.strict = strict;
+    lookup.entry = null; lookup.error = ''; lookup.loading = true; lookup.query = word;
     renderSheet(); highlight();
     try {
       let entry = lookupCache.get(key);
@@ -1503,8 +1503,6 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
       ${e.root && e.root.toLowerCase() !== e.word.toLowerCase() ? `<div class="wc-row"><span class="k">Base word</span><p><button class="linkbtn" type="button" data-wc="root">${esc(e.root)}</button></p></div>` : ''}
       ${e.notes ? `<div class="wc-row"><span class="k">Note</span><p>${esc(e.notes)}</p></div>` : ''}
       ${exampleHtml(e.example, han)}
-      ${lookup.strict ? `<p class="meta" style="margin:0;color:var(--accent)">✓ Double-checked</p>`
-        : `<p class="meta" style="margin:0">Meaning look wrong? <button class="linkbtn" type="button" data-wc="check">Double-check</button></p>`}
       <div class="wc-actions">
         ${saved
           ? `<span class="saved">✓ In your words</span><span style="flex:1"></span><button class="textbtn danger" type="button" data-wc="remove">Remove</button>`
@@ -1541,7 +1539,6 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
     else if (act === 'retry') fetchLookup(lookup.query);
     else if (act === 'root') fetchLookup(e.root);
     else if (act === 'sugg') fetchLookup(b.dataset.v);
-    else if (act === 'check') fetchLookup(lookup.query, true);
     else if (act === 'save') {
       const w = {
         id: wordId(lookup.lang, e.word), word: caseFor(e.word, e.part_of_speech), lang: isHan(lookup.lang) ? 'zh' : lookup.lang, pinyin: e.pinyin || '',

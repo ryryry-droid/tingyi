@@ -473,7 +473,7 @@ def test_lookup_flags_words_that_dont_exist(monkeypatch):
 
 
 
-def test_normal_lookup_stays_quick(monkeypatch):
+def test_lookup_strict_by_default(monkeypatch):
     setup(monkeypatch)
     calls = []
 
@@ -482,5 +482,8 @@ def test_normal_lookup_stays_quick(monkeypatch):
         return '{"word": "makan", "meaning": "to eat", "exists": true}'
 
     monkeypatch.setattr(translate, "_complete_simple", fake)
-    r = client.post("/api/lookup", json={"word": "makan", "lang": "id"}).json()
-    assert r["meaning"] == "to eat" and calls == ["low"]  # one quick call, no second check
+    r = client.post("/api/lookup", json={"word": "makan", "lang": "id", "strict": False}).json()
+    assert r["meaning"] == "to eat" and calls == ["low"]  # strict=False: one quick call, no second check
+    calls.clear()
+    client.post("/api/lookup", json={"word": "makan", "lang": "id"})
+    assert calls == ["medium", "medium"]  # by default every lookup is thorough and double-checked
