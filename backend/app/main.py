@@ -14,6 +14,7 @@ from fastapi.staticfiles import StaticFiles
 
 from . import audioclip, config, translate
 from .models import (
+    ExampleRequest,
     LiveSegment,
     Sense,
     LiveTranscribeResponse,
@@ -253,6 +254,21 @@ def _senses(raw, req: LookupRequest) -> list[Sense]:
             word = to_script(word, req.script)
         out.append(Sense(sense=sense[:60], word=word, pinyin=to_pinyin(word) if chinese else None))
     return out[:5] if len(out) > 1 else []
+
+
+@app.post("/api/example", response_model=Example, dependencies=[Depends(check_token)])
+async def word_example(req: ExampleRequest) -> Example:
+    """The example sentence for a saved word, following the English sentence the user wrote."""
+    chinese = req.lang in ("zh", "yue")
+    try:
+        text = await run_in_threadpool(
+            translate.example_for, req.word.strip(), req.lang, req.script, req.meaning.strip(), req.english.strip()
+        )
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Couldn't write the sentence: {e}")
+    if chinese:
+        text = to_script(text, req.script)
+    return Example(text=text, pinyin=to_pinyin(text) if chinese else None, translation=req.english.strip())
 
 
 @app.post("/api/register", response_model=RegisterResponse, dependencies=[Depends(check_token)])

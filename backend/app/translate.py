@@ -274,6 +274,28 @@ def redo_line(heard: str, original: str, original_translation: str, before: list
     return text, translation
 
 
+def example_for(word: str, lang: str, script: str, meaning: str, english: str) -> str:
+    """A natural sentence in `lang` that uses `word` and means the English sentence."""
+    language = LOOKUP_LANG.get(lang) or LANG_NAMES[lang]
+    script_note = (
+        f" Write it in {'Traditional' if script == 'traditional' else 'Simplified'} Chinese characters."
+        if lang in ("zh", "yue") else ""
+    )
+    prompt = (
+        f"A learner is studying the {language} word \"{word}\"" + (f" ({meaning})" if meaning else "") + ". "
+        f"They wrote this English example sentence for it:\n{english}\n\n"
+        f"Write the {language} sentence that says exactly this, the way a native speaker naturally would, and use "
+        f"the word \"{word}\" in it (in a fitting form if {language} changes word forms). Keep it everyday and "
+        "correct; don't add anything that isn't in the English." + script_note + "\n"
+        'Reply with JSON only: {"text": "<the sentence>"}'
+    )
+    data = _json(_complete_simple(prompt, max_tokens=300, effort="medium")) or {}
+    text = str(data.get("text") or "").strip()
+    if not text:
+        raise ValueError("The translator didn't return a sentence")
+    return text
+
+
 def classify_register(words: list[str], lang: str) -> dict[str, tuple[str, str]]:
     """For each word: ("colloquial" | "standard", standard form if colloquial)."""
     language = LOOKUP_LANG.get(lang) or LANG_NAMES[lang]

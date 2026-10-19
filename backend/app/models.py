@@ -193,6 +193,16 @@ class Sense(BaseModel):
 LookupResponse.model_rebuild()
 
 
+class ExampleRequest(BaseModel):
+    """Write the example sentence for a saved word so it says what the user's English sentence says."""
+
+    word: str = Field(min_length=1, max_length=60)
+    lang: LookupLang
+    script: Script = "simplified"
+    meaning: str = Field(default="", max_length=200)
+    english: str = Field(min_length=1, max_length=300)
+
+
 class RegisterRequest(BaseModel):
     """Check which saved words are colloquial (for words saved before this was recorded)."""
 

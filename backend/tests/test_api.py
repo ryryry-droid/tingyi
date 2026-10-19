@@ -644,3 +644,20 @@ def test_turkish(monkeypatch):
     r = client.post("/api/live/transcribe", files={"file": ("c.wav", b"x", "audio/wav")},
                     data={"options": json.dumps({"source": "en", "target": "tr"}), "detect": "true"})
     assert r.json()["segments"][0]["lang"] == "tr"
+
+
+def test_example_follows_the_english_sentence(monkeypatch):
+    setup(monkeypatch)
+    seen = []
+
+    def fake(prompt, max_tokens=200, **kw):
+        seen.append(prompt)
+        return '{"text": "我买了一个新的無線路由器。"}'
+
+    monkeypatch.setattr(translate, "_complete_simple", fake)
+    r = client.post("/api/example", json={"word": "无线路由器", "lang": "zh", "meaning": "wireless router",
+                                          "english": "I bought a new router."})
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["text"] == "我买了一个新的无线路由器。" and body["pinyin"].startswith("wǒ") and body["translation"] == "I bought a new router."
+    assert "I bought a new router." in seen[0] and "无线路由器" in seen[0]
