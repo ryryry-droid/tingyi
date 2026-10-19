@@ -213,6 +213,11 @@ nav button[aria-selected="true"] { background: var(--surface); color: var(--ink)
 .wcard .ex .han { font-family: var(--han); }
 .wspk { border: 0; background: var(--surface2); color: var(--accent); width: 30px; height: 30px; border-radius: 50%; font-size: 13px; display: inline-grid; place-items: center; align-self: center; flex-shrink: 0; }
 .seg.wrap { flex-wrap: wrap; }
+.wedit { margin-left: auto; align-self: center; padding: 2px 4px; font-weight: 700; color: var(--accent); }
+.ew { display: grid; gap: 4px; }
+.ew input, .ew textarea { width: 100%; border: 1.5px solid var(--line); border-radius: 12px; background: var(--bg); padding: 10px 12px; font-size: 17px; font-weight: 700; color: var(--ink); }
+.ew textarea { min-height: 64px; resize: vertical; }
+.ew input:focus, .ew textarea:focus { border-color: var(--accent); outline: none; }
 .aw-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .tgl { border: 0; background: none; display: inline-flex; align-items: center; gap: 8px; color: var(--muted); font-weight: 700; font-size: 14px; padding: 4px 0; }
 .tgl i { position: relative; width: 44px; height: 26px; border-radius: 13px; background: var(--line); transition: background .15s; }
@@ -1597,7 +1602,7 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
             ${settings.pinyin && w.pinyin ? `<span class="py">${pinyinHtml(w.pinyin)}</span>` : ''}
             ${w.part_of_speech ? `<span class="pos" style="margin:0">${esc(w.part_of_speech)}</span>` : ''}
             ${isColloq(w) ? `<span class="pos colloq-tag" style="margin:0">colloquial</span>` : ''}
-            <span class="lvl" title="How well you know it">${[0, 1, 2].map((k) => `<i class="${(w.level || 0) > k ? 'f' : ''}"></i>`).join('')}</span></div>
+            <button class="textbtn wedit" type="button" data-edit="${esc(w.id)}">Edit</button></div>
           <p class="m">${esc(w.meaning)}${isColloq(w) && w.standard ? ` <span class="meta">· standard: ${esc(w.standard)}</span>` : ''}${w.root && w.root.toLowerCase() !== w.word.toLowerCase() ? ` <span class="meta">· base word ${esc(w.root)}</span>` : ''}</p>
           ${w.example ? `<p class="ex"><span class="${han ? 'han' : ''}">${esc(w.example.text)}</span><br>${esc(w.example.translation)}</p>` : ''}
           <div class="src"><span>${w.sessionTitle ? `From “${esc(w.sessionTitle)}” · ` : ''}${fmtDate(w.createdAt)}</span>
@@ -1619,6 +1624,7 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
   $('wlist').onclick = async (ev) => {
     const b = ev.target.closest('button'); if (!b) return;
     if (b.dataset.speak) { const w = words.find((x) => x.id === b.dataset.speak); if (w) speak(w); }
+    else if (b.dataset.edit) { const w = words.find((x) => x.id === b.dataset.edit); if (w) openEditWord(w); }
     else if (b.dataset.ask) { confirmWord = b.dataset.ask; renderWords(); }
     else if (b.dataset.keep) { confirmWord = null; renderWords(); }
     else if (b.dataset.del) {
@@ -1731,6 +1737,39 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
       addLookup();
     } catch (e) { if (addState === a) { a.loading = false; a.error = e instanceof TypeError ? 'Couldn’t reach the server. Check your connection.' : e.message; renderAddWord(); } }
   }
+  // ---------- edit a saved word ----------
+  let editWord = null;
+  function openEditWord(w) {
+    editWord = w;
+    const han = w.lang === 'zh';
+    openPanel(`
+      <h2>Edit word</h2>
+      <label class="ew"><span class="k" style="font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--faint);font-weight:700">Word</span>
+        <input id="ew-word" type="text" autocomplete="off" autocapitalize="off" value="${esc(w.word)}" lang="${w.lang}" ${han ? 'style="font-family:var(--han)"' : ''}></label>
+      ${han ? `<label class="ew"><span class="k" style="font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--faint);font-weight:700">Pinyin</span>
+        <input id="ew-pinyin" type="text" autocomplete="off" autocapitalize="off" value="${esc(w.pinyin || '')}"></label>` : ''}
+      <label class="ew"><span class="k" style="font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--faint);font-weight:700">Meaning</span>
+        <textarea id="ew-meaning">${esc(w.meaning)}</textarea></label>
+      <label class="ew"><span class="k" style="font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--faint);font-weight:700">Note</span>
+        <textarea id="ew-notes" placeholder="Anything you want to remember about it">${esc(w.notes || '')}</textarea></label>
+      <div class="wc-actions">
+        <button class="primary" type="button" data-ew="save">Save</button>
+        <button class="secondary" type="button" data-ew="close">Cancel</button>
+      </div>`);
+  }
+  $('panel').addEventListener('click', async (ev) => {
+    const b = ev.target.closest('[data-ew]'); if (!b || !editWord) return;
+    if (b.dataset.ew === 'close') { editWord = null; closePanel(); return; }
+    const old = editWord, word = $('ew-word').value.trim();
+    if (!word) { toast('The word can’t be empty'); return; }
+    const w = { ...old, word: caseFor(word, old.part_of_speech), id: wordId(old.lang, word), meaning: $('ew-meaning').value.trim() || old.meaning,
+      notes: $('ew-notes').value.trim(), pinyin: $('ew-pinyin') ? $('ew-pinyin').value.trim() : old.pinyin };
+    if (w.id !== old.id) await deleteWord(old.id).catch(() => {});
+    await putWord(w).catch(() => {});
+    words = words.filter((x) => x.id !== old.id && x.id !== w.id); words.unshift(w);
+    words.sort((a, c) => c.createdAt - a.createdAt);
+    editWord = null; closePanel(); renderWords(); toast('Word updated');
+  });
   $('panel').addEventListener('click', async (ev) => {
     const b = ev.target.closest('[data-aw]'); if (!b || !addState) return;
     const act = b.dataset.aw, a = addState;
