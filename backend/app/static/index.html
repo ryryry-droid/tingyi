@@ -132,7 +132,11 @@ nav button[aria-selected="true"] { background: var(--surface); color: var(--ink)
 .seg button[aria-pressed="true"] { background: var(--surface); color: var(--ink); font-weight: 600; }
 .switch { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
 .switch input { width: 22px; height: 22px; accent-color: var(--accent); }
-.vol { width: 100%; accent-color: var(--accent); height: 28px; }
+.levels { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.levels button { border: 2px solid transparent; background: var(--surface2); border-radius: 16px; padding: 8px 4px; color: var(--muted); font-size: 13px; font-weight: 700; display: grid; justify-items: center; gap: 6px; }
+.levels img { width: 100%; max-width: 64px; aspect-ratio: 1; border-radius: 50%; object-fit: cover; }
+.levels button[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); color: var(--ink); }
+.levels button.off img { opacity: .55; }
 .volv { font-size: 14px; font-weight: 700; color: var(--muted); }
 .field input[type=password], .field textarea { width: 100%; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); padding: 10px 12px; font-size: 16px; }
 .field textarea { min-height: 110px; }
@@ -540,8 +544,8 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
       </div>
     </div>
     <div class="field">
-      <label class="switch" for="set-vol"><span>Chatot cry volume</span><span class="volv" id="set-vol-v"></span></label>
-      <input type="range" id="set-vol" class="vol" min="0" max="100" step="5" aria-label="Chatot cry volume">
+      <div class="switch"><span>Chatot cry volume</span><span class="volv" id="set-vol-v"></span></div>
+      <div class="levels" id="set-vol" role="group" aria-label="Chatot cry volume"></div>
     </div>
     <div class="field">
       <label class="switch" for="set-vibrate"><span>Vibrate when a recording stops</span><input type="checkbox" id="set-vibrate"></label>
@@ -601,7 +605,7 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
   const WORD_EXAMPLE = Object.fromEntries(CATALOG.map(([c, , , e]) => [c, e]));
   const SPEECH_LANG = Object.fromEntries(CATALOG.map(([c, , , , v]) => [c, v]));
   const DEFAULT_LANGS = ['zh', 'yue', 'id', 'ms', 'vi', 'en'];
-  const DEFAULTS = { token: '', theme: 'dark', vibrate: true, cry: true, source: 'zh', target: 'en', script: 'simplified', style: 'natural', pinyin: true, glossary: '', langs: DEFAULT_LANGS, mainLang: '', volume: 30 };
+  const DEFAULTS = { token: '', theme: 'dark', vibrate: true, cry: true, source: 'zh', target: 'en', script: 'simplified', style: 'natural', pinyin: true, glossary: '', langs: DEFAULT_LANGS, mainLang: '', volume: 25 };
   // Languages you can look words up in, save and test: your languages except English (Cantonese words are saved
   // as Chinese), plus any language you already have saved words in
   const wordLangs = () => {
@@ -620,7 +624,7 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
   try {
     const saved = JSON.parse(localStorage.getItem('tingyi.settings') || '{}');
     settings = { ...DEFAULTS, ...saved };
-    if (typeof saved.volume !== 'number') settings.volume = saved.cry === false ? 0 : 30; // the old on/off switch: off = volume off
+    if (typeof saved.volume !== 'number') settings.volume = saved.cry === false ? 0 : 25; // the old on/off switch: off = volume off
   } catch {}
   if (settings.dialect) { if (settings.dialect === 'cantonese') settings.source = 'yue'; delete settings.dialect; }
   settings.langs = (Array.isArray(settings.langs) ? settings.langs : DEFAULT_LANGS).filter((c) => LANGS[c]);
@@ -708,7 +712,10 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
   cry.preload = 'auto';
   const wrongSound = new Audio('/assets/wrong.mp3'); // for a wrong answer in a test
   wrongSound.preload = 'auto';
-  const soundVol = () => Math.max(0, Math.min(100, Number(settings.volume ?? 30))) / 100;
+  // Volume levels in Settings, each shown with a frame of the opening animation
+  const LEVELS = [['off', 'Off', 0, 'lv-f1'], ['soft', 'Soft', 25, 'lv-f3'], ['medium', 'Medium', 50, 'lv-f4'], ['loud', 'Loud', 100, 'lv-f5']];
+  const levelOf = (v) => LEVELS.reduce((best, l) => (Math.abs(l[2] - v) < Math.abs(best[2] - v) ? l : best));
+  const soundVol = () => Math.max(0, Math.min(100, Number(settings.volume ?? 25))) / 100;
   function playWrong() { if (!soundVol()) return; try { wrongSound.volume = soundVol(); wrongSound.pause(); wrongSound.currentTime = 0; wrongSound.play().catch(() => {}); } catch {} }
   function playCry() {
     return new Promise((resolve) => {
@@ -1092,8 +1099,9 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
     $('set-main').innerHTML = mains.map((c) => `<button type="button" data-main="${c}" aria-pressed="${learningLang() === c}">${c === 'zh' ? 'Chinese' : esc(LANGS[c])}</button>`).join('');
     $('set-pinyin').checked = settings.pinyin;
     $('set-vibrate').checked = settings.vibrate;
-    $('set-vol').value = String(settings.volume ?? 30);
-    $('set-vol-v').textContent = Number(settings.volume) ? `${settings.volume}%` : 'Off';
+    const lv = levelOf(Number(settings.volume ?? 25));
+    $('set-vol').innerHTML = LEVELS.map(([id, name, , img]) => `<button type="button" data-lv="${id}" class="${id}" aria-pressed="${lv[0] === id}"><img src="/assets/${img}.jpg" alt="">${name}</button>`).join('');
+    $('set-vol-v').textContent = lv[1];
     if (document.activeElement !== $('set-glossary')) $('set-glossary').value = settings.glossary;
     if (document.activeElement !== $('set-token')) $('set-token').value = settings.token;
   }
@@ -2163,8 +2171,11 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
     settings.mainLang = b.dataset.main; saveSettings(); renderSettings();
   };
   $('set-pinyin').onchange = (e) => { settings.pinyin = e.target.checked; saveSettings(); };
-  $('set-vol').oninput = (e) => { settings.volume = Number(e.target.value); $('set-vol-v').textContent = settings.volume ? `${settings.volume}%` : 'Off'; };
-  $('set-vol').onchange = (e) => { settings.volume = Number(e.target.value); saveSettings(); playCry(); }; // let go: hear it at that volume
+  $('set-vol').onclick = (ev) => {
+    const b = ev.target.closest('[data-lv]'); if (!b) return;
+    settings.volume = LEVELS.find((l) => l[0] === b.dataset.lv)[2]; saveSettings(); renderSettings();
+    playCry(); // hear it at that level
+  };
   $('set-vibrate').onchange = (e) => { settings.vibrate = e.target.checked; saveSettings(); if (e.target.checked) buzz('stopped'); };
   $('set-glossary').oninput = (e) => { settings.glossary = e.target.value; saveSettings(); };
   $('set-token').oninput = (e) => { settings.token = e.target.value.trim(); saveSettings(); };
