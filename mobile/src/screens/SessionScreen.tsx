@@ -175,6 +175,8 @@ export default function SessionScreen(p: Props) {
       in_context: e.in_context || '',
       notes: e.notes || '',
       example: e.example || null,
+      register: e.register || '',
+      standard: e.standard || '',
       sentence: lookup.text,
       sessionId: session.id,
       sessionTitle: session.title,

@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, BackHandler, Image, ImageBackground, Pressable, StyleSheet, Text, Vibration, View } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 
-import { translateRecording } from './src/api';
+import { checkRegister, translateRecording } from './src/api';
 import { preloadSounds } from './src/sounds';
 import HistoryScreen from './src/screens/HistoryScreen';
 import LiveScreen, { LiveResult } from './src/screens/LiveScreen';
@@ -77,6 +77,31 @@ export default function App() {
   useEffect(() => {
     if (ready) saveWords(words);
   }, [words, ready]);
+
+  // Words saved before colloquial/standard was recorded: ask the server once, in the background
+  useEffect(() => {
+    if (!ready || !settings.serverUrl) return;
+    const todo = words.filter((w) => !w.register && w.lang !== 'zh');
+    if (!todo.length) return;
+    (async () => {
+      const langs = [...new Set(todo.map((w) => w.lang))];
+      for (const lang of langs) {
+        const list = todo.filter((w) => w.lang === lang).slice(0, 100);
+        try {
+          const { results } = await checkRegister(settingsRef.current, lang, list.map((w) => w.word));
+          const found = new Map(results.map((r) => [r.word, r]));
+          setWords((prev) =>
+            prev.map((w) => {
+              const r = w.lang === lang ? found.get(w.word) : undefined;
+              return r ? { ...w, register: r.register, standard: r.standard || '' } : w;
+            }),
+          );
+        } catch {
+          return;
+        }
+      }
+    })();
+  }, [ready]);
   useEffect(() => {
     SystemUI.setBackgroundColorAsync(c.bg).catch(() => {});
   }, [c.bg]);

@@ -114,6 +114,8 @@ export type LookupEntry = {
   in_context: string;
   notes: string;
   example?: Example | null;
+  register?: string; // "colloquial" or "standard"
+  standard?: string; // standard form of a colloquial word (gak -> tidak)
 };
 
 export type Word = {
@@ -127,6 +129,8 @@ export type Word = {
   in_context: string;
   notes: string;
   example: Example | null;
+  register?: string; // "colloquial" or "standard" (missing on words saved before this was recorded)
+  standard?: string;
   sentence: string;
   sessionId: string;
   sessionTitle: string;

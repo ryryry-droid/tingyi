@@ -43,6 +43,8 @@ export default function WordsScreen(p: Props) {
   const { settings, words } = p;
   const c = useColors();
   const [filter, setFilter] = useState('all');
+  const [colloqOnly, setColloqOnly] = useState(false);
+  const isColloq = (w: Word) => w.register === 'colloquial';
   const [search, setSearch] = useState('');
   const [confirm, setConfirm] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
@@ -54,6 +56,7 @@ export default function WordsScreen(p: Props) {
   const list = words.filter(
     (w) =>
       (f === 'all' || w.lang === f) &&
+      (!colloqOnly || f !== 'id' || isColloq(w)) &&
       (!q || [w.word, w.pinyin, w.meaning, w.root].join(' ').toLowerCase().includes(q) || deaccent(w.pinyin || '').includes(deaccent(q))),
   );
 
@@ -108,12 +111,24 @@ export default function WordsScreen(p: Props) {
               {[['all', 'All'] as [string, string], ...(have.length > 1 ? have : [])].map(([code, label]) => (
                 <Pressable
                   key={code}
-                  onPress={() => setFilter(code)}
+                  onPress={() => {
+                    setFilter(code);
+                    setColloqOnly(false);
+                  }}
                   style={[styles.chip, { borderColor: c.line }, f === code && { backgroundColor: c.accent, borderColor: c.accent }]}
                 >
                   <Text style={{ fontSize: 13, color: f === code ? c.accentInk : c.muted, fontWeight: f === code ? '800' : '600' }}>{label}</Text>
                 </Pressable>
               ))}
+              {f === 'id' ? (
+                // Colloquial: only once Indonesian is picked
+                <Pressable
+                  onPress={() => setColloqOnly((v) => !v)}
+                  style={[styles.chip, { borderColor: c.line }, colloqOnly && { backgroundColor: c.yellow, borderColor: c.yellow }]}
+                >
+                  <Text style={{ fontSize: 13, color: colloqOnly ? c.yellowInk : c.muted, fontWeight: colloqOnly ? '800' : '600' }}>Colloquial</Text>
+                </Pressable>
+              ) : null}
               <View style={{ flex: 1 }} />
               {list.length ? (
                 <Pressable
@@ -158,6 +173,9 @@ export default function WordsScreen(p: Props) {
                 <Text style={[{ fontSize: 22, color: c.ink }, han && { fontFamily: HAN_FONT, fontWeight: '600' }]}>{w.word}</Text>
                 {settings.pinyin && w.pinyin ? <Pinyin value={w.pinyin} /> : null}
                 {w.part_of_speech ? <Text style={[sheetStyles(c).pos, { marginTop: 0 }]}>{w.part_of_speech}</Text> : null}
+                {isColloq(w) ? (
+                  <Text style={[sheetStyles(c).pos, { marginTop: 0, color: c.yellowText, backgroundColor: c.yellowSoft }]}>colloquial</Text>
+                ) : null}
                 <View style={{ flex: 1 }} />
                 <View style={styles.lvl} accessibilityLabel={`Known: ${w.level || 0} of 3`}>
                   {[0, 1, 2].map((k) => (
@@ -167,6 +185,7 @@ export default function WordsScreen(p: Props) {
               </View>
               <Text style={{ color: c.ink, fontSize: 16 }}>
                 {w.meaning}
+                {isColloq(w) && w.standard ? <Text style={{ color: c.muted, fontSize: 13 }}> · standard: {w.standard}</Text> : null}
                 {w.root && w.root.toLowerCase() !== w.word.toLowerCase() ? <Text style={{ color: c.muted, fontSize: 13 }}> · base word {w.root}</Text> : null}
               </Text>
               {w.example ? (
@@ -331,6 +350,8 @@ function AddWordSheet({ settings, words, onSaveWord, toast, onClose }: Props & {
       in_context: '',
       notes: entry.notes || '',
       example: entry.example || null,
+      register: entry.register || '',
+      standard: entry.standard || '',
       sentence: existing?.sentence || '',
       sessionId: existing?.sessionId || '',
       sessionTitle: existing?.sessionTitle || 'Added by you',

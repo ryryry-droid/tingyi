@@ -123,6 +123,15 @@ export function lookupWord(s: Settings, word: string, sentence: string, lang: st
   return postJson(s, '/api/lookup', { word, sentence, lang, script: s.script, from_english: fromEnglish });
 }
 
+/** Which of these words are colloquial (for words saved before this was recorded). */
+export function checkRegister(
+  s: Settings,
+  lang: string,
+  words: string[],
+): Promise<{ results: { word: string; register: string; standard: string }[] }> {
+  return postJson(s, '/api/register', { lang, words });
+}
+
 export type LiveSegment = { start: number; end: number; text: string; pinyin?: string | null; lang: string; target: string };
 
 /** Transcribe a short audio chunk (live mode, or a spoken word). */
