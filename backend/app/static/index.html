@@ -713,7 +713,7 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
   const wrongSound = new Audio('/assets/wrong.mp3'); // for a wrong answer in a test
   wrongSound.preload = 'auto';
   // Volume levels in Settings, each shown with a frame of the opening animation
-  const LEVELS = [['off', 'Off', 0, 'lv-f1'], ['soft', 'Soft', 10, 'lv-f3'], ['medium', 'Medium', 50, 'lv-f4'], ['loud', 'Loud', 100, 'lv-f5']];
+  const LEVELS = [['off', 'Off', 0, 'lv-f1'], ['soft', 'Soft', 10, 'lv-f3'], ['medium', 'Medium', 30, 'lv-f4'], ['loud', 'Loud', 100, 'lv-f5']];
   const levelOf = (v) => LEVELS.reduce((best, l) => (Math.abs(l[2] - v) < Math.abs(best[2] - v) ? l : best));
   const soundVol = () => levelOf(Number(settings.volume ?? 10))[2] / 100; // always one of the four levels
   function playWrong() { if (!soundVol()) return; try { wrongSound.volume = soundVol(); wrongSound.pause(); wrongSound.currentTime = 0; wrongSound.play().catch(() => {}); } catch {} }
