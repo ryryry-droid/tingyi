@@ -903,6 +903,8 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
       form.append('options', JSON.stringify({ ...options(), source: seg.lang || s.source || 'zh', target: seg.target || s.target || 'en', script: s.script || settings.script }));
       form.append('start', String(seg.start)); form.append('end', String(seg.end));
       form.append('context', JSON.stringify(s.segments.slice(Math.max(0, i - 6), i).map((c) => ({ text: segText(c), translation: segTr(c) }))));
+      form.append('after', JSON.stringify(s.segments.slice(i + 1, i + 3).map((c) => segText(c))));
+      form.append('original', segText(seg)); form.append('original_translation', segTr(seg));
       const res = await fetch('/api/redo', { method: 'POST', headers: authHeaders(), body: form });
       if (!res.ok) throw new Error(await apiError(res));
       const r = await res.json();

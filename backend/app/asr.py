@@ -44,12 +44,43 @@ def _prompt(opts: Options) -> str:
     prompt = _PROMPT.get(key, "")  # other languages: no hint, so Whisper isn't nudged toward another language
     terms = [g.split("=")[0].strip() for g in opts.glossary if g.strip()]
     if terms:
-        lead = {"id": " Kosakata: ", "ms": " Istilah: ", "vi": " Từ vựng: "}.get(opts.source, " Terms: ")
-        joiner = ("词汇：", "、", "。") if opts.source_is_chinese else (lead, ", ", ".")
+        # Just the names, with no label in front: Whisper sometimes repeats its prompt in the transcript,
+        # and a label like "Kosakata:" then shows up as words nobody said
+        joiner = ("", "、", "。") if opts.source_is_chinese else (" ", ", ", ".")
         if not prompt:
             joiner = ("", ", ", "")
         prompt += joiner[0] + joiner[1].join(terms[:50]) + joiner[2]
     return prompt.strip()
+
+
+# Labels older versions put in front of the glossary in Whisper's prompt
+_LABELS = re.compile(r"(?:\b(?:kosakata|istilah|từ vựng|terms)\s*[:：]|词汇[:：])", re.I)
+_LABEL_WORDS = {"kosakata", "istilah", "từ vựng", "terms", "词汇"}
+_PUNCT = re.compile(r"[\s\W_]+", re.U)
+
+
+def _drop_echo(segments: list[RawSegment], prompt: str | None) -> list[RawSegment]:
+    """Remove bits of Whisper's own prompt that it repeated back as if someone had said them."""
+    if not prompt:
+        return segments
+    sentences = [x for x in re.split(r"(?<=[.。!?！？])\s*", prompt) if x.strip()]
+    norm = lambda t: _PUNCT.sub(" ", t).strip().lower()  # noqa: E731
+    singles = {norm(p) for x in sentences for p in re.split(r"[,、，]", x)} - {""}  # one name each
+    pieces = sorted(singles | ({norm(x) for x in sentences} - {""}), key=len, reverse=True)
+    out = []
+    for seg in segments:
+        bare = _PUNCT.sub(" ", seg.text).strip().lower()
+        if bare in _LABEL_WORDS:
+            continue  # just the old label on its own
+        had_label = bool(_LABELS.search(seg.text))
+        text = _LABELS.sub(" ", seg.text).strip()
+        rest = " " + _PUNCT.sub(" ", text).lower() + " "
+        for p in pieces:
+            rest = rest.replace(" " + p + " ", " ")
+        if not rest.strip() and (had_label or bare not in singles or not text):
+            continue  # nothing but the prompt (a single name on its own may really have been said)
+        out.append(seg.model_copy(update={"text": re.sub(r"\s{2,}", " ", text).strip(" ,")}) if text != seg.text else seg)
+    return out
 
 
 def _keep(text: str, no_speech_prob: float = 0.0, avg_logprob: float = 0.0) -> bool:
@@ -114,9 +145,9 @@ def transcribe_detect(path: str, opts: Options) -> tuple[list[RawSegment], float
 
 
 def _run(path: str, language: str | None, prompt: str | None) -> tuple[list[RawSegment], float, str | None]:
-    if config.ASR_PROVIDER == "local":
-        return _run_local(path, language, prompt)
-    return _run_openai(path, language, prompt)
+    run = _run_local if config.ASR_PROVIDER == "local" else _run_openai
+    segments, duration, detected = run(path, language, prompt)
+    return _drop_echo(segments, prompt), duration, detected
 
 
 def _run_openai(path: str, language: str | None, prompt: str | None):

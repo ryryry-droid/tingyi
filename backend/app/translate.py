@@ -232,22 +232,46 @@ def _complete_simple(prompt: str, max_tokens: int = 200, effort: str = "low") ->
 LOOKUP_LANG = {"zh": "Mandarin Chinese", "yue": "Cantonese", "id": "Indonesian", "ms": "Malay", "vi": "Vietnamese"}
 
 
-def correct_transcript(text: str, context: list[Segment], opts: Options) -> str:
-    """Redo: fix words speech recognition probably misheard (ones that don't exist or don't fit)."""
-    language = LANG_NAMES[opts.source]
-    before = "\n".join(c.text for c in context[-4:])
-    prompt = (
-        f"This {language} line was transcribed by speech recognition and may contain misheard words — for example "
-        f"words that don't exist in {language}, or that make no sense here. Fix only clear mistakes: replace them with "
-        "the real words that were most likely said (similar sound, fits the context). Keep everything else exactly as it "
-        "is, including casual or slang words that are real. Do not translate, rephrase or add anything."
-        + (f"\n\nEarlier lines:\n{before}" if before else "")
-        + f"\n\nLine: {text}\n\n"
-        'Reply with JSON only: {"text": "<the corrected line>"}'
-    )
-    fixed = _json(_complete_simple(prompt, max_tokens=300, effort="medium"))
-    out = str((fixed or {}).get("text") or "").strip()
-    return out or text
+def redo_line(heard: str, original: str, original_translation: str, before: list[Segment], after: list[str],
+              opts: Options) -> tuple[str, str]:
+    """Redo one line: compare the first transcript with a second listen, keep what was right, fix what wasn't,
+    and translate it again using the lines around it. Returns (text, translation)."""
+    src, tgt = LANG_NAMES[opts.source], LANG_NAMES[opts.target]
+    parts = [
+        f"A {src} conversation was transcribed by speech recognition and translated into {tgt}. The user thinks one "
+        "line may be wrong, so its audio was listened to again. Produce the best version of that line and its translation.",
+        "How to decide the line's text:\n"
+        "- The first transcript is usually right. Keep its words unless the second listen clearly heard a different, "
+        "similar-sounding word that makes more sense here, or a word in it doesn't exist in " + src + " or makes no sense.\n"
+        "- The second listen covers a little more audio than the line, so it may start or end with words from the "
+        "lines before or after. Ignore those; never move words from neighbouring lines into this one.\n"
+        "- Real casual, slang and colloquial words are correct; don't make them formal. Don't rephrase.",
+        "How to translate:\n"
+        "- Use the lines before and after to understand who is speaking about what.\n"
+        "- The old translation is there for reference: if it already says the right thing for the line's text, keep it. "
+        "Only change what is wrong or missing.",
+        SOURCE_NOTES.get(opts.source, ""),
+        TARGET_NOTES.get(opts.target, "Write natural, everyday {name}.").format(script=SCRIPT_NAMES[opts.script], name=tgt),
+        _style(opts),
+    ]
+    if opts.glossary:
+        parts.append("Glossary:\n" + "\n".join(f"- {g}" for g in opts.glossary))
+    if before:
+        parts.append("Lines before (with their translations):\n" + "\n".join(f"{c.text} => {c.translation}" for c in before))
+    if after:
+        parts.append("Lines after:\n" + "\n".join(after))
+    if original:
+        parts.append(f"First transcript of the line: {original}\nOld translation: {original_translation or '(none)'}")
+        parts.append(f"Second listen (the line plus a little either side): {heard}")
+    else:
+        parts.append(f"The line, as heard: {heard}")
+    parts.append('Reply with JSON only: {"text": "<the line in ' + src + '>", "translation": "<the line in ' + tgt + '>"}')
+    data = _json(_chat([{"role": "user", "content": "\n\n".join(p for p in parts if p)}], 0.1, "medium", 800)) or {}
+    text = str(data.get("text") or "").strip() or original or heard
+    translation = text if opts.same_language else str(data.get("translation") or "").strip()
+    if not translation:
+        raise ValueError("The translator didn't return a translation")
+    return text, translation
 
 
 def classify_register(words: list[str], lang: str) -> dict[str, tuple[str, str]]:

@@ -141,12 +141,16 @@ async def redo_line(
     start: float = Form(0.0),  # the line's place in the recording, in seconds
     end: float = Form(0.0),
     context: str = Form("[]"),  # a few lines before it: [{"text": ..., "translation": ...}]
+    after: str = Form("[]"),  # a few lines after it: ["text", ...]
+    original: str = Form(""),  # the line as first transcribed
+    original_translation: str = Form(""),
 ) -> RetranslateResponse:
-    """Listen to one line of a recording again, then translate it again."""
+    """Listen to one line of a recording again, then fix and translate it again, keeping what was already right."""
     try:
         opts = Options(**json.loads(options or "{}"))
         ctx = [Segment(id=-1 - i, start=0, end=0, text=c.get("text", ""), translation=c.get("translation", ""))
                for i, c in enumerate(json.loads(context or "[]")[-config.CONTEXT_SEGMENTS:])]
+        later = [str(t) for t in json.loads(after or "[]")[:3] if str(t).strip()]
     except Exception as e:
         raise HTTPException(status_code=422, detail=f"Bad options: {e}")
     if end <= start:
@@ -156,8 +160,11 @@ async def redo_line(
         tmp.write(await file.read())
         path = tmp.name
     clip = None
+    original = original.strip()
     try:
-        clip, seconds = await run_in_threadpool(audioclip.cut, path, start, end)
+        # Line timings are rough, so take a little extra on each side: cutting a word in half makes it
+        # mishear. When the first transcript is known, the comparison below ignores the extra words.
+        clip, seconds = await run_in_threadpool(audioclip.cut, path, start, end, 1.2 if original else 0.4)
         if seconds < 0.3:
             raise HTTPException(status_code=422, detail="That part of the recording is too short")
         raw, _ = await run_in_threadpool(asr.transcribe, clip, opts)
@@ -170,21 +177,18 @@ async def redo_line(
         if clip:
             os.unlink(clip)
     lines = clean_segments(raw, opts)
-    text = (" " if not opts.source_is_chinese else "").join(s.text for s in lines).strip()
-    if not text:
+    heard = (" " if not opts.source_is_chinese else "").join(s.text for s in lines).strip()
+    if not heard and not original:
         raise HTTPException(status_code=422, detail="Couldn't hear any speech in that part")
-    # Redo is the careful path: fix probable mishearings, then translate with more thought
     try:
-        fixed = await run_in_threadpool(translate.correct_transcript, text, ctx, opts)
-        text = to_script(fixed, opts.script) if opts.source_is_chinese else fixed
-    except Exception:
-        pass
-    line = Segment(id=0, start=0, end=0, text=text)
-    try:
-        result = await run_in_threadpool(translate.translate_lines, [line], ctx, opts, True)
+        text, translation = await run_in_threadpool(
+            translate.redo_line, heard, original, original_translation.strip(), ctx, later, opts
+        )
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"Translation failed: {e}")
-    translation, translation_pinyin = finish_translation(result.get(0, ""), opts)
+    if opts.source_is_chinese:
+        text = to_script(text, opts.script)
+    translation, translation_pinyin = finish_translation(translation, opts)
     return RetranslateResponse(
         text=text,
         pinyin=to_pinyin(text) if opts.pinyin and opts.source_is_chinese else None,

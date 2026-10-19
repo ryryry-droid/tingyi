@@ -9,7 +9,7 @@ from fastapi.testclient import TestClient
 
 from app import asr, config, models, translate
 from app.main import app
-from app.models import RawSegment
+from app.models import Options, RawSegment
 
 client = TestClient(app)
 
@@ -441,19 +441,55 @@ def test_redo_one_line(monkeypatch, tmp_path):
     for pk in st.encode(None):
         out.mux(pk)
     out.close()
+    prompts = []
+
+    def chat(messages, temperature, effort="low", max_tokens=None):
+        prompts.append((messages[-1]["content"], effort))
+        return '{"text": "我们周末去公园吧。", "translation": "Let\'s go to the park this weekend."}'
+
+    monkeypatch.setattr(translate, "_chat", chat)
     r = client.post(
         "/api/redo",
         files={"file": ("rec.m4a", path.read_bytes(), "audio/mp4")},
         data={"options": json.dumps({"source": "zh", "target": "en"}), "start": "3", "end": "5",
-              "context": json.dumps([{"text": "你好", "translation": "Hello"}])},
+              "context": json.dumps([{"text": "你好", "translation": "Hello"}]),
+              "after": json.dumps(["好啊"]), "original": "我们周末去公圆吧。",
+              "original_translation": "Let's go to the park this weekend."},
     )
     assert r.status_code == 200, r.text
     body = r.json()
-    assert body["text"] == "我们周末去公园吧。" and body["translation"] == "EN<我们周末去公园吧。>"
+    assert body["text"] == "我们周末去公园吧。" and body["translation"] == "Let's go to the park this weekend."
     assert body["pinyin"].startswith("wǒ men")
-    assert 2.5 < heard["seconds"] < 3.0  # just that line, plus a little padding
-    assert any("Hello" in p for p in fake.prompts)  # earlier lines were given as context
-    assert any("misheard words" in p for p in fake.prompts)  # Redo checks for mishearings first
+    assert 4.0 < heard["seconds"] < 4.6  # that line plus a little either side, so no word is cut in half
+    prompt, effort = prompts[0]
+    assert effort == "medium"
+    # it compares the first transcript with the second listen, with the lines around it and the old translation
+    for bit in ("你好 => Hello", "好啊", "我们周末去公圆吧。", "我们周末去公园吧。", "usually right", "Old translation: Let's go"):
+        assert bit in prompt, bit
+
+    # older apps that don't send the first transcript still work
+    prompts.clear()
+    r = client.post(
+        "/api/redo",
+        files={"file": ("rec.m4a", path.read_bytes(), "audio/mp4")},
+        data={"options": json.dumps({"source": "zh", "target": "en"}), "start": "3", "end": "5"},
+    )
+    assert r.status_code == 200, r.text
+    assert 2.5 < heard["seconds"] < 3.0
+    assert "The line, as heard" in prompts[0][0]
+
+
+def test_whisper_prompt_echo_is_dropped():
+    o = Options(source="id", glossary=["Budi = Budi", "Kopi Kenangan"])
+    prompt = asr._prompt(o)
+    assert "Kosakata" not in prompt
+    segs = [RawSegment(start=0, end=1, text=t) for t in [
+        "Kosakata: Budi, Kopi Kenangan.", "Kosakata", "Budi, Kopi Kenangan.", "Kosakata: Saya makan nasi.",
+        "Saya mau ke Kopi Kenangan sama Budi.", "Budi.", "Kosakata bahasa Inggris saya bagus.",
+    ]]
+    assert [s.text for s in asr._drop_echo(segs, prompt)] == [
+        "Saya makan nasi.", "Saya mau ke Kopi Kenangan sama Budi.", "Budi.", "Kosakata bahasa Inggris saya bagus.",
+    ]
 
 
 def test_lookup_flags_words_that_dont_exist(monkeypatch):
