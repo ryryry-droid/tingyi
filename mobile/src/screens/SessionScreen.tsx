@@ -208,7 +208,6 @@ export default function SessionScreen(p: Props) {
   }
 
   const lineCount = session.segments.length;
-  const tappable = session.segments.some((seg) => LOOKUP_LANGS.includes(srcOf(seg)) || LOOKUP_LANGS.includes(tgtOf(seg)));
   const e = lookup?.entry;
   const lookHan = lookup ? isChinese(lookup.lang) : false;
   const saved = !!(lookup && e && p.words.some((w) => w.id === wordId(lookup.lang, e.word)));
@@ -269,11 +268,7 @@ export default function SessionScreen(p: Props) {
           keyExtractor={(s) => String(s.id)}
           contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 24 }}
           ListHeaderComponent={
-            lineCount ? (
-              <Text style={[styles.tip, { color: c.faint }]}>
-                Tap ▶ to replay a line.{tappable ? ' Tap a word to look it up.' : ''} Tap Edit to fix a line yourself, or Redo to have it listened to and translated again. Tap the title to rename.
-              </Text>
-            ) : (
+            lineCount ? undefined : (
               <Text style={[styles.tip, { color: c.muted, fontSize: 15 }]}>No speech was found in this recording.</Text>
             )
           }

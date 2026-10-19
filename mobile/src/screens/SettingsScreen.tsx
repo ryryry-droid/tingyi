@@ -52,42 +52,7 @@ export default function SettingsScreen({ settings: s, onChange, toast, buzzPrevi
 
   return (
     <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
-      <Label>Server address</Label>
-      <TextInput
-        value={s.serverUrl}
-        onChangeText={(v) => set('serverUrl', v)}
-        autoCapitalize="none"
-        autoCorrect={false}
-        keyboardType="url"
-        placeholder="https://tingyi-xxxx.onrender.com"
-        placeholderTextColor={c.faint}
-        style={input}
-      />
-      <Text style={hint}>The link of your Render server, the same one you open in Chrome.</Text>
-
-      <Label style={styles.gap}>Access code</Label>
-      <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
-        <TextInput
-          value={s.apiToken}
-          onChangeText={(v) => set('apiToken', v)}
-          autoCapitalize="none"
-          autoCorrect={false}
-          secureTextEntry={!showCode}
-          placeholder="The API_TOKEN you set on Render"
-          placeholderTextColor={c.faint}
-          style={[input, { flex: 1 }]}
-        />
-        <Pressable onPress={() => setShowCode((v) => !v)} hitSlop={8}>
-          <Text style={{ color: c.accent, fontSize: 14, fontWeight: '700' }}>{showCode ? 'Hide' : 'Show'}</Text>
-        </Pressable>
-      </View>
-      <Text style={hint}>Keeps strangers from using your API credits. Stored only on this phone.</Text>
-      <Pressable onPress={test} style={styles.testButton} disabled={testing}>
-        {testing ? <ActivityIndicator color={c.accent} /> : <Text style={{ color: c.accent, fontSize: 15, fontWeight: '700' }}>Test connection</Text>}
-      </Pressable>
-      {testResult && <Text style={[styles.help, { color: testResult.ok ? c.ok : c.rec }]}>{testResult.text}</Text>}
-
-      <Label style={styles.gap}>Languages</Label>
+      <Label>Languages</Label>
       <Pressable
         onPress={() => setLangsOpen((v) => !v)}
         accessibilityRole="button"
@@ -218,6 +183,41 @@ export default function SettingsScreen({ settings: s, onChange, toast, buzzPrevi
         style={[input, { minHeight: 110, textAlignVertical: 'top' }]}
       />
       <Text style={hint}>One per line, in any of the languages. Helps names get heard correctly and translated consistently.</Text>
+
+      <Label style={styles.gap}>Server address</Label>
+      <TextInput
+        value={s.serverUrl}
+        onChangeText={(v) => set('serverUrl', v)}
+        autoCapitalize="none"
+        autoCorrect={false}
+        keyboardType="url"
+        placeholder="https://tingyi-xxxx.onrender.com"
+        placeholderTextColor={c.faint}
+        style={input}
+      />
+      <Text style={hint}>The link of your Render server, the same one you open in Chrome.</Text>
+
+      <Label style={styles.gap}>Access code</Label>
+      <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
+        <TextInput
+          value={s.apiToken}
+          onChangeText={(v) => set('apiToken', v)}
+          autoCapitalize="none"
+          autoCorrect={false}
+          secureTextEntry={!showCode}
+          placeholder="The API_TOKEN you set on Render"
+          placeholderTextColor={c.faint}
+          style={[input, { flex: 1 }]}
+        />
+        <Pressable onPress={() => setShowCode((v) => !v)} hitSlop={8}>
+          <Text style={{ color: c.accent, fontSize: 14, fontWeight: '700' }}>{showCode ? 'Hide' : 'Show'}</Text>
+        </Pressable>
+      </View>
+      <Text style={hint}>Keeps strangers from using your API credits. Stored only on this phone.</Text>
+      <Pressable onPress={test} style={styles.testButton} disabled={testing}>
+        {testing ? <ActivityIndicator color={c.accent} /> : <Text style={{ color: c.accent, fontSize: 15, fontWeight: '700' }}>Test connection</Text>}
+      </Pressable>
+      {testResult && <Text style={[styles.help, { color: testResult.ok ? c.ok : c.rec }]}>{testResult.text}</Text>}
 
       <Label style={styles.gap}>Back up and restore</Label>
       <View style={{ flexDirection: 'row', gap: 10 }}>
