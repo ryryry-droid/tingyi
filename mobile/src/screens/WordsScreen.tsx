@@ -7,7 +7,7 @@ import { liveTranscribe, lookupWord, options } from '../api';
 import { Btn, Label, NotAWord, Pinyin, Segmented, Sheet, sheetStyles, TextBtn, Working } from '../components';
 import { speakWord } from '../speech';
 import { deaccent, formatDate, HAN_FONT, useColors } from '../theme';
-import { caseFor, DEFAULT_TEST_SETUP, LANGS, LookupEntry, Settings, TestKind, TestSetup, Word, WORD_EXAMPLE, wordId, wordLangOf, wordLangs } from '../types';
+import { caseFor, DEFAULT_TEST_SETUP, LANGS, learningLang, LookupEntry, Settings, TestKind, TestSetup, Word, WORD_EXAMPLE, wordId, wordLangOf, wordLangs } from '../types';
 import { cleanWord } from '../words';
 import { ExampleBox } from './SessionScreen';
 
@@ -42,7 +42,7 @@ export function testPool(words: Word[], group: string): Word[] {
 export default function WordsScreen(p: Props) {
   const { settings, words } = p;
   const c = useColors();
-  const [filter, setFilter] = useState('all');
+  const [filter, setFilter] = useState(() => learningLang(settings)); // opens on your main learning language
   const [colloqOnly, setColloqOnly] = useState(false);
   const isColloq = (w: Word) => w.register === 'colloquial';
   const [search, setSearch] = useState('');
@@ -109,7 +109,7 @@ export default function WordsScreen(p: Props) {
               style={[styles.search, { borderColor: c.line, backgroundColor: c.surface, color: c.ink }]}
             />
             <View style={styles.filter}>
-              {[['all', 'All'] as [string, string], ...(have.length > 1 ? have : [])].map(([code, label]) => (
+              {[['all', 'All'] as [string, string], ...(have.length > 1 || f !== 'all' ? have : [])].map(([code, label]) => (
                 <Pressable
                   key={code}
                   onPress={() => {
@@ -171,13 +171,15 @@ export default function WordsScreen(p: Props) {
                 >
                   <Text style={{ fontSize: 13 }}>🔊</Text>
                 </Pressable>
-                <Text style={[{ fontSize: 22, color: c.ink }, han && { fontFamily: HAN_FONT, fontWeight: '600' }]}>{w.word}</Text>
-                {settings.pinyin && w.pinyin ? <Pinyin value={w.pinyin} /> : null}
-                {w.part_of_speech ? <Text style={[sheetStyles(c).pos, { marginTop: 0, alignSelf: 'center' }]}>{w.part_of_speech}</Text> : null}
-                {isColloq(w) ? (
-                  <Text style={[sheetStyles(c).pos, { marginTop: 0, alignSelf: 'center', color: c.yellowText, backgroundColor: c.yellowSoft }]}>colloquial</Text>
-                ) : null}
-                <View style={{ flex: 1 }} />
+                {/* the word, pinyin and tags wrap among themselves, so Edit stays on the first line */}
+                <View style={styles.wmain}>
+                  <Text style={[{ fontSize: 22, color: c.ink, flexShrink: 1 }, han && { fontFamily: HAN_FONT, fontWeight: '600' }]}>{w.word}</Text>
+                  {settings.pinyin && w.pinyin ? <Pinyin value={w.pinyin} /> : null}
+                  {w.part_of_speech ? <Text style={[sheetStyles(c).pos, { marginTop: 0, alignSelf: 'center' }]}>{w.part_of_speech}</Text> : null}
+                  {isColloq(w) ? (
+                    <Text style={[sheetStyles(c).pos, { marginTop: 0, alignSelf: 'center', color: c.yellowText, backgroundColor: c.yellowSoft }]}>colloquial</Text>
+                  ) : null}
+                </View>
                 <TextBtn title="Edit" color={c.accent} bold onPress={() => setEditingWord(w)} />
               </View>
               <Text style={{ color: c.ink, fontSize: 16 }}>
@@ -255,10 +257,14 @@ function AddWordSheet({ settings, words, onSaveWord, toast, onClose }: Props & {
   const ss = sheetStyles(c);
   const langs = wordLangs(settings.langs, words);
   const codes = langs.map(([code]) => code);
-  const src = wordLangOf(settings.source);
-  const [lang, setLang] = useState(codes.includes(src) ? src : codes.includes(settings.target) ? settings.target : codes[0] || 'zh');
+  const main = learningLang(settings);
+  const [lang, setLang] = useState(codes.includes(main) ? main : codes[0] || 'zh');
   const [text, setText] = useState('');
-  const [fromEn, setFromEn] = useState(false); // typing or saying an English word
+  const [fromEn, setFromEn] = useState(true); // typing or saying an English word (on to start with)
+  // An English word with several meanings ("track"): pick which. senses[0] is the one looked up first.
+  const [senses, setSenses] = useState<NonNullable<LookupEntry['senses']>>([]);
+  const [sense, setSense] = useState('');
+  const first = useRef<LookupEntry | null>(null);
   const [entry, setEntry] = useState<LookupEntry | null>(null);
   const [meaning, setMeaning] = useState('');
   const [loading, setLoading] = useState<string | false>(false);
@@ -279,18 +285,24 @@ function AddWordSheet({ settings, words, onSaveWord, toast, onClose }: Props & {
   const han = lang === 'zh';
   const saved = !!entry && words.some((w) => w.id === wordId(lang, entry.word));
 
-  async function doLookup(raw = text) {
+  async function doLookup(raw = text, which = '') {
     const word = cleanWord(raw);
     if (!word) return;
     setText(word);
     setError('');
     setEntry(null);
-    setLoading('Looking it up…');
+    setSense(which);
+    if (!which) {
+      setSenses([]);
+      first.current = null;
+    }
+    setLoading(which ? `Looking up “${word}” as in ${which}…` : 'Looking it up…');
     try {
-      const e = await lookupWord(settings, word, fromEn ? '' : word, lang, fromEn);
+      const e = await lookupWord(settings, word, fromEn ? '' : word, lang, fromEn, which);
       if (!alive.current) return;
       setEntry(e);
       setMeaning(e.meaning);
+      if (!which) setSenses(fromEn && e.senses && e.senses.length > 1 ? e.senses : []);
     } catch (e: any) {
       if (alive.current) setError(String(e?.message ?? e));
     }
@@ -451,7 +463,37 @@ function AddWordSheet({ settings, words, onSaveWord, toast, onClose }: Props & {
           {fromEn ? (
             <Text style={{ color: c.muted, fontSize: 13, fontWeight: '600' }}>
               “{text}” in {lang === 'zh' ? 'Chinese' : LANGS[lang] || lang}
+              {senses.length > 1 ? ' has more than one meaning. Which one?' : ''}
             </Text>
+          ) : null}
+          {fromEn && senses.length > 1 ? (
+            <View style={{ gap: 6 }}>
+              {senses.map((x, i) => {
+                const on = (sense || senses[0].sense) === x.sense;
+                return (
+                  <Pressable
+                    key={x.sense}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: on }}
+                    onPress={() => {
+                      if (on) return;
+                      if (i === 0 && first.current) {
+                        setSense('');
+                        setEntry(first.current);
+                        setMeaning(first.current.meaning);
+                        return;
+                      }
+                      if (!first.current) first.current = entry; // keep the first answer, so going back to it is instant
+                      doLookup(text, x.sense);
+                    }}
+                    style={[styles.sense, { borderColor: on ? c.accent : c.line, backgroundColor: on ? c.accentSoft : c.surface }]}
+                  >
+                    <Text style={{ flex: 1, color: c.ink, fontWeight: '600', fontSize: 14 }}>{x.sense}</Text>
+                    <Text style={[{ color: on ? c.accent : c.muted, fontWeight: on ? '700' : '500', fontSize: 14 }, han && { fontFamily: HAN_FONT }]}>{x.word}</Text>
+                  </Pressable>
+                );
+              })}
+            </View>
           ) : null}
           <View>
             <Text style={[{ fontSize: 32, color: c.ink }, han && { fontFamily: HAN_FONT, fontWeight: '600' }]}>{entry.word}</Text>
@@ -496,7 +538,8 @@ function EditWordSheet({ word: w, onClose, onSave }: { word: Word; onClose: () =
   const [word, setWord] = useState(w.word);
   const [pinyin, setPinyin] = useState(w.pinyin || '');
   const [meaning, setMeaning] = useState(w.meaning);
-  const [notes, setNotes] = useState(w.notes || '');
+  const [exText, setExText] = useState(w.example?.text || '');
+  const [exTr, setExTr] = useState(w.example?.translation || '');
   const field = [styles.meaning, { borderColor: c.line, backgroundColor: c.bg, color: c.ink, minHeight: 0 }];
   return (
     <Sheet visible onClose={onClose}>
@@ -511,12 +554,21 @@ function EditWordSheet({ word: w, onClose, onSave }: { word: Word; onClose: () =
       ) : null}
       <Text style={ss.k}>Meaning</Text>
       <TextInput value={meaning} onChangeText={setMeaning} multiline style={[field, { minHeight: 64 }]} />
-      <Text style={ss.k}>Note</Text>
+      <Text style={ss.k}>Example sentence</Text>
       <TextInput
-        value={notes}
-        onChangeText={setNotes}
+        value={exText}
+        onChangeText={setExText}
         multiline
-        placeholder="Anything you want to remember about it"
+        placeholder="A sentence using the word"
+        placeholderTextColor={c.faint}
+        style={[field, { minHeight: 64 }, han && { fontFamily: HAN_FONT }]}
+      />
+      <Text style={ss.k}>Example in English</Text>
+      <TextInput
+        value={exTr}
+        onChangeText={setExTr}
+        multiline
+        placeholder="What the sentence means"
         placeholderTextColor={c.faint}
         style={[field, { minHeight: 64 }]}
       />
@@ -531,7 +583,14 @@ function EditWordSheet({ word: w, onClose, onSave }: { word: Word; onClose: () =
               word: caseFor(word.trim(), w.part_of_speech),
               pinyin: pinyin.trim(),
               meaning: meaning.trim() || w.meaning,
-              notes: notes.trim(),
+              example: exText.trim()
+                ? {
+                    ...(w.example || {}),
+                    text: exText.trim(),
+                    translation: exTr.trim(),
+                    pinyin: exText.trim() === w.example?.text ? w.example?.pinyin : null,
+                  }
+                : null,
             })
           }
         />
@@ -621,12 +680,14 @@ const styles = StyleSheet.create({
   chip: { borderWidth: 1, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 5 },
   wrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   card: { paddingVertical: 14, borderBottomWidth: StyleSheet.hairlineWidth, gap: 4 },
-  top: { flexDirection: 'row', alignItems: 'center', gap: 10, flexWrap: 'wrap' },
+  top: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  wmain: { flex: 1, minWidth: 0, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', columnGap: 10, rowGap: 4 },
   spk: { width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center' },
   src: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   addInput: { flex: 1, minWidth: 0, borderWidth: 1.5, borderRadius: 14, paddingHorizontal: 14, paddingVertical: 12, fontSize: 20, fontWeight: '700' },
   mic: { width: 52, height: 52, borderRadius: 26, alignItems: 'center', justifyContent: 'center' },
   meaning: { minHeight: 64, borderWidth: 1.5, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, fontSize: 17, fontWeight: '700', textAlignVertical: 'top' },
+  sense: { flexDirection: 'row', alignItems: 'center', gap: 10, borderWidth: 1.5, borderRadius: 12, paddingVertical: 9, paddingHorizontal: 12 },
   kind: { flexDirection: 'row', gap: 12, alignItems: 'center', borderRadius: 14, paddingVertical: 10, paddingHorizontal: 12, borderWidth: 1.5 },
   box: { width: 22, height: 22, borderRadius: 6, borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
 });

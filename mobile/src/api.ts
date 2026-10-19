@@ -119,8 +119,8 @@ export function retranslate(
 }
 
 /** fromEnglish: "word" is English, find how to say it in lang. */
-export function lookupWord(s: Settings, word: string, sentence: string, lang: string, fromEnglish = false): Promise<LookupEntry> {
-  return postJson(s, '/api/lookup', { word, sentence, lang, script: s.script, from_english: fromEnglish });
+export function lookupWord(s: Settings, word: string, sentence: string, lang: string, fromEnglish = false, sense = ''): Promise<LookupEntry> {
+  return postJson(s, '/api/lookup', { word, sentence, lang, script: s.script, from_english: fromEnglish, sense });
 }
 
 /** Which of these words are colloquial (for words saved before this was recorded). */

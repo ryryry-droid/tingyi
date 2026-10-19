@@ -86,6 +86,7 @@ export type Settings = {
   vibrate: boolean;
   cry: boolean; // Chatot's cry when you tap record
   langs: string[]; // the languages shown in the pickers
+  mainLang: string; // the language you're mainly learning: Words opens on it, Add word starts in it ('' = first)
 };
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -101,6 +102,7 @@ export const DEFAULT_SETTINGS: Settings = {
   vibrate: true,
   cry: true,
   langs: DEFAULT_LANGS,
+  mainLang: '',
 };
 
 export type Example = { text: string; pinyin?: string | null; translation: string };
@@ -119,6 +121,7 @@ export type LookupEntry = {
   standard?: string; // standard form of a colloquial word (gak -> tidak)
   exists?: boolean; // false when it isn't a real word (often a mishearing)
   suggestions?: string[]; // real words that were probably meant
+  senses?: { sense: string; word: string; pinyin?: string | null }[]; // an English word's different meanings (Add word in English)
 };
 
 export type Word = {
@@ -149,6 +152,14 @@ export type TestSetup = { group: string; count: number; kinds: TestKind[] };
 export const DEFAULT_TEST_SETUP: TestSetup = { group: 'all', count: 10, kinds: ['meaning', 'word', 'gap'] };
 
 export const wordLangOf = (lang: string): WordLang => (isChinese(lang) ? 'zh' : lang);
+
+/** Your languages you can learn (not English), Cantonese counted as Chinese. */
+export const learnLangs = (langs: string[]) => [...new Set(langs.filter((c) => c !== 'en').map(wordLangOf))];
+/** The main learning language from Settings, or your first one. */
+export function learningLang(s: { langs: string[]; mainLang?: string }): string {
+  const mine = learnLangs(s.langs);
+  return s.mainLang && mine.includes(s.mainLang) ? s.mainLang : mine[0] || 'zh';
+}
 
 /** Languages you can save and test words in: your languages except English, plus any you have saved words in. */
 export function wordLangs(langs: string[], words: { lang: string }[]): [string, string][] {

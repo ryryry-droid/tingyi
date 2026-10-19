@@ -5,7 +5,7 @@ import { checkServer } from '../api';
 import { playCry } from '../sounds';
 import { Label, Segmented } from '../components';
 import { useColors } from '../theme';
-import { CATALOG, distinctLangs, fixPair, LANGS, Settings } from '../types';
+import { CATALOG, distinctLangs, fixPair, LANGS, learningLang, learnLangs, Settings } from '../types';
 
 type Props = {
   settings: Settings;
@@ -107,6 +107,13 @@ export default function SettingsScreen({ settings: s, onChange, toast, buzzPrevi
           );
         })}
       </View>
+
+      <Label style={styles.gap}>Main learning language</Label>
+      <Segmented
+        value={learningLang(s)}
+        onChange={(v) => set('mainLang', v)}
+        options={learnLangs(s.langs).map((code) => ({ value: code, label: code === 'zh' ? 'Chinese' : LANGS[code] }))}
+      />
 
       <Label style={styles.gap}>Chinese characters</Label>
       <Segmented

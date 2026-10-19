@@ -129,7 +129,7 @@ export function Segmented<T extends string>({
             onPress={() => onChange(o.value)}
             style={[styles.segment, on && { backgroundColor: c.surface }]}
           >
-            <Text numberOfLines={1} style={{ fontSize: 14, color: on ? c.ink : c.muted, fontWeight: on ? '800' : '600' }}>
+            <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75} style={{ fontSize: 14, color: on ? c.ink : c.muted, fontWeight: on ? '800' : '600' }}>
               {o.label}
             </Text>
           </Pressable>
