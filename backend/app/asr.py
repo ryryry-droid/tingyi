@@ -77,7 +77,7 @@ _DETECTED = {
     "vietnamese": "vi", "vi": "vi",
     "thai": "th", "tagalog": "tl", "filipino": "tl", "khmer": "km", "japanese": "ja", "korean": "ko",
     "hindi": "hi", "tamil": "ta", "spanish": "es", "castilian": "es", "french": "fr", "german": "de",
-    "italian": "it", "portuguese": "pt", "russian": "ru", "arabic": "ar",
+    "italian": "it", "portuguese": "pt", "russian": "ru", "arabic": "ar", "turkish": "tr",
     **{code: code for code in LANG_NAMES},
     # often reported for Indonesian speech
     "javanese": "id", "jw": "id", "sundanese": "id", "su": "id",

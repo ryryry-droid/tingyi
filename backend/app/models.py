@@ -27,13 +27,14 @@ LANG_NAMES = {
     "pt": "Portuguese",
     "ru": "Russian",
     "ar": "Arabic",
+    "tr": "Turkish",
 }
 # Spoken languages
-Source = Literal["zh", "yue", "id", "ms", "vi", "en", "th", "tl", "km", "ja", "ko", "hi", "ta", "es", "fr", "de", "it", "pt", "ru", "ar"]
+Source = Literal["zh", "yue", "id", "ms", "vi", "en", "th", "tl", "km", "ja", "ko", "hi", "ta", "es", "fr", "de", "it", "pt", "ru", "ar", "tr"]
 # Languages to translate into (Cantonese is translated into written Chinese)
-Target = Literal["en", "zh", "id", "ms", "vi", "th", "tl", "km", "ja", "ko", "hi", "ta", "es", "fr", "de", "it", "pt", "ru", "ar"]
+Target = Literal["en", "zh", "id", "ms", "vi", "th", "tl", "km", "ja", "ko", "hi", "ta", "es", "fr", "de", "it", "pt", "ru", "ar", "tr"]
 # Languages whose words can be looked up (everything except English)
-LookupLang = Literal["zh", "yue", "id", "ms", "vi", "th", "tl", "km", "ja", "ko", "hi", "ta", "es", "fr", "de", "it", "pt", "ru", "ar"]
+LookupLang = Literal["zh", "yue", "id", "ms", "vi", "th", "tl", "km", "ja", "ko", "hi", "ta", "es", "fr", "de", "it", "pt", "ru", "ar", "tr"]
 CHINESE = {"zh", "yue"}
 
 

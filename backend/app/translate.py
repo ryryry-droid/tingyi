@@ -37,6 +37,8 @@ SOURCE_NOTES = {
     "with English. Convey the tone of particles like lah, kan, kot.",
     "vi": "Spoken Vietnamese may drop pronouns and use kinship terms (anh, chị, em, cô, chú) as pronouns; choose natural "
     "English pronouns from context. Particles like nhé, nha, ạ, à, đấy carry tone and politeness.",
+    "tr": "Spoken Turkish often drops subject pronouns and uses suffixes for politeness and tense; casual speech may "
+    "include fillers like yani, şey, işte. Convey tone (e.g. -sın/-sınız formality) naturally.",
     "en": "Spoken English may include fillers (um, like, you know) which should be dropped.",
 }
 TARGET_NOTES = {

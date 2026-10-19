@@ -564,3 +564,15 @@ def test_in_depth_checks_go_to_gemini(monkeypatch):
     used.clear()
     client.post("/api/lookup", json={"word": "makan", "lang": "id"})
     assert used == [("gemini-3.8-flash", "medium"), ("gemini-3.8-flash", "medium")]  # lookup + its check: Gemini
+
+
+
+def test_turkish(monkeypatch):
+    fake = setup(monkeypatch)
+    client.post("/api/retranslate", json={"text": "Nasılsın?", "options": {"source": "tr", "target": "en"}})
+    assert "from Turkish into English" in fake.prompts[0] and "yani" in fake.prompts[0]
+    run, calls = _fake_run("turkish", "Merhaba")
+    monkeypatch.setattr(asr, "_run", run)
+    r = client.post("/api/live/transcribe", files={"file": ("c.wav", b"x", "audio/wav")},
+                    data={"options": json.dumps({"source": "en", "target": "tr"}), "detect": "true"})
+    assert r.json()["segments"][0]["lang"] == "tr"

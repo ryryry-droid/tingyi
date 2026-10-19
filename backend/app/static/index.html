@@ -567,6 +567,7 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
     ['fr', 'French', 'French Français', 'merci', 'fr-FR'], ['de', 'German', 'German Deutsch', 'danke', 'de-DE'],
     ['it', 'Italian', 'Italian Italiano', 'grazie', 'it-IT'], ['pt', 'Portuguese', 'Portuguese Português', 'obrigado', 'pt-BR'],
     ['ru', 'Russian', 'Russian Русский', 'спасибо', 'ru-RU'], ['ar', 'Arabic', 'Arabic العربية', 'شكرا', 'ar-SA'],
+    ['tr', 'Turkish', 'Turkish Türkçe', 'teşekkürler', 'tr-TR'],
   ];
   const LANGS = Object.fromEntries(CATALOG.map(([c, n]) => [c, n]));
   const LANG_LABEL = Object.fromEntries(CATALOG.map(([c, , l]) => [c, l]));
@@ -1823,7 +1824,7 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
   try { testSetup = { ...testSetup, ...JSON.parse(localStorage.getItem('tingyi.testSetup') || '{}') }; } catch {}
   let test = null;
   const shuffle = (xs) => { const a = xs.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
-  const toneless = (t) => String(t || '').replace(/[đĐ]/g, 'd').normalize('NFD').replace(/[̀-ͯ]/g, '').normalize('NFC').toLowerCase().replace(/[\s\p{P}\p{S}]/gu, '');
+  const toneless = (t) => String(t || '').replace(/[đĐ]/g, 'd').replace(/[ıİ]/g, 'i').normalize('NFD').replace(/[̀-ͯ]/g, '').normalize('NFC').toLowerCase().replace(/[\s\p{P}\p{S}]/gu, '');
 
   function testPool(group) {
     if (wordLangs().some(([c]) => c === group)) return words.filter((w) => w.lang === group);
