@@ -17,3 +17,5 @@ services:
         sync: false
       - key: API_TOKEN         # any access code you make up; you'll type it into the page once
         sync: false
+      - key: GEMINI_API_KEY    # optional backup translator, from aistudio.google.com → Get API key (free tier)
+        sync: false

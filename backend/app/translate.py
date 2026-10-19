@@ -62,11 +62,45 @@ def _client():
     return Anthropic()
 
 
-def _openai_client():
-    from openai import OpenAI
+import time
 
-    # retries back off and honour "retry-after" when a free-plan rate limit is hit
-    return OpenAI(base_url=config.OPENAI_BASE_URL, api_key=config.OPENAI_API_KEY or None, max_retries=6)
+_resting: dict[str, float] = {}  # service name -> time until which it's skipped (its limit was reached)
+
+
+def _chat(messages: list[dict], temperature: float, effort: str = "low", max_tokens: int | None = None) -> str:
+    """One chat request to the OpenAI-compatible services in config.CHAT_SERVICES, in order.
+
+    When a service hits its rate limit (e.g. a free plan's daily allowance), the next one is used, and the
+    limited one is left alone for a while."""
+    from openai import BadRequestError, OpenAI, RateLimitError
+
+    services = config.CHAT_SERVICES
+    available = [s for s in services if _resting.get(s[0], 0) <= time.time()] or services[-1:]
+    last_error: Exception | None = None
+    for i, (name, base_url, key, model) in enumerate(available):
+        has_backup = i < len(available) - 1
+        # with a backup, don't wait long on a limited service; on the last one, retries back off and
+        # honour "retry-after"
+        client = OpenAI(base_url=base_url, api_key=key or None, max_retries=1 if has_backup else 6)
+        args: dict = dict(model=model, messages=messages, temperature=temperature, response_format={"type": "json_object"})
+        if "gpt-oss" in model or "gemini" in model:
+            args["reasoning_effort"] = effort  # "low" normally: less hidden reasoning = fewer tokens against limits
+        if max_tokens and "gpt-oss" in model and effort != "low":
+            args["max_completion_tokens"] = max_tokens + 3000  # room to think before answering
+        try:
+            try:
+                response = client.chat.completions.create(**args)
+            except BadRequestError:
+                args.pop("response_format", None)  # in case a service doesn't support JSON mode
+                response = client.chat.completions.create(**args)
+            return response.choices[0].message.content or ""
+        except RateLimitError as e:
+            last_error = e
+            daily = any(w in str(e).lower() for w in ("per day", "daily", "quota", "rpd", "tpd"))
+            _resting[name] = time.time() + (3600 if daily else 60)
+            if not has_backup:
+                raise
+    raise last_error or RuntimeError("No translation service available")
 
 
 def _complete(prompt: str, effort: str = "low") -> str:
@@ -80,16 +114,7 @@ def _complete(prompt: str, effort: str = "low") -> str:
         )
         return "".join(b.text for b in response.content if getattr(b, "type", "") == "text")
 
-    args = dict(
-        model=config.OPENAI_TRANSLATE_MODEL,
-        messages=[{"role": "system", "content": SYSTEM}, {"role": "user", "content": prompt}],
-        response_format={"type": "json_object"},
-        temperature=0.2,
-    )
-    if "gpt-oss" in config.OPENAI_TRANSLATE_MODEL:
-        args["reasoning_effort"] = effort  # "low" normally: less hidden reasoning = fewer tokens against the limit
-    response = _openai_client().chat.completions.create(**args)
-    return response.choices[0].message.content or ""
+    return _chat([{"role": "system", "content": SYSTEM}, {"role": "user", "content": prompt}], 0.2, effort)
 
 
 def _build_prompt(lines: list[Segment], context: list[Segment], opts: Options) -> str:
@@ -195,18 +220,7 @@ def _complete_simple(prompt: str, max_tokens: int = 200, effort: str = "low") ->
             model=config.ANTHROPIC_MODEL, max_tokens=max_tokens, messages=[{"role": "user", "content": prompt}]
         )
         return "".join(b.text for b in response.content if getattr(b, "type", "") == "text")
-    args = dict(
-        model=config.OPENAI_TRANSLATE_MODEL,
-        messages=[{"role": "user", "content": prompt}],
-        response_format={"type": "json_object"},
-        temperature=0.3 if effort == "low" else 0.1,
-    )
-    if "gpt-oss" in config.OPENAI_TRANSLATE_MODEL:
-        args["reasoning_effort"] = effort
-        if effort != "low":
-            args["max_completion_tokens"] = max_tokens + 3000  # room to think before answering
-    response = _openai_client().chat.completions.create(**args)
-    return response.choices[0].message.content or ""
+    return _chat([{"role": "user", "content": prompt}], 0.3 if effort == "low" else 0.1, effort, max_tokens)
 
 
 LOOKUP_LANG = {"zh": "Mandarin Chinese", "yue": "Cantonese", "id": "Indonesian", "ms": "Malay", "vi": "Vietnamese"}

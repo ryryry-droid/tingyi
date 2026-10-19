@@ -123,7 +123,7 @@ def test_groq_style_translator(monkeypatch):
     calls = []
 
     class FakeOpenAI:
-        def __init__(self):
+        def __init__(self, **kw):
             self.chat = SimpleNamespace(completions=SimpleNamespace(create=self.create))
 
         def create(self, **kwargs):
@@ -137,8 +137,10 @@ def test_groq_style_translator(monkeypatch):
 
     setup(monkeypatch)
     monkeypatch.setattr(config, "TRANSLATE_PROVIDER", "openai")
-    monkeypatch.setattr(config, "OPENAI_TRANSLATE_MODEL", "openai/gpt-oss-120b")
-    monkeypatch.setattr(translate, "_openai_client", lambda: FakeOpenAI())
+    monkeypatch.setattr(config, "CHAT_SERVICES", [("groq", "https://groq", "k", "openai/gpt-oss-120b")])
+    import openai
+
+    monkeypatch.setattr(openai, "OpenAI", FakeOpenAI)
     r = client.post("/api/translate", files={"file": ("a.webm", b"x", "audio/webm")}, data={"options": "{}"})
     assert r.status_code == 200, r.text
     assert r.json()["segments"][0]["en"] == "G<你好，我是王小明。>"
@@ -487,3 +489,41 @@ def test_lookup_strict_by_default(monkeypatch):
     calls.clear()
     client.post("/api/lookup", json={"word": "makan", "lang": "id"})
     assert calls == ["medium", "medium"]  # by default every lookup is thorough and double-checked
+
+
+
+def test_backup_translator_when_groq_runs_out(monkeypatch):
+    """Groq's daily allowance used up -> the same request goes to Gemini, and Groq is rested for a while."""
+    import httpx
+    import openai
+
+    used = []
+
+    class FakeOpenAI:
+        def __init__(self, base_url=None, **kw):
+            self.base_url = base_url
+            self.chat = SimpleNamespace(completions=SimpleNamespace(create=self.create))
+
+        def create(self, **kwargs):
+            used.append(kwargs["model"])
+            if "groq" in self.base_url:
+                resp = httpx.Response(429, request=httpx.Request("POST", "https://groq"))
+                raise openai.RateLimitError("Rate limit reached: tokens per day (TPD)", response=resp, body=None)
+            out = {"translations": [{"id": 0, "text": "Hello"}]}
+            return SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content=json.dumps(out)))])
+
+    setup(monkeypatch)
+    monkeypatch.setattr(config, "TRANSLATE_PROVIDER", "openai")
+    monkeypatch.setattr(config, "CHAT_SERVICES", [
+        ("groq", "https://groq", "k1", "openai/gpt-oss-120b"),
+        ("gemini", "https://gemini", "k2", "gemini-3.8-flash"),
+    ])
+    monkeypatch.setattr(openai, "OpenAI", FakeOpenAI)
+    monkeypatch.setattr(translate, "_resting", {})
+    r = client.post("/api/retranslate", json={"text": "你好", "options": {"source": "zh", "target": "en"}})
+    assert r.status_code == 200 and r.json()["translation"] == "Hello"
+    assert used == ["openai/gpt-oss-120b", "gemini-3.8-flash"]
+    # next request skips Groq while it rests
+    used.clear()
+    client.post("/api/retranslate", json={"text": "再见", "options": {"source": "zh", "target": "en"}})
+    assert used == ["gemini-3.8-flash"]
