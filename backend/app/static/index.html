@@ -1743,22 +1743,25 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
       ${!e && !a.loading && !a.recording ? `<button class="primary" type="button" data-aw="lookup" ${a.text.trim() ? '' : 'disabled'}>Look it up</button>` : ''}
       ${body}`);
     const inp = $('add-input');
-    inp.oninput = () => { addState.text = inp.value; if (addState.entry) { addState.entry = null; renderAddWord(); $('add-input').focus(); } else { const b = $('panel').querySelector('[data-aw="lookup"]'); if (b) b.disabled = !inp.value.trim(); } };
+    inp.oninput = () => { addState.text = inp.value; if (addState.entry || addState.loading) { const a = addState; a.req = (a.req || 0) + 1; a.entry = null; a.senses = null; a.sense = ''; a.first = null; a.loading = false; renderAddWord(); const i = $('add-input'); i.focus(); i.setSelectionRange(i.value.length, i.value.length); } else { const b = $('panel').querySelector('[data-aw="lookup"]'); if (b) b.disabled = !inp.value.trim(); } };
     inp.onkeydown = (ev) => { if (ev.key === 'Enter' && inp.value.trim()) { ev.preventDefault(); addLookup(); } };
   }
   async function addLookup(sense = '') {
     const a = addState; const word = cleanWord(a.text); if (!word) return;
     a.text = word; a.error = ''; a.entry = null; a.sense = sense; if (!sense) { a.senses = null; a.first = null; }
     a.loading = sense ? `Looking up “${word}” as in ${sense}…` : 'Looking it up…'; renderAddWord();
+    const id = a.req = (a.req || 0) + 1; // answers to older lookups (a word you've since changed) are ignored
     try {
       const res = await fetch('/api/lookup', { method: 'POST', headers: { ...authHeaders(), 'Content-Type': 'application/json' },
         body: JSON.stringify({ word, sentence: a.fromEn ? '' : word, lang: a.lang, script: settings.script, from_english: a.fromEn, strict: true, sense }) });
       if (!res.ok) throw new Error(await apiError(res));
-      if (addState !== a) return;
-      a.entry = await res.json();
+      if (addState !== a || a.req !== id) return;
+      const entry = await res.json();
+      if (addState !== a || a.req !== id) return;
+      a.entry = entry;
       if (!sense) a.senses = a.entry.senses || null; // the English word's meanings, to switch between
-    } catch (e) { if (addState === a) a.error = e instanceof TypeError ? 'Couldn’t reach the server. Check your connection.' : e.message; }
-    if (addState === a) { a.loading = false; renderAddWord(); }
+    } catch (e) { if (addState === a && a.req === id) a.error = e instanceof TypeError ? 'Couldn’t reach the server. Check your connection.' : e.message; }
+    if (addState === a && a.req === id) { a.loading = false; renderAddWord(); }
   }
   async function startWordMic() {
     if (rec || live) return;
@@ -1835,8 +1838,9 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
   $('panel').addEventListener('click', async (ev) => {
     const b = ev.target.closest('[data-aw]'); if (!b || !addState) return;
     const act = b.dataset.aw, a = addState;
-    if (act === 'lang') { a.lang = b.dataset.v; a.entry = null; a.error = ''; renderAddWord(); }
-    else if (act === 'from') { a.fromEn = !a.fromEn; a.entry = null; a.error = ''; a.text = ''; renderAddWord(); $('add-input')?.focus(); }
+    const fresh = () => { a.req = (a.req || 0) + 1; a.entry = null; a.error = ''; a.senses = null; a.sense = ''; a.first = null; a.loading = false; };
+    if (act === 'lang') { a.lang = b.dataset.v; fresh(); renderAddWord(); }
+    else if (act === 'from') { a.fromEn = !a.fromEn; fresh(); a.text = ''; renderAddWord(); $('add-input')?.focus(); }
     else if (act === 'lookup') addLookup();
     else if (act === 'sense') {
       const x = a.senses?.[+b.dataset.i]; if (!x || x.sense === (a.sense || a.senses[0].sense)) return;

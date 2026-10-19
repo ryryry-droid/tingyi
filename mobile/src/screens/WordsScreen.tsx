@@ -265,6 +265,16 @@ function AddWordSheet({ settings, words, onSaveWord, toast, onClose }: Props & {
   const [senses, setSenses] = useState<NonNullable<LookupEntry['senses']>>([]);
   const [sense, setSense] = useState('');
   const first = useRef<LookupEntry | null>(null);
+  const req = useRef(0); // the latest lookup: answers to older ones (e.g. for a word you've since changed) are ignored
+  function reset() {
+    req.current++;
+    setEntry(null);
+    setSenses([]);
+    setSense('');
+    first.current = null;
+    setLoading(false);
+    setError('');
+  }
   const [entry, setEntry] = useState<LookupEntry | null>(null);
   const [meaning, setMeaning] = useState('');
   const [loading, setLoading] = useState<string | false>(false);
@@ -297,16 +307,17 @@ function AddWordSheet({ settings, words, onSaveWord, toast, onClose }: Props & {
       first.current = null;
     }
     setLoading(which ? `Looking up “${word}” as in ${which}…` : 'Looking it up…');
+    const id = ++req.current;
     try {
       const e = await lookupWord(settings, word, fromEn ? '' : word, lang, fromEn, which);
-      if (!alive.current) return;
+      if (!alive.current || id !== req.current) return;
       setEntry(e);
       setMeaning(e.meaning);
       if (!which) setSenses(fromEn && e.senses && e.senses.length > 1 ? e.senses : []);
     } catch (e: any) {
-      if (alive.current) setError(String(e?.message ?? e));
+      if (alive.current && id === req.current) setError(String(e?.message ?? e));
     }
-    if (alive.current) setLoading(false);
+    if (alive.current && id === req.current) setLoading(false);
   }
 
   async function startMic() {
@@ -393,8 +404,7 @@ function AddWordSheet({ settings, words, onSaveWord, toast, onClose }: Props & {
             onValueChange={(v) => {
               setFromEn(v);
               setText('');
-              setEntry(null);
-              setError('');
+              reset();
             }}
             trackColor={{ true: c.accent }}
             accessibilityLabel="Type in English"
@@ -407,8 +417,7 @@ function AddWordSheet({ settings, words, onSaveWord, toast, onClose }: Props & {
             key={code}
             onPress={() => {
               setLang(code);
-              setEntry(null);
-              setError('');
+              reset();
             }}
             style={[styles.chip, { borderColor: c.line }, lang === code && { backgroundColor: c.accent, borderColor: c.accent }]}
           >
@@ -421,7 +430,7 @@ function AddWordSheet({ settings, words, onSaveWord, toast, onClose }: Props & {
           value={text}
           onChangeText={(v) => {
             setText(v);
-            if (entry) setEntry(null);
+            if (entry || senses.length || loading) reset(); // a new word: drop the old answer and its meanings
           }}
           onSubmitEditing={() => doLookup()}
           returnKeyType="search"
