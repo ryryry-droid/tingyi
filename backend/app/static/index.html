@@ -224,6 +224,8 @@ nav button[aria-selected="true"] { background: var(--surface); color: var(--ink)
 .wcard .ex .han { font-family: var(--han); }
 .wspk { border: 0; background: var(--surface2); color: var(--accent); width: 30px; height: 30px; border-radius: 50%; font-size: 13px; display: inline-grid; place-items: center; align-self: center; flex-shrink: 0; }
 .seg.wrap { flex-wrap: wrap; }
+#set-main { display: flex; width: 100%; justify-self: stretch; }
+#set-main button { flex: 1 1 auto; }
 .notword { background: var(--warn-soft); color: var(--ink); border-radius: 14px; padding: 12px 14px; }
 .notword p { margin: 0; }
 .notword .filter button { font-size: 16px; padding: 6px 14px; color: var(--ink); background: var(--surface); }
@@ -510,6 +512,11 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
       <div class="langs" id="set-langs"></div>
     </div>
     <div class="field">
+      <p class="label">Main learning language</p>
+      <p class="hint">Words opens on it, and Add word starts in it. You can still switch in Words.</p>
+      <div class="seg wrap" id="set-main" role="group" aria-label="Main learning language"></div>
+    </div>
+    <div class="field">
       <p class="label">Chinese characters</p>
       <p class="hint">Used whenever Chinese is spoken or translated into.</p>
       <div class="seg" data-setting="script">
@@ -593,13 +600,18 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
   const WORD_EXAMPLE = Object.fromEntries(CATALOG.map(([c, , , e]) => [c, e]));
   const SPEECH_LANG = Object.fromEntries(CATALOG.map(([c, , , , v]) => [c, v]));
   const DEFAULT_LANGS = ['zh', 'yue', 'id', 'ms', 'vi', 'en'];
-  const DEFAULTS = { token: '', theme: 'dark', vibrate: true, cry: true, source: 'zh', target: 'en', script: 'simplified', style: 'natural', pinyin: true, glossary: '', langs: DEFAULT_LANGS };
+  const DEFAULTS = { token: '', theme: 'dark', vibrate: true, cry: true, source: 'zh', target: 'en', script: 'simplified', style: 'natural', pinyin: true, glossary: '', langs: DEFAULT_LANGS, mainLang: '' };
   // Languages you can look words up in, save and test: your languages except English (Cantonese words are saved
   // as Chinese), plus any language you already have saved words in
   const wordLangs = () => {
     const codes = new Set(settings.langs.filter((c) => c !== 'en').map((c) => (c === 'yue' ? 'zh' : c)));
     words.forEach((w) => codes.add(w.lang));
     return CATALOG.filter(([c]) => codes.has(c)).map(([c, n]) => [c, c === 'zh' ? 'Chinese' : n]);
+  };
+  // The language you're mainly learning: Words opens on it and Add word starts in it (Settings)
+  const learningLang = () => {
+    const mine = [...new Set(settings.langs.filter((c) => c !== 'en').map((c) => (c === 'yue' ? 'zh' : c)))];
+    return mine.includes(settings.mainLang) ? settings.mainLang : mine[0] || 'zh';
   };
   const isHan = (code) => code === 'zh' || code === 'yue';
   const hasHan = (text) => /[\u3400-\u9fff]/.test(text || '');
@@ -958,6 +970,7 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
   const segTr = (seg) => (seg ? seg.translation ?? seg.en ?? '' : '');
   function setView(v) {
     if (v !== 'session') stopPlayback();
+    if (v === 'words' && view !== 'words' && view !== 'test') { wordFilter = learningLang(); colloqOnly = false; }
     view = v; editing = null; confirmDelete = false;
     ['record', 'history', 'words', 'settings'].forEach((n) => $('tab-' + n).setAttribute('aria-selected', String(n === v || (v === 'session' && n === 'history') || (v === 'live' && n === 'record') || (v === 'test' && n === 'words'))));
     ['record', 'live', 'session', 'history', 'words', 'test', 'settings'].forEach((n) => ($('view-' + n).hidden = n !== v));
@@ -1066,6 +1079,8 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
   function renderSettings() {
     $('set-langs').innerHTML = CATALOG.map(([c, , label]) => `<button type="button" data-lang="${c}" aria-pressed="${settings.langs.includes(c)}">${settings.langs.includes(c) ? '✓ ' : '＋ '}${esc(label)}</button>`).join('');
     document.querySelectorAll('.seg').forEach((g) => g.querySelectorAll('button').forEach((b) => b.setAttribute('aria-pressed', String(settings[g.dataset.setting] === b.dataset.value))));
+    const mains = [...new Set(settings.langs.filter((c) => c !== 'en').map((c) => (c === 'yue' ? 'zh' : c)))];
+    $('set-main').innerHTML = mains.map((c) => `<button type="button" data-main="${c}" aria-pressed="${learningLang() === c}">${c === 'zh' ? 'Chinese' : esc(LANGS[c])}</button>`).join('');
     $('set-pinyin').checked = settings.pinyin;
     $('set-vibrate').checked = settings.vibrate;
     $('set-cry').checked = settings.cry;
@@ -1619,7 +1634,7 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
     const have = wordLangs().filter(([code]) => words.some((w) => w.lang === code));
     if (wordFilter !== 'all' && !have.some(([c]) => c === wordFilter)) wordFilter = 'all';
     if (wordFilter !== 'id') colloqOnly = false;
-    $('w-langs').innerHTML = [['all', 'All'], ...(have.length > 1 ? have : [])]
+    $('w-langs').innerHTML = [['all', 'All'], ...(have.length > 1 || wordFilter !== 'all' ? have : [])]
       .map(([code, label]) => `<button type="button" data-f="${code}" aria-pressed="${wordFilter === code}">${label}</button>`).join('')
       // Colloquial: only once Indonesian is picked
       + (wordFilter === 'id'
@@ -1684,9 +1699,9 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
 
   const langName = (code) => (code === 'zh' ? 'Chinese' : LANGS[code] || code);
   function openAddWord() {
-    const codes = wordLangs().map(([c]) => c), src = isHan(settings.source) ? 'zh' : settings.source;
-    const lang = codes.includes(src) ? src : codes.includes(settings.target) ? settings.target : 'zh';
-    addState = { lang, text: '', entry: null, loading: false, error: '', recording: false, fromEn: false };
+    const codes = wordLangs().map(([c]) => c);
+    const lang = codes.includes(learningLang()) ? learningLang() : codes[0] || 'zh';
+    addState = { lang, text: '', entry: null, loading: false, error: '', recording: false, fromEn: true };
     renderAddWord();
     setTimeout(() => $('add-input')?.focus(), 50);
   }
@@ -2128,6 +2143,10 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
     if (new Set(next.map((x) => (x === 'yue' ? 'zh' : x))).size < 2) { toast('Keep at least two languages'); return; }
     settings.langs = next; fixPair(); saveSettings(); rerender();
     toast(on ? `${LANGS[c]} removed` : `${LANGS[c]} added`);
+  };
+  $('set-main').onclick = (ev) => {
+    const b = ev.target.closest('[data-main]'); if (!b) return;
+    settings.mainLang = b.dataset.main; saveSettings(); renderSettings();
   };
   $('set-pinyin').onchange = (e) => { settings.pinyin = e.target.checked; saveSettings(); };
   $('set-cry').onchange = (e) => { settings.cry = e.target.checked; saveSettings(); if (e.target.checked) playCry(); };
