@@ -76,6 +76,8 @@ nav button[aria-selected="true"] { background: var(--surface); color: var(--ink)
 .actionbar { position: fixed; left: 0; right: 0; bottom: 0; background: linear-gradient(to top, var(--bg) 70%, transparent); padding: 18px max(16px, env(safe-area-inset-right, 0px)) calc(14px + env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px)); }
 .actionbar .inner { max-width: 600px; margin: 0 auto; display: flex; gap: 10px; }
 .primary { flex: 1; border: 0; border-radius: 12px; padding: 14px 18px; background: var(--accent); color: var(--accent-ink); font-size: 17px; font-weight: 600; }
+.backup-row { display: flex; gap: 10px; }
+.backup-row .secondary { flex: 1; }
 .secondary { border: 1px solid var(--line); background: var(--surface); border-radius: 12px; padding: 14px 16px; font-size: 15px; }
 
 .session-head { display: grid; gap: 4px; margin: 4px 0 10px; }
@@ -538,6 +540,15 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
       <textarea id="set-glossary" placeholder="王小明 = Wang Xiaoming&#10;云计算 = cloud computing"></textarea>
       <p class="hint">One per line, in any of the languages. Helps Whisper hear names correctly and keeps translations consistent.</p>
     </div>
+    <div class="field">
+      <p class="label">Back up and restore</p>
+      <div class="backup-row">
+        <button type="button" class="secondary" id="backup">Back up</button>
+        <button type="button" class="secondary" id="restore">Restore</button>
+      </div>
+      <input type="file" id="restore-file" accept=".json,application/json" hidden>
+      <p class="hint">Back up saves your words, history, glossary and languages to a file. Restore adds them from a file, on this device or another one. Nothing you already have is removed. Audio isn't included, so restored recordings can't be played or redone.</p>
+    </div>
   </section>
 </div>
 
@@ -848,6 +859,7 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
     s.status = 'processing'; s.error = '';
     rerender();
     try {
+      if (!s.audio) throw new Error('The audio for this recording isn’t on this device.');
       const form = new FormData();
       const type = s.audio.type || 'audio/webm';
       form.append('file', s.audio, `recording.${extFor(type)}`);
@@ -883,7 +895,7 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
   async function redoLine(i) {
     const s = current, seg = s?.segments[i];
     if (!seg || redoing !== null) return;
-    if (!s.audio) { showNotice('The audio for this recording is no longer on this phone.'); return; }
+    if (!s.audio) { showNotice('The audio for this recording isn’t on this device.'); return; }
     redoing = i; renderSession();
     try {
       const form = new FormData();
@@ -914,6 +926,7 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
   function playSegment(seg) {
     if (playingId === seg.id) { stopPlayback(); return; }
     stopPlayback();
+    if (!current.audio) { toast('No audio for this recording'); return; }
     if (!player) {
       player = new Audio();
       player.addEventListener('timeupdate', () => { if (playingId !== null && player.currentTime >= stopAt) stopPlayback(); });
@@ -2097,6 +2110,55 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
   $('set-vibrate').onchange = (e) => { settings.vibrate = e.target.checked; saveSettings(); if (e.target.checked) buzz('stopped'); };
   $('set-glossary').oninput = (e) => { settings.glossary = e.target.value; saveSettings(); };
   $('set-token').oninput = (e) => { settings.token = e.target.value.trim(); saveSettings(); };
+
+  // ---------- back up and restore ----------
+  const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
+  $('backup').onclick = async () => {
+    const data = {
+      app: 'chattalk', version: 1, exportedAt: Date.now(),
+      words: await allWords(),
+      sessions: sessions.filter((x) => x.status === 'done').map(({ audio, audioUri, ...rest }) => rest),
+      glossary: settings.glossary, langs: settings.langs,
+    };
+    const d = new Date(), pad = (n) => String(n).padStart(2, '0');
+    const name = `chattalk-backup-${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}.json`;
+    const url = URL.createObjectURL(new Blob([JSON.stringify(data)], { type: 'application/json' }));
+    const a = document.createElement('a'); a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+    toast(`Saved ${plural(data.words.length, 'word')} and ${plural(data.sessions.length, 'recording')}`);
+  };
+  $('restore').onclick = () => { $('restore-file').value = ''; $('restore-file').click(); };
+  $('restore-file').onchange = async (e) => {
+    const f = e.target.files?.[0]; if (!f) return;
+    let data;
+    try { data = JSON.parse(await f.text()); } catch { toast('That file isn’t a ChatTalk backup'); return; }
+    if (!data || data.app !== 'chattalk' || !Array.isArray(data.words)) { toast('That file isn’t a ChatTalk backup'); return; }
+    const have = new Set(words.map((w) => w.id));
+    let nw = 0, ns = 0;
+    for (const w of data.words) {
+      if (!w || !w.word || !w.lang) continue;
+      const id = wordId(w.lang, w.word);
+      if (have.has(id)) continue;
+      const x = { ...w, id, word: caseFor(w.word, w.part_of_speech), root: caseFor(w.root, w.part_of_speech) };
+      have.add(id); words.push(x); await putWord(x).catch(() => {}); nw++;
+    }
+    words.sort((a, b) => b.createdAt - a.createdAt);
+    const haveS = new Set(sessions.map((x) => x.id));
+    for (const x of data.sessions || []) {
+      if (!x || !x.id || haveS.has(x.id) || !Array.isArray(x.segments)) continue;
+      const { audioUri, ...rest } = x;
+      const y = { ...rest, status: 'done' };
+      haveS.add(y.id); sessions.push(y); await putSession(y); ns++;
+    }
+    sessions.sort((a, b) => b.createdAt - a.createdAt);
+    const lines = settings.glossary.split('\n').map((l) => l.trim()).filter(Boolean);
+    for (const l of String(data.glossary || '').split('\n').map((l) => l.trim()).filter(Boolean)) if (!lines.includes(l)) lines.push(l);
+    settings.glossary = lines.join('\n');
+    const known = new Set(CATALOG.map(([c]) => c));
+    for (const c of data.langs || []) if (known.has(c) && !settings.langs.includes(c)) settings.langs.push(c);
+    fixPair(); saveSettings(); rerender();
+    toast(nw || ns ? `Added ${plural(nw, 'word')} and ${plural(ns, 'recording')}` : 'Nothing new. You already have everything in that backup.');
+  };
 
   // ---------- boot ----------
   (async () => {
