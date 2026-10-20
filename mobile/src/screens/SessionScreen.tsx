@@ -1,10 +1,11 @@
 import * as Clipboard from 'expo-clipboard';
 import { useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, FlatList, Pressable, Share, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert, FlatList, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { File, Paths } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
+import Svg, { Path, Rect } from 'react-native-svg';
 
 import { liveTranslate, lookupWord, options, redoLine, retranslate } from '../api';
 import { Btn, NotAWord, Pinyin, Sheet, sheetStyles, TextBtn, WordText, Working } from '../components';
@@ -287,28 +288,67 @@ export default function SessionScreen(p: Props) {
     }
   }
 
-  const deleteRow = confirmDelete ? (
-    <View style={styles.delRow}>
-      <Text style={{ color: c.muted, fontWeight: '600' }}>Delete this recording?</Text>
-      <TextBtn title="Delete" color={c.rec} bold onPress={p.onDelete} />
-      <TextBtn title="Keep" onPress={() => setConfirmDelete(false)} />
-    </View>
-  ) : (
-    <View style={[styles.delRow, { gap: 18 }]}>
-      {session.status === 'done' && lineCount ? <TextBtn title="Save translation" onPress={shareText} /> : null}
-      {session.audioUri ? <TextBtn title="Share audio" onPress={shareAudio} /> : null}
-      <TextBtn title="Delete recording" onPress={() => setConfirmDelete(true)} />
-    </View>
-  );
+  // Rename, saving and Delete live in the ••• menu
+  const deleteRow = undefined;
+  const [menu, setMenu] = useState(false);
+  const menuItems: { id: string; label: string; icon: keyof typeof MENU_ICONS; danger?: boolean; run: () => void }[] = [
+    ...(session.status === 'done'
+      ? [{ id: 'rename', label: 'Rename', icon: 'rename' as const, run: () => { setTitleDraft(session.title); setRenaming(true); } }]
+      : []),
+    ...(session.audioUri ? [{ id: 'audio', label: 'Save audio', icon: 'audio' as const, run: shareAudio }] : []),
+    ...(session.status === 'done' && lineCount ? [{ id: 'text', label: 'Save translation', icon: 'text' as const, run: shareText }] : []),
+    { id: 'del', label: 'Delete recording', icon: 'del' as const, danger: true, run: () => setConfirmDelete(true) },
+  ];
 
   return (
     <View style={{ flex: 1 }}>
       <View style={styles.header}>
         <TextBtn title="‹ History" onPress={p.onBack} />
-        {session.status === 'done' && lineCount ? (
-          <TextBtn title="Share" onPress={() => Share.share({ title: session.title, message: `${session.title}\n${formatDate(session.createdAt)}\n\n${transcript()}` })} />
+        {session.status !== 'processing' ? (
+          <Pressable onPress={() => setMenu(true)} hitSlop={12} accessibilityRole="button" accessibilityLabel="More options" style={{ paddingVertical: 6, paddingLeft: 12 }}>
+            <Text style={{ color: c.faint, fontSize: 15, letterSpacing: 2, fontWeight: '800' }}>•••</Text>
+          </Pressable>
         ) : null}
       </View>
+
+      <Sheet visible={menu} onClose={() => setMenu(false)}>
+        <View style={{ gap: 2 }}>
+          {menuItems.map((it) => (
+            <View key={it.id}>
+              {it.danger && menuItems.length > 1 ? <View style={{ height: StyleSheet.hairlineWidth, backgroundColor: c.line, marginVertical: 6 }} /> : null}
+              <Pressable
+                onPress={() => {
+                  setMenu(false);
+                  it.run();
+                }}
+                style={({ pressed }) => [styles.menuItem, pressed && { opacity: 0.6 }]}
+                accessibilityRole="button"
+              >
+                <View style={[styles.menuIc, { backgroundColor: c.surface2 }]}>
+                  <MenuIcon name={it.icon} color={it.danger ? c.rec : c.accent} />
+                </View>
+                <Text style={{ fontSize: 16, fontWeight: '600', color: it.danger ? c.rec : c.ink }}>{it.label}</Text>
+              </Pressable>
+            </View>
+          ))}
+        </View>
+      </Sheet>
+
+      <Sheet visible={confirmDelete} onClose={() => setConfirmDelete(false)}>
+        <Text style={ss.h2}>Delete this recording?</Text>
+        <Text style={{ color: c.muted, fontSize: 14 }}>{session.title}</Text>
+        <View style={{ flexDirection: 'row', gap: 10 }}>
+          <Btn
+            title="Delete"
+            style={{ backgroundColor: c.rec }}
+            onPress={() => {
+              setConfirmDelete(false);
+              p.onDelete();
+            }}
+          />
+          <Btn title="Keep" kind="secondary" onPress={() => setConfirmDelete(false)} />
+        </View>
+      </Sheet>
 
       <Pressable
         style={{ paddingHorizontal: 16 }}
@@ -590,6 +630,8 @@ const styles = StyleSheet.create({
   title: { fontSize: 22, fontWeight: '800', lineHeight: 29 },
   meta: { fontSize: 13, marginTop: 4, marginBottom: 10, fontWeight: '600' },
   tip: { fontSize: 12, marginBottom: 4 },
+  menuItem: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 10 },
+  menuIc: { width: 34, height: 34, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
   trFail: { borderRadius: 14, padding: 14, gap: 10, alignItems: 'flex-start', marginBottom: 8 },
   line: { flexDirection: 'row', gap: 10, paddingVertical: 14, paddingHorizontal: 10, marginHorizontal: -10, borderBottomWidth: StyleSheet.hairlineWidth },
   time: { width: 46, alignItems: 'center', gap: 3, paddingTop: 2 },
@@ -610,3 +652,26 @@ const styles = StyleSheet.create({
   wcActions: { flexDirection: 'row', gap: 10, alignItems: 'center', marginTop: 4 },
   input: { minHeight: 80, borderWidth: 1.5, borderRadius: 12, padding: 12, fontSize: 19, textAlignVertical: 'top' },
 });
+
+// Outline icons for the ••• menu, all drawn the same way so they match
+const MENU_ICONS = {
+  rename: ['M4 20h4L19 9l-4-4L4 16v4z', 'M13.5 6.5l4 4'],
+  audio: ['M4 15v-3a8 8 0 0 1 16 0v3'],
+  text: ['M6 3h8l4 4v14H6z', 'M14 3v4h4', 'M9 12h6M9 16h6'],
+  del: ['M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13'],
+};
+function MenuIcon({ name, color }: { name: keyof typeof MENU_ICONS; color: string }) {
+  return (
+    <Svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+      {MENU_ICONS[name].map((d) => (
+        <Path key={d} d={d} />
+      ))}
+      {name === 'audio' ? (
+        <>
+          <Rect x={3} y={14} width={4} height={6} rx={1.5} />
+          <Rect x={17} y={14} width={4} height={6} rx={1.5} />
+        </>
+      ) : null}
+    </Svg>
+  );
+}
