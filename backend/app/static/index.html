@@ -2255,7 +2255,6 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
       ${s.status === 'done' ? item('rename', 'Rename') : ''}
       ${s.audio ? item('audio', 'Save audio') : ''}
       ${done ? item('text', 'Save translation') : ''}
-      ${done ? item('message', 'Share translation') : ''}
       ${s.status === 'done' || s.audio ? '<hr>' : ''}
       ${item('del', 'Delete recording', '', 'danger')}
     </div>`);
