@@ -299,7 +299,7 @@ def word_family(word: str, lang: str, meaning: str = "") -> dict:
         'Reply with JSON only: {"base": "...", "forms": [{"word": "...", "part_of_speech": "...", "meaning": "...", '
         '"example": {"text": "...", "translation": "..."}}]}'
     )
-    data = _json(_complete_simple(prompt, max_tokens=1600, effort="medium")) or {}
+    data = _json(_complete_simple(prompt, max_tokens=1600, effort="low")) or {}
     if not data.get("forms"):
         raise ValueError("The dictionary didn't return a word family")
     return data
@@ -428,7 +428,7 @@ def lookup_word(word: str, sentence: str, lang: str, script: str, from_english: 
              if from_english else sentence or word)
     try:
         checked = _json(_complete_simple(_CHECK.format(language=language, entry=json.dumps(entry, ensure_ascii=False),
-                                                       sentence=asked), max_tokens=600, effort="medium"))
+                                                       sentence=asked), max_tokens=600, effort="low"))  # checking is lighter work than writing
     except Exception:
         checked = None
     if checked and checked.get("word"):

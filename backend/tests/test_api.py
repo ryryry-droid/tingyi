@@ -560,7 +560,7 @@ def test_lookup_strict_by_default(monkeypatch):
     assert r["meaning"] == "to eat" and calls == ["low"]  # strict=False: one quick call, no second check
     calls.clear()
     client.post("/api/lookup", json={"word": "makan", "lang": "id"})
-    assert calls == ["medium", "medium"]  # by default every lookup is thorough and double-checked
+    assert calls == ["medium", "low"]  # by default every lookup is thorough, then double-checked (a lighter check)
 
 
 
@@ -628,14 +628,14 @@ def test_in_depth_checks_go_to_gemini(monkeypatch):
     monkeypatch.setattr(translate, "_resting", {})
     # default: Gemini is only a backup, so lookups use Groq too
     client.post("/api/lookup", json={"word": "makan", "lang": "id"})
-    assert used == [("openai/gpt-oss-120b", "medium"), ("openai/gpt-oss-120b", "medium")]
+    assert used == [("openai/gpt-oss-120b", "medium"), ("openai/gpt-oss-120b", "low")]
     used.clear()
     monkeypatch.setattr(config, "CAREFUL_SERVICE", "gemini")
     client.post("/api/retranslate", json={"text": "你好", "options": {"source": "zh", "target": "en"}})
     assert used == [("openai/gpt-oss-120b", "low")]  # everyday translation: Groq
     used.clear()
     client.post("/api/lookup", json={"word": "makan", "lang": "id"})
-    assert used == [("gemini-3.8-flash", "medium"), ("gemini-3.8-flash", "medium")]  # lookup + its check: Gemini
+    assert used == [("gemini-3.8-flash", "medium"), ("openai/gpt-oss-120b", "low")]  # lookup: Gemini; its lighter check: Groq
 
 
 
