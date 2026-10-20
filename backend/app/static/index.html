@@ -2253,9 +2253,9 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
     const item = (id, label, sub = '', cls = '') => `<button type="button" data-sm="${id}" class="${cls}"><i>${ICONS[id]}</i><span>${label}${sub ? `<small>${sub}</small>` : ''}</span></button>`;
     openPanel(`<div class="menu">
       ${s.status === 'done' ? item('rename', 'Rename') : ''}
-      ${done ? item('message', 'Share as message') : ''}
+      ${s.audio ? item('audio', 'Save audio') : ''}
       ${done ? item('text', 'Save translation') : ''}
-      ${s.audio ? item('audio', 'Share audio') : ''}
+      ${done ? item('message', 'Share translation') : ''}
       ${s.status === 'done' || s.audio ? '<hr>' : ''}
       ${item('del', 'Delete recording', '', 'danger')}
     </div>`);
