@@ -99,7 +99,10 @@ export async function checkServer(s: Settings): Promise<string> {
 }
 
 /** Upload a recording; returns the translated lines and a summary title. */
-export function translateRecording(s: Settings, session: Session): Promise<{ duration: number; title: string; segments: Segment[] }> {
+export function translateRecording(
+  s: Settings,
+  session: Session,
+): Promise<{ duration: number; title: string; segments: Segment[]; translation_error?: string }> {
   if (!baseUrl(s)) return Promise.reject(new Error('Add your server address in Settings, then tap Try again.'));
   return postFile(s, '/api/translate', session.audioUri, {
     options: JSON.stringify(options(s, session.source, session.target, session.script)),

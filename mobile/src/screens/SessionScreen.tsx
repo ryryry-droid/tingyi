@@ -3,7 +3,9 @@ import { useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, FlatList, Pressable, Share, StyleSheet, Text, TextInput, View } from 'react-native';
 
-import { lookupWord, redoLine, retranslate } from '../api';
+import * as Sharing from 'expo-sharing';
+
+import { liveTranslate, lookupWord, options, redoLine, retranslate } from '../api';
 import { Btn, NotAWord, Pinyin, Sheet, sheetStyles, TextBtn, WordText, Working } from '../components';
 import { formatDate, formatTime, HAN_FONT, useColors } from '../theme';
 import { caseFor, hasHan, isChinese, LANGS, LookupEntry, LOOKUP_LANGS, Segment, Session, Settings, Word, wordId, wordLangOf } from '../types';
@@ -19,6 +21,7 @@ type Props = {
   onDelete: () => void;
   onRename: (title: string) => void;
   onUpdateSegment: (segmentId: number, changes: Partial<Segment>) => void;
+  onTranslated: () => void; // every line has a translation again
   onSaveWord: (w: Word) => void;
   onRemoveWord: (id: string) => void;
   toast: (msg: string, action?: { label: string; run: () => void }) => void;
@@ -212,6 +215,64 @@ export default function SessionScreen(p: Props) {
   const lookHan = lookup ? isChinese(lookup.lang) : false;
   const saved = !!(lookup && e && p.words.some((w) => w.id === wordId(lookup.lang, e.word)));
 
+  // Translate the lines that have no translation yet (after a translation failure), batch by batch
+  const [translatingMissing, setTranslatingMissing] = useState(false);
+  const missing = session.segments.filter((seg) => !seg.translation);
+  async function translateMissing() {
+    if (translatingMissing) return;
+    setTranslatingMissing(true);
+    try {
+      const segs = session.segments;
+      const done = new Map<number, string>(segs.filter((x) => x.translation).map((x) => [x.id, x.translation]));
+      // consecutive lines going the same way (conversations switch direction), at most 20 per request
+      const groups: { dir: string; items: number[] }[] = [];
+      segs.forEach((seg, i) => {
+        if (seg.translation) return;
+        const dir = `${srcOf(seg)}>${tgtOf(seg)}`;
+        const g = groups[groups.length - 1];
+        if (g && g.dir === dir && g.items.length < 20 && g.items[g.items.length - 1] === i - 1) g.items.push(i);
+        else groups.push({ dir, items: [i] });
+      });
+      for (const g of groups) {
+        const first = segs[g.items[0]];
+        const context = segs
+          .slice(Math.max(0, g.items[0] - 6), g.items[0])
+          .filter((x) => done.get(x.id))
+          .map((x) => ({ text: x.text, translation: done.get(x.id) || '' }));
+        const r = await liveTranslate(
+          settings,
+          g.items.map((i) => ({ id: segs[i].id, text: segs[i].text })),
+          context,
+          options(settings, srcOf(first), tgtOf(first), session.script),
+        );
+        for (const t of r.translations) {
+          if (!t.translation) continue;
+          done.set(t.id, t.translation);
+          p.onUpdateSegment(t.id, { translation: t.translation, translation_pinyin: t.translation_pinyin });
+        }
+      }
+      if (segs.every((x) => done.get(x.id))) {
+        p.onTranslated();
+        p.toast('Translated');
+      }
+    } catch (e: any) {
+      Alert.alert('Couldn’t translate', String(e?.message ?? e));
+    } finally {
+      setTranslatingMissing(false);
+    }
+  }
+
+  // Share the recording's audio: save it to Files or Drive, send it on WhatsApp...
+  async function shareAudio() {
+    try {
+      if (!session.audioUri) throw new Error('This recording has no audio on this phone.');
+      if (!(await Sharing.isAvailableAsync())) throw new Error('Sharing isn’t available on this phone.');
+      await Sharing.shareAsync(session.audioUri, { dialogTitle: session.title });
+    } catch (e: any) {
+      Alert.alert('Couldn’t share the audio', String(e?.message ?? e));
+    }
+  }
+
   const deleteRow = confirmDelete ? (
     <View style={styles.delRow}>
       <Text style={{ color: c.muted, fontWeight: '600' }}>Delete this recording?</Text>
@@ -219,7 +280,8 @@ export default function SessionScreen(p: Props) {
       <TextBtn title="Keep" onPress={() => setConfirmDelete(false)} />
     </View>
   ) : (
-    <View style={styles.delRow}>
+    <View style={[styles.delRow, { gap: 18 }]}>
+      {session.audioUri ? <TextBtn title="Share audio" onPress={shareAudio} /> : null}
       <TextBtn title="Delete recording" onPress={() => setConfirmDelete(true)} />
     </View>
   );
@@ -268,9 +330,22 @@ export default function SessionScreen(p: Props) {
           keyExtractor={(s) => String(s.id)}
           contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 24 }}
           ListHeaderComponent={
-            lineCount ? undefined : (
+            !lineCount ? (
               <Text style={[styles.tip, { color: c.muted, fontSize: 15 }]}>No speech was found in this recording.</Text>
-            )
+            ) : session.untranslated && missing.length ? (
+              <View style={[styles.trFail, { backgroundColor: c.warnSoft }]}>
+                <Text style={{ color: c.ink, fontSize: 14, lineHeight: 20 }}>
+                  <Text style={{ fontWeight: '800' }}>Translation failed.</Text> The transcript is saved.{' '}
+                  {session.untranslated.replace(/^Translation failed:\s*/, '')}
+                </Text>
+                <Btn
+                  title={translatingMissing ? 'Translating…' : `Translate ${missing.length} ${missing.length === 1 ? 'line' : 'lines'}`}
+                  kind="small"
+                  disabled={translatingMissing}
+                  onPress={translateMissing}
+                />
+              </View>
+            ) : undefined
           }
           ListFooterComponent={deleteRow}
           renderItem={({ item, index }) => {
@@ -500,6 +575,7 @@ const styles = StyleSheet.create({
   title: { fontSize: 22, fontWeight: '800', lineHeight: 29 },
   meta: { fontSize: 13, marginTop: 4, marginBottom: 10, fontWeight: '600' },
   tip: { fontSize: 12, marginBottom: 4 },
+  trFail: { borderRadius: 14, padding: 14, gap: 10, alignItems: 'flex-start', marginBottom: 8 },
   line: { flexDirection: 'row', gap: 10, paddingVertical: 14, paddingHorizontal: 10, marginHorizontal: -10, borderBottomWidth: StyleSheet.hairlineWidth },
   time: { width: 46, alignItems: 'center', gap: 3, paddingTop: 2 },
   play: { width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center' },

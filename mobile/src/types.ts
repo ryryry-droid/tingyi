@@ -71,6 +71,7 @@ export type Session = {
   error?: string;
   segments: Segment[];
   mode?: 'subtitles' | 'conversation'; // live sessions
+  untranslated?: string; // translating failed but the transcript was kept: why, so lines can be translated later
 };
 
 export type Settings = {

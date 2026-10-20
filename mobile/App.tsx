@@ -169,6 +169,8 @@ export default function App() {
         segments: result.segments,
         duration: result.duration || s.duration,
         title: result.title || (first ? (first.length > 30 ? first.slice(0, 30) + '…' : first) : s.title),
+        // the transcript came back but translating failed: keep it, and offer to translate the missing lines
+        untranslated: result.translation_error || '',
       }));
     } catch (e: any) {
       updateSession(session.id, (s) => ({ ...s, status: 'error', error: String(e?.message ?? e) }));
@@ -309,6 +311,7 @@ export default function App() {
             segments: s.segments.map((seg: Segment) => (seg.id === segId ? { ...seg, ...changes } : seg)),
           }))
         }
+        onTranslated={() => updateSession(current.id, (s) => ({ ...s, untranslated: '' }))}
         onSaveWord={saveWord}
         onRemoveWord={removeWord}
         toast={showToast}
