@@ -686,3 +686,24 @@ def test_no_translation_error_when_all_is_well(monkeypatch):
     setup(monkeypatch)
     r = client.post("/api/translate", files={"file": ("a.m4a", b"x", "audio/m4a")}, data={"options": "{}"})
     assert r.json()["translation_error"] == ""
+
+
+def test_word_family(monkeypatch):
+    setup(monkeypatch)
+    seen = []
+
+    def fake(prompt, max_tokens=200, **kw):
+        seen.append(prompt)
+        return ('{"base": "tipu", "forms": [{"word": "tipu", "part_of_speech": "noun", "meaning": "trick"}, '
+                '{"word": "Menipu", "part_of_speech": "verb", "meaning": "to deceive", "example": {"text": "Dia menipu.", "translation": "He cheats."}}, '
+                '{"word": "menipu", "meaning": "dup"}, {"word": "penipu", "meaning": ""}]}')
+
+    monkeypatch.setattr(translate, "_complete_simple", fake)
+    r = client.post("/api/family", json={"word": "tertipu", "lang": "id", "meaning": "to be fooled"})
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["base"] == "tipu"
+    assert [f["word"] for f in body["forms"]] == ["tipu", "menipu", "tertipu"]  # lowercased, no duplicates or empty meanings; the saved word added
+    assert body["forms"][1]["example"]["text"] == "Dia menipu."
+    assert "never invent a form" in seen[0]
+    assert client.post("/api/family", json={"word": "周末", "lang": "zh"}).status_code == 422  # Indonesian and Malay only

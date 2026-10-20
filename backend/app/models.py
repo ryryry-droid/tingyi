@@ -196,6 +196,26 @@ class Sense(BaseModel):
 LookupResponse.model_rebuild()
 
 
+class FamilyRequest(BaseModel):
+    """The other forms of an Indonesian / Malay word: the base word and its affixed forms (tipu, menipu, tertipu...)."""
+
+    word: str = Field(min_length=1, max_length=60)
+    lang: Literal["id", "ms"]
+    meaning: str = Field(default="", max_length=200)
+
+
+class FamilyForm(BaseModel):
+    word: str
+    part_of_speech: str = ""
+    meaning: str
+    example: Optional[Example] = None
+
+
+class FamilyResponse(BaseModel):
+    base: str
+    forms: list[FamilyForm]  # base word first, then the common forms; includes the word asked about
+
+
 class ExampleRequest(BaseModel):
     """Write the example sentence for a saved word so it says what the user's English sentence says."""
 

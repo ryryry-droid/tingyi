@@ -239,6 +239,18 @@ nav button[aria-selected="true"] { background: var(--surface); color: var(--ink)
 .wcard .wd { font-size: 22px; }
 .wcard .wd.han { font-family: var(--han); font-weight: 600; }
 .wcard .m { margin: 0; }
+.wcard.fam { touch-action: pan-y; user-select: none; }
+.wcard.peek { background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--accent) 10%, transparent), transparent); }
+.famrow { display: flex; align-items: center; gap: 10px; margin-top: 4px; }
+.famrow .dots { display: flex; gap: 2px; }
+.famrow .dots button { width: 14px; height: 14px; border: 0; padding: 0; background: none; display: grid; place-items: center; }
+.famrow .dots button::after { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--line); }
+.famrow .dots button.sv::after { background: var(--yellow); }
+.famrow .dots button.on { width: 20px; }
+.famrow .dots button.on::after { width: 16px; border-radius: 9px; background: var(--accent); }
+.famhint { font-size: 11.5px; color: var(--faint); }
+.famadd { margin-left: auto; border: 0; background: var(--accent); color: var(--accent-ink, #fff); border-radius: 999px; padding: 5px 12px; font-weight: 700; font-size: 13px; }
+.famhave { margin-left: auto; color: var(--muted); font-size: 13px; font-weight: 700; }
 .wcard .ex { margin: 2px 0 0; color: var(--muted); font-size: 14px; }
 .wcard .ex .han { font-family: var(--han); }
 .wspk { border: 0; background: var(--surface2); color: var(--accent); width: 30px; height: 30px; border-radius: 50%; font-size: 13px; display: inline-grid; place-items: center; align-self: center; flex-shrink: 0; }
@@ -1747,7 +1759,26 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
       : !list.length ? `<li class="empty">No words match.</li>`
       : list.map((w) => {
         const han = w.lang === 'zh';
-        return `<li class="wcard">
+        const famOk = FAMILY_LANGS.includes(w.lang);
+        const fam = famOk && w.family?.forms?.length ? w.family : null;
+        const savedIdx = fam ? Math.max(0, fam.forms.findIndex((f) => f.word === w.word.toLowerCase())) : 0;
+        const idx = fam && famView[w.id] != null ? famView[w.id] : savedIdx;
+        const other = fam && idx !== savedIdx ? fam.forms[idx] : null; // another form of the word, not the saved one
+        const famRow = famOk ? `<div class="famrow">${fam ? `<span class="dots">${fam.forms.map((f, j) => `<button type="button" data-fam-go="${esc(w.id)}" data-j="${j}" class="${j === idx ? 'on' : ''}${j === savedIdx ? ' sv' : ''}" aria-label="${esc(f.word)}"></button>`).join('')}</span>` : ''}
+            <span class="famhint">${famLoading === w.id ? 'Loading word family…' : `‹ swipe for ${esc(fam?.base || w.root || w.word)} family ›`}</span></div>` : '';
+        if (other) {
+          const have = words.find((x) => x.id === wordId(w.lang, other.word));
+          return `<li class="wcard fam peek" data-fam="${esc(w.id)}">
+          <div class="top">${'speechSynthesis' in window ? `<button class="wspk" type="button" data-speak-form="${esc(w.id)}" aria-label="Hear ${esc(other.word)}">🔊</button>` : ''}<div class="wmain"><span class="wd">${esc(other.word)}</span>
+            ${other.part_of_speech ? `<span class="pos" style="margin:0">${esc(other.part_of_speech)}</span>` : ''}</div>
+            ${have ? `<span class="famhave">✓ In your words</span>` : `<button class="famadd" type="button" data-fam-add="${esc(w.id)}">＋ Add</button>`}</div>
+          <p class="m">${esc(other.meaning)}${fam.base && fam.base !== other.word ? ` <span class="meta">· base word ${esc(fam.base)}</span>` : ''}</p>
+          ${other.example ? `<p class="ex">${esc(other.example.text)}<br>${esc(other.example.translation)}</p>` : ''}
+          ${famRow}
+          <div class="src"><span>Same family as <b>${esc(w.word)}</b>${have ? '' : ' · not in your words'}</span></div>
+        </li>`;
+        }
+        return `<li class="wcard${famOk ? ' fam' : ''}" data-fam="${famOk ? esc(w.id) : ''}">
           <div class="top">${'speechSynthesis' in window ? `<button class="wspk" type="button" data-speak="${esc(w.id)}" aria-label="Hear ${esc(w.word)}">🔊</button>` : ''}<div class="wmain"><span class="wd${han ? ' han' : ''}">${esc(w.word)}</span>
             ${settings.pinyin && w.pinyin ? `<span class="py">${pinyinHtml(w.pinyin)}</span>` : ''}
             ${w.part_of_speech ? `<span class="pos" style="margin:0">${esc(w.part_of_speech)}</span>` : ''}
@@ -1755,6 +1786,7 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
             <button class="textbtn wedit" type="button" data-edit="${esc(w.id)}">Edit</button></div>
           <p class="m">${esc(w.meaning)}${isColloq(w) && w.standard ? ` <span class="meta">· standard: ${esc(w.standard)}</span>` : ''}${w.root && w.root.toLowerCase() !== w.word.toLowerCase() ? ` <span class="meta">· base word ${esc(w.root)}</span>` : ''}</p>
           ${w.example ? `<p class="ex"><span class="${han ? 'han' : ''}">${esc(w.example.text)}</span><br>${esc(w.example.translation)}</p>` : ''}
+          ${famRow}
           <div class="src"><span>${w.sessionTitle ? `From “${esc(w.sessionTitle)}” · ` : ''}${fmtDate(w.createdAt)}</span>
             ${confirmWord === w.id
               ? `<span><button class="textbtn danger" type="button" data-del="${esc(w.id)}">Delete</button><button class="textbtn" type="button" data-keep="1">Keep</button></span>`
@@ -1771,7 +1803,61 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
     const text = filteredWords().map((w) => `${w.word}${w.pinyin ? ` (${w.pinyin})` : ''} — ${w.meaning}${w.example ? `\n  ${w.example.text}\n  ${w.example.translation}` : ''}`).join('\n');
     try { await navigator.clipboard.writeText(text); toast('Copied'); } catch { toast('Couldn’t copy.'); }
   };
+  // ---------- word family: swipe a saved Indonesian / Malay word to see its other forms ----------
+  const FAMILY_LANGS = ['id', 'ms'];
+  const famView = {}; // word id -> which form is showing (only while the app is open)
+  let famLoading = null, famSwipe = null, famSwiped = false;
+  async function famStep(id, dir, jump) {
+    const w = words.find((x) => x.id === id); if (!w || famLoading) return;
+    if (!w.family?.forms?.length) {
+      famLoading = id; renderWords();
+      try {
+        const res = await fetch('/api/family', { method: 'POST', headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+          body: JSON.stringify({ word: w.word, lang: w.lang, meaning: w.meaning }) });
+        if (!res.ok) throw new Error(await apiError(res));
+        w.family = await res.json();
+        await putWord(w).catch(() => {});
+      } catch (e) {
+        toast(e instanceof TypeError ? 'Couldn’t reach the server.' : e.message);
+        famLoading = null; renderWords(); return;
+      }
+      famLoading = null;
+    }
+    const n = w.family.forms.length;
+    const saved = Math.max(0, w.family.forms.findIndex((f) => f.word === w.word.toLowerCase()));
+    const cur = famView[id] ?? saved;
+    famView[id] = jump != null ? jump : (cur + dir + n) % n;
+    renderWords();
+  }
+  $('wlist').addEventListener('pointerdown', (ev) => {
+    const card = ev.target.closest('.wcard.fam'); if (!card || ev.target.closest('button')) return;
+    famSwipe = { id: card.dataset.fam, x: ev.clientX, y: ev.clientY };
+  });
+  $('wlist').addEventListener('pointerup', (ev) => {
+    if (!famSwipe) return;
+    const dx = ev.clientX - famSwipe.x, dy = ev.clientY - famSwipe.y, id = famSwipe.id; famSwipe = null;
+    if (Math.abs(dx) > 45 && Math.abs(dx) > Math.abs(dy) * 1.5) { famSwiped = true; setTimeout(() => (famSwiped = false), 50); famStep(id, dx < 0 ? 1 : -1); }
+  });
+  $('wlist').addEventListener('pointercancel', () => (famSwipe = null));
+  $('wlist').addEventListener('click', async (ev) => {
+    const b = ev.target.closest('button'); if (!b || famSwiped) return;
+    if (b.dataset.famGo) { famStep(b.dataset.famGo, 0, +b.dataset.j); return; }
+    if (b.dataset.speakForm) {
+      const w = words.find((x) => x.id === b.dataset.speakForm); const f = w?.family?.forms[famView[w.id]];
+      if (f) speak({ word: f.word, lang: w.lang }); return;
+    }
+    if (b.dataset.famAdd) {
+      const w = words.find((x) => x.id === b.dataset.famAdd); const f = w?.family?.forms[famView[w.id]]; if (!f) return;
+      const nw = { id: wordId(w.lang, f.word), word: caseFor(f.word, f.part_of_speech), lang: w.lang, pinyin: '', root: w.family.base !== f.word ? w.family.base : '',
+        part_of_speech: f.part_of_speech || '', meaning: f.meaning, in_context: '', notes: '', example: f.example || null, register: '', standard: '',
+        sentence: '', sessionId: '', sessionTitle: `Family of ${w.word}`, createdAt: Date.now(), family: w.family };
+      await putWord(nw).catch(() => {});
+      words = [nw, ...words.filter((x) => x.id !== nw.id)];
+      renderWords(); toast(`${nw.word} added to your words`);
+    }
+  });
   $('wlist').onclick = async (ev) => {
+    if (famSwiped) return;
     const b = ev.target.closest('button'); if (!b) return;
     if (b.dataset.speak) { const w = words.find((x) => x.id === b.dataset.speak); if (w) speak(w); }
     else if (b.dataset.edit) { const w = words.find((x) => x.id === b.dataset.edit); if (w) openEditWord(w); }

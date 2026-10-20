@@ -284,6 +284,27 @@ def redo_line(heard: str, original: str, original_translation: str, before: list
     return text, translation
 
 
+def word_family(word: str, lang: str, meaning: str = "") -> dict:
+    """The base word and its common affixed forms, each with a meaning and an example."""
+    language = LOOKUP_LANG.get(lang) or LANG_NAMES[lang]
+    prompt = (
+        f"You are a {language}–English learner's dictionary. The learner saved the {language} word \"{word}\""
+        + (f" ({meaning})" if meaning else "") + ". "
+        f"Give its word family: the base (root) word, and the common, real forms built from it with prefixes and "
+        "suffixes (for example me-, di-, ter-, ber-, pe-, pe-an, ke-an, -kan, -i). Only include forms a native "
+        "speaker would actually use; never invent a form. Include the saved word itself. Put the base word first, "
+        "then verbs, then nouns and others. At most 8 forms.\n"
+        "For each form: its part of speech, its English meaning (10 words max) and a short everyday example sentence "
+        "with its English translation.\n"
+        'Reply with JSON only: {"base": "...", "forms": [{"word": "...", "part_of_speech": "...", "meaning": "...", '
+        '"example": {"text": "...", "translation": "..."}}]}'
+    )
+    data = _json(_complete_simple(prompt, max_tokens=1600, effort="medium")) or {}
+    if not data.get("forms"):
+        raise ValueError("The dictionary didn't return a word family")
+    return data
+
+
 def example_for(word: str, lang: str, script: str, meaning: str, english: str) -> str:
     """A natural sentence in `lang` that uses `word` and means the English sentence."""
     language = LOOKUP_LANG.get(lang) or LANG_NAMES[lang]

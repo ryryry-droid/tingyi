@@ -15,6 +15,9 @@ from fastapi.staticfiles import StaticFiles
 from . import audioclip, config, translate
 from .models import (
     ExampleRequest,
+    FamilyForm,
+    FamilyRequest,
+    FamilyResponse,
     LiveSegment,
     Sense,
     LiveTranscribeResponse,
@@ -254,6 +257,36 @@ def _senses(raw, req: LookupRequest) -> list[Sense]:
             word = to_script(word, req.script)
         out.append(Sense(sense=sense[:60], word=word, pinyin=to_pinyin(word) if chinese else None))
     return out[:5] if len(out) > 1 else []
+
+
+@app.post("/api/family", response_model=FamilyResponse, dependencies=[Depends(check_token)])
+async def word_family(req: FamilyRequest) -> FamilyResponse:
+    """The other forms of an Indonesian / Malay word, for swiping between them on a saved word."""
+    word = req.word.strip()
+    try:
+        data = await run_in_threadpool(translate.word_family, word, req.lang, req.meaning.strip())
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Couldn't find the word family: {e}")
+
+    def clean(v) -> str:
+        return str(v or "").strip()
+
+    forms: list[FamilyForm] = []
+    for f in data.get("forms") or []:
+        if not isinstance(f, dict) or not clean(f.get("word")) or not clean(f.get("meaning")):
+            continue
+        w = clean(f["word"]).lower()
+        if any(x.word == w for x in forms):
+            continue
+        ex = f.get("example") if isinstance(f.get("example"), dict) else {}
+        forms.append(FamilyForm(
+            word=w, part_of_speech=clean(f.get("part_of_speech")), meaning=clean(f.get("meaning")),
+            example=Example(text=clean(ex.get("text")), translation=clean(ex.get("translation"))) if clean(ex.get("text")) else None,
+        ))
+    forms = forms[:8]
+    if not any(f.word == word.lower() for f in forms):  # the saved word is always one of them
+        forms.append(FamilyForm(word=word.lower(), meaning=req.meaning.strip() or "—"))
+    return FamilyResponse(base=clean(data.get("base")).lower() or forms[0].word, forms=forms)
 
 
 @app.post("/api/example", response_model=Example, dependencies=[Depends(check_token)])
