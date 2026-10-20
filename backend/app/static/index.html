@@ -960,6 +960,16 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
     }
   }
 
+  // Save the transcript and translation as a text file (Downloads on a phone)
+  const fileBase = (s) => (s.title || 'recording').replace(/[\\/:*?"<>|]+/g, ' ').trim().slice(0, 60) || 'recording';
+  function saveText(s) {
+    const body = `${s.title}\n${fmtDate(s.createdAt)}\n\n` + s.segments.map((seg) => `[${fmtTime(seg.start)}] ${segText(seg)}\n${segTr(seg) || '—'}`).join('\n\n') + '\n';
+    const url = URL.createObjectURL(new Blob([body], { type: 'text/plain;charset=utf-8' }));
+    const a = document.createElement('a'); a.href = url; a.download = `${fileBase(s)}.txt`; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
+    toast('Translation saved');
+  }
+
   // Save the recording's audio as a file (Downloads on a phone)
   function saveAudio(s) {
     if (!s.audio) return;
@@ -1096,10 +1106,11 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
       $('s-body').innerHTML = `<div class="working"><div class="dot"></div><div>Transcribing with Whisper, then translating.<br>Longer recordings take a minute or two.</div></div>`;
       return;
     }
-    const dl = s.audio ? `<button class="textbtn" type="button" data-act="audio">Save audio</button>` : '';
+    const dl = (s.status === 'done' && s.segments.length ? `<button class="textbtn" type="button" data-act="text">Save translation</button>` : '')
+      + (s.audio ? `<button class="textbtn" type="button" data-act="audio">Save audio</button>` : '');
     const del = confirmDelete
       ? `<p class="meta" style="margin-top:20px">Delete this recording? <button class="textbtn danger" type="button" data-act="del-yes">Delete</button> <button class="textbtn" type="button" data-act="del-no">Keep</button></p>`
-      : `<p style="margin-top:20px;display:flex;gap:18px">${dl}<button class="textbtn" type="button" data-act="del">Delete recording</button></p>`;
+      : `<p style="margin-top:20px;display:flex;flex-wrap:wrap;gap:6px 18px">${dl}<button class="textbtn" type="button" data-act="del">Delete recording</button></p>`;
     if (s.status === 'error') {
       $('s-body').innerHTML = `<div class="working"><div>${esc(s.error)}</div><button class="small-primary" type="button" data-act="retry">Try again</button></div>${del}`;
       return;
@@ -2136,6 +2147,7 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
     else if (act === 'retry') process(current);
     else if (act === 'tr-missing') translateMissing(current);
     else if (act === 'audio') saveAudio(current);
+    else if (act === 'text') saveText(current);
     else if (act === 'del') { confirmDelete = true; renderSession(); }
     else if (act === 'del-no') { confirmDelete = false; renderSession(); }
     else if (act === 'del-yes') {

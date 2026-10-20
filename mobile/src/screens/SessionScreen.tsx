@@ -3,6 +3,7 @@ import { useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, FlatList, Pressable, Share, StyleSheet, Text, TextInput, View } from 'react-native';
 
+import { File, Paths } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 
 import { liveTranslate, lookupWord, options, redoLine, retranslate } from '../api';
@@ -273,6 +274,19 @@ export default function SessionScreen(p: Props) {
     }
   }
 
+  // Save the transcript and translation as a text file, through the share menu (Files, Drive, WhatsApp...)
+  async function shareText() {
+    try {
+      const name = (session.title || 'recording').replace(/[\\/:*?"<>|]+/g, ' ').trim().slice(0, 60) || 'recording';
+      const file = new File(Paths.cache, `${name}.txt`);
+      file.create({ overwrite: true });
+      file.write(`${session.title}\n${formatDate(session.createdAt)}\n\n${transcript()}\n`);
+      await Sharing.shareAsync(file.uri, { mimeType: 'text/plain', dialogTitle: session.title });
+    } catch (e: any) {
+      Alert.alert('Couldn’t save the translation', String(e?.message ?? e));
+    }
+  }
+
   const deleteRow = confirmDelete ? (
     <View style={styles.delRow}>
       <Text style={{ color: c.muted, fontWeight: '600' }}>Delete this recording?</Text>
@@ -281,6 +295,7 @@ export default function SessionScreen(p: Props) {
     </View>
   ) : (
     <View style={[styles.delRow, { gap: 18 }]}>
+      {session.status === 'done' && lineCount ? <TextBtn title="Save translation" onPress={shareText} /> : null}
       {session.audioUri ? <TextBtn title="Share audio" onPress={shareAudio} /> : null}
       <TextBtn title="Delete recording" onPress={() => setConfirmDelete(true)} />
     </View>
@@ -584,7 +599,7 @@ const styles = StyleSheet.create({
   orig: { fontSize: 21, lineHeight: 31 },
   tr: { fontSize: 17, lineHeight: 25, marginTop: 8 },
   trHan: { fontFamily: HAN_FONT, fontSize: 19, lineHeight: 29 },
-  delRow: { flexDirection: 'row', alignItems: 'center', gap: 14, marginTop: 20 },
+  delRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 14, marginTop: 20 },
   actions: { flexDirection: 'row', gap: 10, paddingHorizontal: 16, paddingTop: 10, paddingBottom: 14 },
   wcHead: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
   wcWord: { fontSize: 32, lineHeight: 40 },
