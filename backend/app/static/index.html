@@ -2111,7 +2111,7 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
       <p class="label">Question types</p>
       <div class="kinds">${TEST_KINDS.map((k) => `<button class="kind" type="button" data-ts="kind" data-v="${k.id}" aria-pressed="${testSetup.kinds.includes(k.id)}"><span class="box">${testSetup.kinds.includes(k.id) ? '✓' : ''}</span><span><b>${k.title}</b><small>${k.hint}</small></span></button>`).join('')}</div>
       <button class="primary" type="button" data-ts="start" ${testSetup.kinds.length && pool.length ? '' : 'disabled'}>Start ${Math.min(pool.length, counts.includes(testSetup.count) ? testSetup.count : pool.length)} questions</button>
-      ${'speechSynthesis' in window ? `<button class="secondary listen-btn" type="button" data-ts="listen" ${pool.some((w) => w.example?.text) ? '' : 'disabled'}>🎧 Listen to sentences<small>Each example sentence plays twice, then the next</small></button>` : ''}`);
+      ${'speechSynthesis' in window ? `<button class="secondary listen-btn" type="button" data-ts="listen" ${pool.some((w) => w.example?.text) ? '' : 'disabled'}>🎧 Listen to sentences</button>` : ''}`);
   }
   $('panel').addEventListener('click', (ev) => {
     const b = ev.target.closest('[data-ts]'); if (!b) return;

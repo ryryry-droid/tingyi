@@ -17,6 +17,7 @@ type Props = {
   testSetup: TestSetup;
   onTestSetup: (s: TestSetup) => void;
   onStartTest: () => void;
+  onListen?: () => void; // example sentences read aloud
   onSaveWord: (w: Word) => void;
   onUpdateWord?: (w: Word) => void; // change a word in place (keeps its place in the list)
   onDeleteWord: (id: string) => void;
@@ -358,6 +359,14 @@ export default function WordsScreen(p: Props) {
             setSetup(false);
             p.onStartTest();
           }}
+          onListen={
+            p.onListen
+              ? () => {
+                  setSetup(false);
+                  p.onListen!();
+                }
+              : undefined
+          }
         />
       ) : null}
     </View>
@@ -729,12 +738,14 @@ function TestSetupSheet({
   onChange,
   onClose,
   onStart,
+  onListen,
 }: {
   words: Word[];
   setup: TestSetup;
   onChange: (s: TestSetup) => void;
   onClose: () => void;
   onStart: () => void;
+  onListen?: () => void;
 }) {
   const c = useColors();
   const ss = sheetStyles(c);
@@ -789,6 +800,11 @@ function TestSetupSheet({
       <View style={{ flexDirection: 'row' }}>
         <Btn title={`Start ${n} questions`} disabled={!t.kinds.length || !pool.length} onPress={onStart} />
       </View>
+      {onListen ? (
+        <View style={{ flexDirection: 'row' }}>
+          <Btn title="🎧 Listen to sentences" kind="secondary" disabled={!pool.some((w) => w.example?.text)} onPress={onListen} style={{ flex: 1 }} />
+        </View>
+      ) : null}
     </Sheet>
   );
 }

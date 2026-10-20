@@ -9,6 +9,7 @@ import { backUp, restore } from './src/backup';
 import { preloadSounds, setSoundVolume } from './src/sounds';
 import Splash from './src/Splash';
 import HistoryScreen from './src/screens/HistoryScreen';
+import ListenScreen from './src/screens/ListenScreen';
 import LiveScreen, { LiveResult } from './src/screens/LiveScreen';
 import RecordScreen, { StopReason } from './src/screens/RecordScreen';
 import SessionScreen from './src/screens/SessionScreen';
@@ -34,7 +35,8 @@ type Route =
   | { name: 'tab' }
   | { name: 'session'; id: string }
   | { name: 'live'; mode: 'subtitles' | 'conversation' }
-  | { name: 'test'; only?: Word[]; key: number };
+  | { name: 'test'; only?: Word[]; key: number }
+  | { name: 'listen'; key: number };
 type Toast = { msg: string; action?: { label: string; run: () => void } } | null;
 
 const TABS: [Tab, string][] = [
@@ -123,7 +125,7 @@ export default function App() {
         setTab('history');
         return true;
       }
-      if (route.name === 'test') {
+      if (route.name === 'test' || route.name === 'listen') {
         setRoute({ name: 'tab' });
         setTab('words');
         return true;
@@ -282,7 +284,7 @@ export default function App() {
   }
 
   const current = route.name === 'session' ? sessions.find((s) => s.id === route.id) : undefined;
-  const selectedTab: Tab = route.name === 'session' ? 'history' : route.name === 'live' ? 'record' : route.name === 'test' ? 'words' : tab;
+  const selectedTab: Tab = route.name === 'session' ? 'history' : route.name === 'live' ? 'record' : route.name === 'test' || route.name === 'listen' ? 'words' : tab;
 
   let screen: React.ReactNode;
   if (!ready) {
@@ -317,6 +319,8 @@ export default function App() {
         toast={showToast}
       />
     );
+  } else if (route.name === 'listen') {
+    screen = <ListenScreen key={route.key} settings={settings} words={words} setup={testSetup} onDone={() => goTab('words')} />;
   } else if (route.name === 'test') {
     screen = (
       <TestScreen
@@ -345,6 +349,7 @@ export default function App() {
           saveTestSetup(t);
         }}
         onStartTest={() => setRoute({ name: 'test', key: Date.now() })}
+        onListen={() => setRoute({ name: 'listen', key: Date.now() })}
         onSaveWord={saveWord}
         onUpdateWord={updateWord}
         onDeleteWord={removeWord}

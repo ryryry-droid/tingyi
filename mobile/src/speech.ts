@@ -40,3 +40,29 @@ export async function speakWord(w: Pick<Word, 'word' | 'lang'>, script: 'simplif
     Speech.speak(w.word, { language, voice: voice?.identifier, rate: 0.85 });
   } catch {}
 }
+
+/** Read a sentence aloud; resolves when it has finished (or was stopped). */
+export async function speakText(text: string, lang: string, script: 'simplified' | 'traditional', rate = 0.9): Promise<void> {
+  const tag = lang === 'zh' ? (script === 'traditional' ? 'zh-TW' : 'zh-CN') : SPEECH_LANG[lang] || lang;
+  const voice = pickVoice(await loadVoices(), tag);
+  return new Promise((resolve) => {
+    try {
+      Speech.speak(text, {
+        language: tag.split('-')[0],
+        voice: voice?.identifier,
+        rate,
+        onDone: () => resolve(),
+        onStopped: () => resolve(),
+        onError: () => resolve(),
+      });
+    } catch {
+      resolve();
+    }
+  });
+}
+
+export function stopSpeaking() {
+  try {
+    Speech.stop();
+  } catch {}
+}
