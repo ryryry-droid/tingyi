@@ -80,6 +80,17 @@ jobs:
       - name: Generate the Android project
         run: npx expo prebuild --platform android --no-install
 
+      - name: Make sure the Android NDK is installed
+        # GitHub's build machines don't always come with the NDK version React Native asks for
+        working-directory: mobile/android
+        run: |
+          ndk=$(grep -rhoE "ndkVersion\s*=\s*['\"][0-9.]+['\"]" build.gradle app/build.gradle 2>/dev/null | grep -oE "[0-9]+\.[0-9]+\.[0-9]+" | head -1)
+          ndk=${ndk:-28.2.13676358}
+          if [ ! -d "$ANDROID_HOME/ndk/$ndk" ]; then
+            echo "Installing NDK $ndk"
+            yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install "ndk;$ndk" > /dev/null
+          fi
+
       - name: Build the APK
         working-directory: mobile/android
         run: |
