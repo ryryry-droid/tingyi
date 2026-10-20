@@ -184,6 +184,16 @@ nav button[aria-selected="true"] { background: var(--surface); color: var(--ink)
 .sheet-wrap { position: fixed; inset: 0; z-index: 30; background: rgba(0,0,0,.38); display: flex; align-items: flex-end; }
 .sheet { width: 100%; max-width: 600px; margin: 0 auto; max-height: 82vh; overflow-y: auto; background: var(--surface); border-radius: 18px 18px 0 0;
   padding: 18px max(18px, env(safe-area-inset-right, 0px)) calc(18px + env(safe-area-inset-bottom, 0px)) max(18px, env(safe-area-inset-left, 0px)); display: grid; gap: 12px; }
+.s-top { display: flex; justify-content: space-between; align-items: center; }
+.more { border: 0; background: none; color: var(--faint); font-size: 15px; letter-spacing: 2px; padding: 6px 2px 6px 12px; }
+.menu { display: grid; gap: 2px; margin-top: 6px; }
+.menu button { display: flex; align-items: center; gap: 14px; border: 0; background: none; text-align: left; padding: 11px 2px; font-size: 16px; font-weight: 600; color: var(--ink); }
+.menu button i { width: 34px; height: 34px; border-radius: 10px; background: var(--surface2); display: grid; place-items: center; color: var(--accent); flex-shrink: 0; }
+.menu button small { display: block; color: var(--muted); font-weight: 500; font-size: 12.5px; margin-top: 2px; }
+.menu hr { border: 0; height: 1px; background: var(--line); margin: 6px 0; }
+.menu .danger, .menu .danger i { color: var(--rec); }
+.rn { width: 100%; border: 1.5px solid var(--line); border-radius: 12px; background: var(--bg); padding: 12px; font-size: 18px; font-weight: 700; color: var(--ink); }
+.danger-btn { background: var(--rec) !important; }
 .sheet .grab { width: 40px; height: 4px; border-radius: 2px; background: var(--line); margin: -6px auto 2px; }
 .wc-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
 .wc-word { font-size: 32px; line-height: 1.2; margin: 0; overflow-wrap: anywhere; }
@@ -480,7 +490,7 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
   </section>
 
   <section id="view-session" hidden>
-    <button class="textbtn" id="back" type="button">‹ History</button>
+    <div class="s-top"><button class="textbtn" id="back" type="button">‹ History</button><button class="more" id="s-more" type="button" aria-label="More options">•••</button></div>
     <div class="session-head"><h1 id="s-title"></h1><div class="meta" id="s-meta"></div></div>
     <div id="s-body"></div>
   </section>
@@ -1102,15 +1112,12 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
     const s = current; if (!s) return;
     $('s-title').textContent = s.status === 'done' ? s.title : s.status === 'processing' ? 'Translating…' : 'Translation failed';
     $('s-meta').textContent = `${s.mode === 'conversation' ? `Conversation · ${LANGS[s.source]} ⇄ ${LANGS[s.target]}` : `${LANGS[s.source || 'zh']} → ${LANGS[s.target || 'en']}`}${s.mode === 'subtitles' ? ' · Live' : ''} · ${fmtDate(s.createdAt)}${s.duration ? ' · ' + fmtTime(s.duration) : ''}${s.status === 'done' ? ` · ${s.segments.length} ${s.segments.length === 1 ? 'line' : 'lines'}` : ''}`;
+    $('s-more').hidden = s.status === 'processing';
     if (s.status === 'processing') {
       $('s-body').innerHTML = `<div class="working"><div class="dot"></div><div>Transcribing with Whisper, then translating.<br>Longer recordings take a minute or two.</div></div>`;
       return;
     }
-    const dl = (s.status === 'done' && s.segments.length ? `<button class="textbtn" type="button" data-act="text">Save translation</button>` : '')
-      + (s.audio ? `<button class="textbtn" type="button" data-act="audio">Save audio</button>` : '');
-    const del = confirmDelete
-      ? `<p class="meta" style="margin-top:20px">Delete this recording? <button class="textbtn danger" type="button" data-act="del-yes">Delete</button> <button class="textbtn" type="button" data-act="del-no">Keep</button></p>`
-      : `<p style="margin-top:20px;display:flex;flex-wrap:wrap;gap:6px 18px">${dl}<button class="textbtn" type="button" data-act="del">Delete recording</button></p>`;
+    const del = ''; // Rename, sharing, saving and Delete live in the ••• menu
     if (s.status === 'error') {
       $('s-body').innerHTML = `<div class="working"><div>${esc(s.error)}</div><button class="small-primary" type="button" data-act="retry">Try again</button></div>${del}`;
       return;
@@ -2228,6 +2235,72 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
   }
   document.querySelectorAll('nav button').forEach((b) => (b.onclick = () => { if (!rec && !live) setView(b.dataset.view); }));
   $('back').onclick = () => setView('history');
+
+  // ---------- recording ••• menu ----------
+  const ICON = (d) => `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
+  const ICONS = {
+    rename: ICON('<path d="M4 20h4L19 9l-4-4L4 16v4z"/><path d="M13.5 6.5l4 4"/>'),
+    message: ICON('<path d="M4 5h16v11H9l-5 4V5z"/>'),
+    text: ICON('<path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4"/><path d="M9 12h6M9 16h6"/>'),
+    audio: ICON('<path d="M4 15v-3a8 8 0 0 1 16 0v3"/><rect x="3" y="14" width="4" height="6" rx="1.5"/><rect x="17" y="14" width="4" height="6" rx="1.5"/>'),
+    del: ICON('<path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/>'),
+  };
+  let menuFor = null; // the recording whose menu is open
+  function openMenu() {
+    const s = current; if (!s) return;
+    menuFor = s;
+    const done = s.status === 'done' && s.segments.length;
+    const item = (id, label, sub = '', cls = '') => `<button type="button" data-sm="${id}" class="${cls}"><i>${ICONS[id]}</i><span>${label}${sub ? `<small>${sub}</small>` : ''}</span></button>`;
+    openPanel(`<div class="menu">
+      ${s.status === 'done' ? item('rename', 'Rename') : ''}
+      ${done ? item('message', 'Share as message') : ''}
+      ${done ? item('text', 'Save translation', 'As a text file') : ''}
+      ${s.audio ? item('audio', 'Share audio') : ''}
+      ${s.status === 'done' || s.audio ? '<hr>' : ''}
+      ${item('del', 'Delete recording', '', 'danger')}
+    </div>`);
+  }
+  $('s-more').onclick = openMenu;
+  $('panel').addEventListener('click', async (ev) => {
+    const b = ev.target.closest('[data-sm]'); if (!b || !menuFor) return;
+    const s = menuFor, act = b.dataset.sm;
+    if (act === 'rename') {
+      openPanel(`<h2>Rename</h2><input id="rn-input" class="rn" type="text" value="${esc(s.title)}" autocomplete="off">
+        <div class="wc-actions"><button class="primary" type="button" data-sm="rename-save">Save</button><button class="secondary" type="button" data-sm="close">Cancel</button></div>`);
+      const i = $('rn-input'); i.focus(); i.select();
+      i.onkeydown = (e) => { if (e.key === 'Enter') $('panel').querySelector('[data-sm="rename-save"]').click(); };
+      return;
+    }
+    if (act === 'rename-save') {
+      const t = $('rn-input').value.trim(); if (!t) return;
+      s.title = t; await putSession(s); closePanel(); menuFor = null; renderSession(); toast('Renamed'); return;
+    }
+    if (act === 'del') {
+      openPanel(`<h2>Delete this recording?</h2><p class="meta" style="margin:0">${esc(s.title)}</p>
+        <div class="wc-actions"><button class="primary danger-btn" type="button" data-sm="del-yes">Delete</button><button class="secondary" type="button" data-sm="close">Keep</button></div>`);
+      return;
+    }
+    closePanel(); menuFor = null;
+    if (act === 'message') shareMessage(s);
+    else if (act === 'text') saveText(s);
+    else if (act === 'audio') shareAudioFile(s);
+    else if (act === 'del-yes') {
+      await deleteSession(s.id).catch(() => {});
+      sessions = sessions.filter((x) => x.id !== s.id); if (current === s) current = null;
+      setView('history'); toast('Deleted');
+    }
+  });
+  async function shareMessage(s) {
+    const text = `${s.title}\n${fmtDate(s.createdAt)}\n\n` + s.segments.map((seg) => `[${fmtTime(seg.start)}] ${segText(seg)}\n${segTr(seg) || '—'}`).join('\n\n');
+    if (navigator.share) { try { await navigator.share({ title: s.title, text }); return; } catch (e) { if (e?.name === 'AbortError') return; } }
+    try { await navigator.clipboard.writeText(text); toast('Copied. Paste it into any message.'); } catch { toast('Couldn’t share.'); }
+  }
+  async function shareAudioFile(s) {
+    if (!s.audio) return;
+    const file = new File([s.audio], `${fileBase(s)}.${extFor(s.audio.type || 'audio/webm')}`, { type: s.audio.type || 'audio/webm' });
+    if (navigator.canShare?.({ files: [file] })) { try { await navigator.share({ files: [file], title: s.title }); return; } catch (e) { if (e?.name === 'AbortError') return; } }
+    saveAudio(s); // no share menu (e.g. on a computer): download it
+  }
   document.querySelectorAll('.seg').forEach((g) => (g.onclick = (ev) => {
     const b = ev.target.closest('button'); if (!b) return;
     settings[g.dataset.setting] = b.dataset.value; saveSettings(); rerender();
