@@ -1,6 +1,6 @@
 import { File, Paths } from 'expo-file-system';
 
-import { LookupEntry, Segment, Session, Settings } from './types';
+import { LookupEntry, Segment, Session, Settings, WordFamily } from './types';
 
 function baseUrl(s: Settings) {
   let url = s.serverUrl.trim().replace(/\/+$/, '');
@@ -124,6 +124,11 @@ export function retranslate(
 /** fromEnglish: "word" is English, find how to say it in lang. */
 export function lookupWord(s: Settings, word: string, sentence: string, lang: string, fromEnglish = false, sense = ''): Promise<LookupEntry> {
   return postJson(s, '/api/lookup', { word, sentence, lang, script: s.script, from_english: fromEnglish, sense });
+}
+
+/** An Indonesian / Malay word's family: its base word and the common forms built from it. */
+export function wordFamily(s: Settings, word: string, lang: string, meaning: string): Promise<WordFamily> {
+  return postJson(s, '/api/family', { word, lang, meaning });
 }
 
 /** Which of these words are colloquial (for words saved before this was recorded). */

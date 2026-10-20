@@ -346,6 +346,7 @@ export default function App() {
         }}
         onStartTest={() => setRoute({ name: 'test', key: Date.now() })}
         onSaveWord={saveWord}
+        onUpdateWord={updateWord}
         onDeleteWord={removeWord}
         toast={showToast}
       />

@@ -1,13 +1,13 @@
 import * as Clipboard from 'expo-clipboard';
 import { RecordingPresets, requestRecordingPermissionsAsync, setAudioModeAsync, useAudioRecorder } from 'expo-audio';
 import { useEffect, useRef, useState } from 'react';
-import { FlatList, Pressable, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
+import { FlatList, PanResponder, Pressable, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 
-import { liveTranscribe, lookupWord, options } from '../api';
+import { liveTranscribe, lookupWord, options, wordFamily } from '../api';
 import { Btn, Label, NotAWord, Pinyin, Segmented, Sheet, sheetStyles, TextBtn, Working } from '../components';
 import { speakWord } from '../speech';
 import { deaccent, formatDate, HAN_FONT, useColors } from '../theme';
-import { caseFor, DEFAULT_TEST_SETUP, LANGS, learningLang, LookupEntry, Settings, TestKind, TestSetup, Word, WORD_EXAMPLE, wordId, wordLangOf, wordLangs } from '../types';
+import { caseFor, DEFAULT_TEST_SETUP, FamilyForm, LANGS, learningLang, LookupEntry, Settings, TestKind, TestSetup, Word, WORD_EXAMPLE, wordId, wordLangOf, wordLangs } from '../types';
 import { cleanWord } from '../words';
 import { ExampleBox } from './SessionScreen';
 
@@ -18,6 +18,7 @@ type Props = {
   onTestSetup: (s: TestSetup) => void;
   onStartTest: () => void;
   onSaveWord: (w: Word) => void;
+  onUpdateWord?: (w: Word) => void; // change a word in place (keeps its place in the list)
   onDeleteWord: (id: string) => void;
   toast: (msg: string) => void;
 };
@@ -50,6 +51,49 @@ export default function WordsScreen(p: Props) {
   const [adding, setAdding] = useState(false);
   const [setup, setSetup] = useState(false);
   const [editingWord, setEditingWord] = useState<Word | null>(null);
+  // Word family: swipe a saved Indonesian / Malay word to see its other forms
+  const [famView, setFamView] = useState<Record<string, number>>({});
+  const [famLoading, setFamLoading] = useState<string | null>(null);
+  const savedIndex = (w: Word) => Math.max(0, (w.family?.forms || []).findIndex((f) => f.word === w.word.toLowerCase()));
+  async function famStep(w: Word, dir: number, jump?: number) {
+    if (famLoading) return;
+    let fam = w.family;
+    if (!fam?.forms?.length) {
+      setFamLoading(w.id);
+      try {
+        fam = await wordFamily(settings, w.word, w.lang, w.meaning);
+        (p.onUpdateWord || p.onSaveWord)({ ...w, family: fam });
+      } catch (e: any) {
+        p.toast(String(e?.message ?? e));
+        setFamLoading(null);
+        return;
+      }
+      setFamLoading(null);
+    }
+    const n = fam.forms.length;
+    const saved = Math.max(0, fam.forms.findIndex((f) => f.word === w.word.toLowerCase()));
+    setFamView((v) => ({ ...v, [w.id]: jump != null ? jump : ((v[w.id] ?? saved) + dir + n) % n }));
+  }
+  function addForm(w: Word, f: FamilyForm) {
+    p.onSaveWord({
+      id: wordId(w.lang, f.word),
+      word: caseFor(f.word, f.part_of_speech),
+      lang: w.lang,
+      pinyin: '',
+      root: w.family && w.family.base !== f.word ? w.family.base : '',
+      part_of_speech: f.part_of_speech || '',
+      meaning: f.meaning,
+      in_context: '',
+      notes: '',
+      example: f.example || null,
+      sentence: '',
+      sessionId: '',
+      sessionTitle: `Family of ${w.word}`,
+      createdAt: Date.now(),
+      family: w.family,
+    });
+    p.toast(`${f.word} added to your words`);
+  }
 
   const have = wordLangs([], words); // languages you have words in
   const f = filter !== 'all' && !have.some(([code]) => code === filter) ? 'all' : filter;
@@ -73,6 +117,7 @@ export default function WordsScreen(p: Props) {
     <View style={{ flex: 1 }}>
       <FlatList
         data={list}
+        extraData={[famView, famLoading, words, settings.pinyin]}
         keyExtractor={(w) => w.id}
         keyboardShouldPersistTaps="handled"
         contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 40 }}
@@ -160,8 +205,75 @@ export default function WordsScreen(p: Props) {
         }
         renderItem={({ item: w }) => {
           const han = w.lang === 'zh';
+          const famOk = w.lang === 'id' || w.lang === 'ms';
+          const fam = famOk && w.family?.forms?.length ? w.family : null;
+          const saved = savedIndex(w);
+          const idx = fam && famView[w.id] != null ? famView[w.id] : saved;
+          const other = fam && idx !== saved ? fam.forms[idx] : null; // another form, not the saved word
+          const onSwipe = famOk ? (dir: number) => famStep(w, dir) : undefined;
+          const famRow = famOk ? (
+            <View style={styles.famRow}>
+              {fam ? (
+                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                  {fam.forms.map((f, j) => (
+                    <Pressable key={f.word} onPress={() => famStep(w, 0, j)} hitSlop={4} style={styles.dotHit} accessibilityLabel={f.word}>
+                      <View
+                        style={[
+                          styles.dot,
+                          { backgroundColor: j === idx ? c.accent : j === saved ? c.yellow : c.line },
+                          j === idx && { width: 16 },
+                        ]}
+                      />
+                    </Pressable>
+                  ))}
+                </View>
+              ) : null}
+              <Text style={{ fontSize: 11.5, color: c.faint }}>
+                {famLoading === w.id ? 'Loading word family…' : `‹ swipe for ${fam?.base || w.root || w.word} family ›`}
+              </Text>
+            </View>
+          ) : null;
+          if (other) {
+            const have = words.some((x) => x.id === wordId(w.lang, other.word));
+            return (
+              <FamSwipe onSwipe={onSwipe} style={[styles.card, { borderBottomColor: c.line, backgroundColor: c.accentSoft + '55' }]}>
+                <View style={styles.top}>
+                  <Pressable onPress={() => speakWord({ ...w, word: other.word }, settings.script)} style={[styles.spk, { backgroundColor: c.surface2 }]} hitSlop={6}>
+                    <Text style={{ fontSize: 13 }}>🔊</Text>
+                  </Pressable>
+                  <View style={styles.wmain}>
+                    <Text style={{ fontSize: 22, color: c.ink, flexShrink: 1 }}>{other.word}</Text>
+                    {other.part_of_speech ? <Text style={[sheetStyles(c).pos, { marginTop: 0, alignSelf: 'center' }]}>{other.part_of_speech}</Text> : null}
+                  </View>
+                  {have ? (
+                    <Text style={{ color: c.muted, fontWeight: '700', fontSize: 13 }}>✓ In your words</Text>
+                  ) : (
+                    <Pressable onPress={() => addForm(w, other)} style={[styles.famAdd, { backgroundColor: c.accent }]}>
+                      <Text style={{ color: c.accentInk, fontWeight: '700', fontSize: 13 }}>＋ Add</Text>
+                    </Pressable>
+                  )}
+                </View>
+                <Text style={{ color: c.ink, fontSize: 16 }}>
+                  {other.meaning}
+                  {fam!.base && fam!.base !== other.word ? <Text style={{ color: c.muted, fontSize: 13 }}> · base word {fam!.base}</Text> : null}
+                </Text>
+                {other.example ? (
+                  <Text style={{ color: c.muted, fontSize: 14, marginTop: 2 }}>
+                    {other.example.text}
+                    {'\n'}
+                    {other.example.translation}
+                  </Text>
+                ) : null}
+                {famRow}
+                <Text style={{ fontSize: 12, color: c.faint }}>
+                  Same family as <Text style={{ fontWeight: '700', color: c.muted }}>{w.word}</Text>
+                  {have ? '' : ' · not in your words'}
+                </Text>
+              </FamSwipe>
+            );
+          }
           return (
-            <View style={[styles.card, { borderBottomColor: c.line }]}>
+            <FamSwipe onSwipe={onSwipe} style={[styles.card, { borderBottomColor: c.line }]}>
               <View style={styles.top}>
                 <Pressable
                   onPress={() => speakWord(w, settings.script)}
@@ -194,6 +306,7 @@ export default function WordsScreen(p: Props) {
                   {w.example.translation}
                 </Text>
               ) : null}
+              {famRow}
               <View style={styles.src}>
                 <Text style={{ fontSize: 12, color: c.faint, flex: 1 }} numberOfLines={1}>
                   {w.sessionTitle ? `From “${w.sessionTitle}” · ` : ''}
@@ -217,7 +330,7 @@ export default function WordsScreen(p: Props) {
                   <TextBtn title="Delete" onPress={() => setConfirm(w.id)} />
                 )}
               </View>
-            </View>
+            </FamSwipe>
           );
         }}
       />
@@ -696,7 +809,32 @@ const styles = StyleSheet.create({
   addInput: { flex: 1, minWidth: 0, borderWidth: 1.5, borderRadius: 14, paddingHorizontal: 14, paddingVertical: 12, fontSize: 20, fontWeight: '700' },
   mic: { width: 52, height: 52, borderRadius: 26, alignItems: 'center', justifyContent: 'center' },
   meaning: { minHeight: 64, borderWidth: 1.5, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, fontSize: 17, fontWeight: '700', textAlignVertical: 'top' },
+  famRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4 },
+  dotHit: { paddingHorizontal: 2, paddingVertical: 4 },
+  dot: { width: 6, height: 6, borderRadius: 3 },
+  famAdd: { borderRadius: 999, paddingHorizontal: 12, paddingVertical: 5 },
   sense: { flexDirection: 'row', alignItems: 'center', gap: 10, borderWidth: 1.5, borderRadius: 12, paddingVertical: 9, paddingHorizontal: 12 },
   kind: { flexDirection: 'row', gap: 12, alignItems: 'center', borderRadius: 14, paddingVertical: 10, paddingHorizontal: 12, borderWidth: 1.5 },
   box: { width: 22, height: 22, borderRadius: 6, borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
 });
+
+// A word card you can swipe left or right (Indonesian / Malay: to move through the word family).
+// Without onSwipe it's a plain card. Vertical scrolling of the list still works.
+function FamSwipe({ onSwipe, style, children }: { onSwipe?: (dir: number) => void; style: any; children: React.ReactNode }) {
+  const cb = useRef(onSwipe);
+  cb.current = onSwipe;
+  const pan = useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponderCapture: (_, g) => !!cb.current && Math.abs(g.dx) > 12 && Math.abs(g.dx) > Math.abs(g.dy) * 1.5,
+      onPanResponderRelease: (_, g) => {
+        if (Math.abs(g.dx) > 45) cb.current?.(g.dx < 0 ? 1 : -1);
+      },
+      onPanResponderTerminationRequest: () => false,
+    }),
+  ).current;
+  return (
+    <View {...(onSwipe ? pan.panHandlers : {})} style={style}>
+      {children}
+    </View>
+  );
+}

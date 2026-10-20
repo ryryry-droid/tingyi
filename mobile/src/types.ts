@@ -148,7 +148,11 @@ export type Word = {
   right?: number;
   wrong?: number;
   lastTested?: number;
+  family?: WordFamily; // Indonesian / Malay: the base word and its other forms (loaded on the first swipe)
 };
+
+export type FamilyForm = { word: string; part_of_speech: string; meaning: string; example?: Example | null };
+export type WordFamily = { base: string; forms: FamilyForm[] };
 
 export type TestKind = 'meaning' | 'word' | 'gap' | 'type';
 export type TestSetup = { group: string; count: number; kinds: TestKind[] };
