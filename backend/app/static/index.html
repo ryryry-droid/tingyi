@@ -2254,7 +2254,7 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
     openPanel(`<div class="menu">
       ${s.status === 'done' ? item('rename', 'Rename') : ''}
       ${done ? item('message', 'Share as message') : ''}
-      ${done ? item('text', 'Save translation', 'As a text file') : ''}
+      ${done ? item('text', 'Save translation') : ''}
       ${s.audio ? item('audio', 'Share audio') : ''}
       ${s.status === 'done' || s.audio ? '<hr>' : ''}
       ${item('del', 'Delete recording', '', 'danger')}
