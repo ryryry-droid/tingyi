@@ -37,10 +37,14 @@ def finish_translation(text: str, opts: Options) -> tuple[str, str | None]:
 def process_recording(path: str, opts: Options) -> TranslateResponse:
     raw, duration = asr.transcribe(path, opts)
     segments = clean_segments(raw, opts)
-    translate.translate_all(segments, opts)
+    # The transcript is kept even if translating fails, so it isn't lost; untranslated lines can be retried
+    error = translate.translate_all(segments, opts, keep_going=True)
     for seg in segments:
         seg.translation, seg.translation_pinyin = finish_translation(seg.translation, opts)
-    title = translate.make_title(segments, opts) if segments else ""
+    try:
+        title = translate.make_title(segments, opts) if segments and not error else ""
+    except Exception:
+        title = ""
     if title and opts.target_is_chinese and "en" not in (opts.source, opts.target):
         title = to_script(title, opts.script)
     return TranslateResponse(
@@ -50,4 +54,5 @@ def process_recording(path: str, opts: Options) -> TranslateResponse:
         title=title,
         duration=round(duration, 2),
         segments=segments,
+        translation_error=f"Translation failed: {error}" if error else "",
     )

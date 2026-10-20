@@ -661,3 +661,24 @@ def test_example_follows_the_english_sentence(monkeypatch):
     body = r.json()
     assert body["text"] == "我买了一个新的无线路由器。" and body["pinyin"].startswith("wǒ") and body["translation"] == "I bought a new router."
     assert "I bought a new router." in seen[0] and "无线路由器" in seen[0]
+
+
+def test_transcript_kept_when_translation_fails(monkeypatch):
+    setup(monkeypatch)
+
+    def broken(*a, **kw):
+        raise RuntimeError("daily limit reached")
+
+    monkeypatch.setattr(translate, "_complete", broken)
+    r = client.post("/api/translate", files={"file": ("a.m4a", b"x", "audio/m4a")}, data={"options": "{}"})
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert [s["zh"] for s in body["segments"]][1] == "昨天去了医院。"  # the transcript is there
+    assert all(not s["translation"] for s in body["segments"])
+    assert "daily limit reached" in body["translation_error"]
+
+
+def test_no_translation_error_when_all_is_well(monkeypatch):
+    setup(monkeypatch)
+    r = client.post("/api/translate", files={"file": ("a.m4a", b"x", "audio/m4a")}, data={"options": "{}"})
+    assert r.json()["translation_error"] == ""

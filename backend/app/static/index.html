@@ -237,6 +237,7 @@ nav button[aria-selected="true"] { background: var(--surface); color: var(--ink)
 #set-main button { flex: 1 1 auto; }
 .notword { background: var(--warn-soft); color: var(--ink); border-radius: 14px; padding: 12px 14px; }
 .notword p { margin: 0; }
+.trfail { display: grid; gap: 10px; justify-items: start; margin-bottom: 8px; }
 .notword .filter button { font-size: 16px; padding: 6px 14px; color: var(--ink); background: var(--surface); }
 .wedit { margin-left: auto; align-self: center; flex-shrink: 0; padding: 2px 4px; font-weight: 700; color: var(--accent); }
 .ew { display: grid; gap: 4px; }
@@ -907,6 +908,8 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
       s.segments = data.segments;
       s.duration = data.duration || s.duration;
       s.status = 'done';
+      // the transcript came back but translating failed: keep it, and offer to translate the missing lines
+      s.untranslated = data.translation_error || '';
       const first = segText(s.segments[0]);
       if (data.title) s.title = data.title;
       else if (first) s.title = first.length > 24 ? first.slice(0, 24) + '…' : first;
@@ -916,6 +919,55 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
     }
     await putSession(s);
     rerender();
+  }
+
+  // Translate the lines that have no translation yet (after a translation failure), batch by batch
+  let translatingMissing = false;
+  async function translateMissing(s) {
+    if (translatingMissing) return;
+    translatingMissing = true; renderSession();
+    try {
+      const idx = s.segments.map((seg, i) => (segTr(seg) ? -1 : i)).filter((i) => i >= 0);
+      // consecutive lines going the same way (conversations switch direction), at most 20 per request
+      const groups = [];
+      for (const i of idx) {
+        const seg = s.segments[i], dir = `${seg.lang || s.source}>${seg.target || s.target}`;
+        const g = groups[groups.length - 1];
+        if (g && g.dir === dir && g.items.length < 20 && g.items[g.items.length - 1] === i - 1) g.items.push(i); else groups.push({ dir, items: [i] });
+      }
+      for (const g of groups) {
+        const first = s.segments[g.items[0]];
+        const context = s.segments.slice(Math.max(0, g.items[0] - 6), g.items[0]).filter((c) => segTr(c)).map((c) => ({ text: segText(c), translation: segTr(c) }));
+        const res = await fetch('/api/live/translate', {
+          method: 'POST', headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+          body: JSON.stringify({ lines: g.items.map((i) => ({ id: i, text: segText(s.segments[i]) })), context,
+            options: { ...options(), source: first.lang || s.source || 'zh', target: first.target || s.target || 'en', script: s.script || settings.script } }),
+        });
+        if (!res.ok) throw new Error(await apiError(res));
+        for (const t of (await res.json()).translations) {
+          if (!t.translation) continue;
+          s.segments[t.id] = { ...s.segments[t.id], translation: t.translation, en: t.translation, translation_pinyin: t.translation_pinyin };
+        }
+        await putSession(s);
+        if (current === s) renderSession();
+      }
+      if (!s.segments.some((seg) => !segTr(seg))) { s.untranslated = ''; await putSession(s); toast('Translated'); }
+    } catch (e) {
+      showNotice(e instanceof TypeError ? 'Couldn’t reach the server. Check your connection and try again.' : e.message);
+    } finally {
+      translatingMissing = false;
+      if (current === s) renderSession();
+    }
+  }
+
+  // Save the recording's audio as a file (Downloads on a phone)
+  function saveAudio(s) {
+    if (!s.audio) return;
+    const url = URL.createObjectURL(s.audio);
+    const name = `${(s.title || 'recording').replace(/[\\/:*?"<>|]+/g, ' ').trim().slice(0, 60) || 'recording'}.${extFor(s.audio.type || 'audio/webm')}`;
+    const a = document.createElement('a'); a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
+    toast('Audio saved');
   }
 
   async function retranslate(i, zh) {
@@ -1044,9 +1096,10 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
       $('s-body').innerHTML = `<div class="working"><div class="dot"></div><div>Transcribing with Whisper, then translating.<br>Longer recordings take a minute or two.</div></div>`;
       return;
     }
+    const dl = s.audio ? `<button class="textbtn" type="button" data-act="audio">Save audio</button>` : '';
     const del = confirmDelete
       ? `<p class="meta" style="margin-top:20px">Delete this recording? <button class="textbtn danger" type="button" data-act="del-yes">Delete</button> <button class="textbtn" type="button" data-act="del-no">Keep</button></p>`
-      : `<p style="margin-top:20px"><button class="textbtn" type="button" data-act="del">Delete recording</button></p>`;
+      : `<p style="margin-top:20px;display:flex;gap:18px">${dl}<button class="textbtn" type="button" data-act="del">Delete recording</button></p>`;
     if (s.status === 'error') {
       $('s-body').innerHTML = `<div class="working"><div>${esc(s.error)}</div><button class="small-primary" type="button" data-act="retry">Try again</button></div>${del}`;
       return;
@@ -1057,7 +1110,12 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
     const langAttr = (code) => (isHan(code) ? han : code);
     const src = s.source || 'zh', tgt = s.target || 'en';
     $('s-title').style.fontFamily = hasHan(s.title) ? 'var(--han)' : 'var(--f-ui)';
-    $('s-body').innerHTML = `<ol class="lines">${s.segments.map((seg, i) => { const src = srcOf(seg), tgt = tgtOf(seg); return `
+    const missing = s.segments.filter((seg) => !segTr(seg)).length;
+    const banner = s.untranslated && missing
+      ? `<div class="notword trfail"><p><b>Translation failed.</b> The transcript is saved. ${esc(s.untranslated.replace(/^Translation failed:\s*/, ''))}</p>
+         <button class="small-primary" type="button" data-act="tr-missing" ${translatingMissing ? 'disabled' : ''}>${translatingMissing ? 'Translating…' : `Translate ${missing} ${missing === 1 ? 'line' : 'lines'}`}</button></div>`
+      : '';
+    $('s-body').innerHTML = banner + `<ol class="lines">${s.segments.map((seg, i) => { const src = srcOf(seg), tgt = tgtOf(seg); return `
       <li class="line${playingId === seg.id ? ' playing' : ''}" data-id="${seg.id}">
         <button class="time" type="button" data-act="play" data-i="${i}" aria-label="Play line ${i + 1}">${fmtTime(seg.start)}</button>
         <div>
@@ -2076,6 +2134,8 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
     else if (act === 'redo') redoLine(i);
     else if (act === 'cancel') { editing = null; renderSession(); }
     else if (act === 'retry') process(current);
+    else if (act === 'tr-missing') translateMissing(current);
+    else if (act === 'audio') saveAudio(current);
     else if (act === 'del') { confirmDelete = true; renderSession(); }
     else if (act === 'del-no') { confirmDelete = false; renderSession(); }
     else if (act === 'del-yes') {

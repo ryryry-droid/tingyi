@@ -119,6 +119,9 @@ class TranslateResponse(BaseModel):
     title: str = ""  # short summary title; empty if it couldn't be made
     duration: float
     segments: list[Segment]
+    # Set when the transcript is fine but (some of) the translation failed: those lines have no translation
+    # yet, and the app can translate just them again instead of throwing the transcript away
+    translation_error: str = ""
 
 
 class RetranslateRequest(BaseModel):

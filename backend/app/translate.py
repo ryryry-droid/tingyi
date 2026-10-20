@@ -177,18 +177,28 @@ def _retry(lines: list[Segment], context: list[Segment], opts: Options) -> dict[
         return {}
 
 
-def translate_all(segments: list[Segment], opts: Options) -> list[Segment]:
-    """Fill in `.translation` for every segment, batch by batch, carrying context forward."""
+def translate_all(segments: list[Segment], opts: Options, keep_going: bool = False) -> str:
+    """Fill in `.translation` for every segment, batch by batch, carrying context forward.
+
+    keep_going=True: a batch that fails is left untranslated instead of failing everything; returns the
+    first error ("" if all went well)."""
     size = max(1, config.TRANSLATE_BATCH_SIZE)
     done: list[Segment] = []
+    error = ""
     for i in range(0, len(segments), size):
         batch = segments[i : i + size]
-        context = done[-config.CONTEXT_SEGMENTS :]
-        translations = translate_lines(batch, context, opts)
+        context = [s for s in done if s.translation][-config.CONTEXT_SEGMENTS :]
+        try:
+            translations = translate_lines(batch, context, opts)
+        except Exception as e:
+            if not keep_going:
+                raise
+            error = error or str(e)
+            translations = {}
         for seg in batch:
             seg.translation = translations.get(seg.id, "")
         done.extend(batch)
-    return segments
+    return error
 
 
 TITLE_LANG = {"en": "English", "zh": "Simplified Chinese", "id": "Indonesian", "ms": "Malay", "vi": "Vietnamese"}
