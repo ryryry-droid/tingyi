@@ -403,7 +403,7 @@ def test_lookup_english_word_with_several_meanings(monkeypatch):
 
     def fake(prompt, max_tokens=200, **kw):
         seen.append(prompt)
-        if "List the common everyday meanings" in prompt:
+        if "List the common everyday meanings" in prompt and '"track"' in prompt:
             return ('{"senses": [{"sense": "running track (noun)", "word": "lintasan"}, {"sense": "path or trail (noun)", '
                     '"word": "Lintasan"}, {"sense": "to follow someone (verb)", "word": "melacak"}]}')
         if "to follow someone (verb)" in prompt and "running track" not in prompt:
@@ -424,6 +424,10 @@ def test_lookup_english_word_with_several_meanings(monkeypatch):
     r = client.post("/api/lookup", json={"word": "track", "lang": "id", "from_english": True, "sense": "to follow someone (verb)"}).json()
     assert r["word"] == "melacak" and r["senses"] == []
     assert not any("List the common everyday meanings" in p for p in seen)
+    # not an English word (an Indonesian word typed with English on): no list of meanings
+    monkeypatch.setattr(translate, "_complete_simple", lambda p, max_tokens=200, **kw: '{"english": false, "senses": [{"sense": "running track (noun)", "word": "jalur"}, {"sense": "song (noun)", "word": "lagu"}]}' if "List the common" in p else '{"word": "tertipu", "meaning": "to be deceived"}')
+    r = client.post("/api/lookup", json={"word": "tertipu", "lang": "id", "from_english": True}).json()
+    assert r["word"] == "tertipu" and r["senses"] == []
     # one word covers it: no list
     monkeypatch.setattr(translate, "_complete_simple", lambda p, max_tokens=200, **kw: '{"senses": []}' if "List the common" in p else '{"word": "周末", "meaning": "weekend"}')
     assert client.post("/api/lookup", json={"word": "weekend", "lang": "zh", "from_english": True}).json()["senses"] == []

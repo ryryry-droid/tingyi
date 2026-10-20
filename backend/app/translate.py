@@ -422,18 +422,22 @@ def lookup_word(word: str, sentence: str, lang: str, script: str, from_english: 
 def english_senses(word: str, language: str) -> list[dict]:
     """The everyday meanings of an English word that need different words in `language`, most common first.
 
-    [] when one word covers them all (e.g. "weekend")."""
+    [] when one word covers them all (e.g. "weekend"), or when it isn't an English word at all."""
     prompt = (
-        f'A learner wants to say the English word "{word}" in {language}. In English it may have several quite '
-        f"different meanings (e.g. \"track\": a running track, a railway track, a song on an album, to follow "
-        "someone). List the common everyday meanings of the ENGLISH word — nouns and verbs both — and for each, "
-        f"the most common {language} word a native speaker would use for that meaning.\n"
-        "Rules: describe each meaning of the English word in plain English (6 words max, add (noun) or (verb)); "
+        f'A learner typed "{word}" and wants to say it in {language}. First decide whether "{word}" is an English '
+        f"word or phrase. If it is not English (for example it is already a {language} word), set \"english\" to "
+        "false and \"senses\" to [].\n"
+        "If it is English: it may have several quite different meanings (as a noun and as a verb, or unrelated "
+        "senses). List the common everyday meanings of THIS English word, and for each the most common "
+        f"{language} word a native speaker would use for that meaning.\n"
+        "Rules: describe each meaning in plain English (6 words max, add (noun) or (verb)); "
         f"each meaning must need a DIFFERENT {language} word — merge meanings that use the same word; most common "
         f"meaning first; at most 5. If one {language} word covers every common meaning, return an empty list.\n"
-        'Reply with JSON only: {"senses": [{"sense": "...", "word": "..."}]}'
+        'Reply with JSON only: {"english": true or false, "senses": [{"sense": "...", "word": "..."}]}'
     )
     data = _json(_complete_simple(prompt, max_tokens=500, effort="medium")) or {}
+    if data.get("english") is False:
+        return []
     out: list[dict] = []
     for item in data.get("senses") or []:
         if not isinstance(item, dict):
