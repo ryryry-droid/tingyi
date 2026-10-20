@@ -259,6 +259,28 @@ nav button[aria-selected="true"] { background: var(--surface); color: var(--ink)
 #set-main button { flex: 1 1 auto; }
 .notword { background: var(--warn-soft); color: var(--ink); border-radius: 14px; padding: 12px 14px; }
 .notword p { margin: 0; }
+.listen-btn { display: grid; gap: 2px; text-align: center; margin-top: 8px; }
+.listen-btn small { font-size: 12px; color: var(--muted); font-weight: 500; }
+.listen { display: grid; gap: 16px; padding-top: 4px; }
+.lhead { display: flex; justify-content: space-between; align-items: center; }
+.lbar { height: 6px; border-radius: 9px; background: var(--surface2); overflow: hidden; }
+.lbar i { display: block; height: 100%; background: var(--accent); border-radius: 9px; transition: width .3s; }
+.lcard { background: var(--surface); border-radius: 20px; padding: 24px 18px; display: grid; gap: 10px; justify-items: center; text-align: center; min-height: 300px; align-content: center; }
+.lwave { display: flex; gap: 5px; align-items: center; height: 40px; }
+.lwave i { width: 6px; height: 10px; border-radius: 9px; background: var(--accent); opacity: .5; }
+.lwave.on i { animation: lw 0.9s ease-in-out infinite; opacity: 1; }
+.lwave.on i:nth-child(2) { animation-delay: .1s; } .lwave.on i:nth-child(3) { animation-delay: .2s; } .lwave.on i:nth-child(4) { animation-delay: .3s; } .lwave.on i:nth-child(5) { animation-delay: .4s; }
+@keyframes lw { 50% { height: 36px; } }
+@media (prefers-reduced-motion: reduce) { .lwave.on i { animation: none; height: 24px; } }
+.lstatus { margin: 0; color: var(--muted); font-size: 14px; font-weight: 600; }
+.ls { margin: 6px 0 0; font-size: 22px; font-weight: 600; line-height: 1.35; }
+.ls.han { font-family: var(--han); }
+.lt { margin: 0; color: var(--muted); font-size: 16px; }
+.lw { margin: 4px 0 0; color: var(--faint); font-size: 13px; }
+.lhidden { margin: 18px 0; color: var(--faint); font-size: 15px; }
+.lctl { display: flex; gap: 10px; }
+.lctl .primary { flex: 1; }
+.ldone { text-align: center; padding: 40px 0 10px; } .ldone .big { font-size: 48px; } .ldone h2 { margin: 10px 0 0; font-size: 20px; }
 .trfail { display: grid; gap: 10px; justify-items: start; margin-bottom: 8px; }
 .notword .filter button { font-size: 16px; padding: 6px 14px; color: var(--ink); background: var(--surface); }
 .wedit { margin-left: auto; align-self: center; flex-shrink: 0; padding: 2px 4px; font-weight: 700; color: var(--accent); }
@@ -1075,7 +1097,7 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
     view = v; editing = null; confirmDelete = false;
     ['record', 'history', 'words', 'settings'].forEach((n) => $('tab-' + n).setAttribute('aria-selected', String(n === v || (v === 'session' && n === 'history') || (v === 'live' && n === 'record') || (v === 'test' && n === 'words'))));
     ['record', 'live', 'session', 'history', 'words', 'test', 'settings'].forEach((n) => ($('view-' + n).hidden = n !== v));
-    if (v !== 'test') test = null;
+    if (v !== 'test') { if (test?.listen) stopListening(); test = null; }
     closePanel();
     closeSheet();
     rerender();
@@ -2088,7 +2110,8 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
       </div>
       <p class="label">Question types</p>
       <div class="kinds">${TEST_KINDS.map((k) => `<button class="kind" type="button" data-ts="kind" data-v="${k.id}" aria-pressed="${testSetup.kinds.includes(k.id)}"><span class="box">${testSetup.kinds.includes(k.id) ? '✓' : ''}</span><span><b>${k.title}</b><small>${k.hint}</small></span></button>`).join('')}</div>
-      <button class="primary" type="button" data-ts="start" ${testSetup.kinds.length && pool.length ? '' : 'disabled'}>Start ${Math.min(pool.length, counts.includes(testSetup.count) ? testSetup.count : pool.length)} questions</button>`);
+      <button class="primary" type="button" data-ts="start" ${testSetup.kinds.length && pool.length ? '' : 'disabled'}>Start ${Math.min(pool.length, counts.includes(testSetup.count) ? testSetup.count : pool.length)} questions</button>
+      ${'speechSynthesis' in window ? `<button class="secondary listen-btn" type="button" data-ts="listen" ${pool.some((w) => w.example?.text) ? '' : 'disabled'}>🎧 Listen to sentences<small>Each example sentence plays twice, then the next</small></button>` : ''}`);
   }
   $('panel').addEventListener('click', (ev) => {
     const b = ev.target.closest('[data-ts]'); if (!b) return;
@@ -2097,6 +2120,7 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
     else if (k === 'count') testSetup.count = +v;
     else if (k === 'kind') testSetup.kinds = testSetup.kinds.includes(v) ? testSetup.kinds.filter((x) => x !== v) : [...testSetup.kinds, v];
     else if (k === 'start') { closePanel(); startTest(); return; }
+    else if (k === 'listen') { closePanel(); startListening(); return; }
     try { localStorage.setItem('tingyi.testSetup', JSON.stringify(testSetup)); } catch {}
     openTestSetup();
   });
@@ -2135,8 +2159,87 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
       speechSynthesis.cancel(); speechSynthesis.speak(u);
     } catch {}
   }
+  // ---------- listening: example sentences read aloud, each twice, then a pause, then the next ----------
+  const LISTEN = { repeats: 2, gap: 1200, pause: 3500 }; // ms between the two plays, and before the next sentence
+  function startListening() {
+    let pool = testPool(testSetup.group).filter((w) => w.example?.text);
+    const n = [5, 10, 20].includes(testSetup.count) && testSetup.count < pool.length ? testSetup.count : pool.length;
+    pool = testSetup.group === 'weak' ? shuffle(pool.slice(0, n)) : shuffle(pool).slice(0, n);
+    test = { listen: true, items: pool, i: 0, rep: 0, paused: false, done: false, show: listenShow, timer: null };
+    setView('test');
+    listenPlay();
+  }
+  let listenShow = (() => { try { return localStorage.getItem('tingyi.listenShow') !== '0'; } catch { return true; } })();
+  function stopListening() {
+    const t = test; if (!t?.listen) return;
+    clearTimeout(t.timer); t.timer = null;
+    try { speechSynthesis.cancel(); } catch {}
+  }
+  function listenPlay() {
+    const t = test; if (!t?.listen || t.paused || t.done) return;
+    const w = t.items[t.i];
+    if (!w) { t.done = true; renderTest(); return; }
+    const u = new SpeechSynthesisUtterance(w.example.text);
+    u.lang = w.lang === 'zh' ? (settings.script === 'traditional' ? 'zh-TW' : 'zh-CN') : SPEECH_LANG[w.lang] || w.lang;
+    u.rate = 0.9;
+    const token = (t.token = (t.token || 0) + 1);
+    let finished = false;
+    const after = () => {
+      if (finished || test !== t || t.token !== token || t.paused) return;
+      finished = true;
+      t.rep++;
+      if (t.rep < LISTEN.repeats) { t.phase = 'gap'; renderTest(); t.timer = setTimeout(listenPlay, LISTEN.gap); }
+      else {
+        t.phase = 'next'; renderTest();
+        t.timer = setTimeout(() => { if (test !== t || t.paused) return; t.i++; t.rep = 0; if (t.i >= t.items.length) { t.done = true; renderTest(); } else listenPlay(); }, LISTEN.pause);
+      }
+    };
+    u.onend = after; u.onerror = after;
+    t.phase = 'play'; renderTest();
+    try { speechSynthesis.cancel(); speechSynthesis.speak(u); } catch { after(); }
+  }
+  function renderListen() {
+    const t = test;
+    if (t.done) {
+      $('view-test').innerHTML = `<div class="listen"><div class="lhead"><span class="meta">Listening</span></div>
+        <div class="ldone"><div class="big">🎧</div><h2>All ${t.items.length} sentences played</h2></div>
+        <div class="lctl"><button class="primary" type="button" data-l="again">Listen again</button><button class="secondary" type="button" data-l="quit">Back to words</button></div></div>`;
+      return;
+    }
+    const w = t.items[t.i], han = w.lang === 'zh';
+    const status = t.paused ? 'Paused' : t.phase === 'next' ? 'Next sentence in a moment…' : `Playing ${Math.min(t.rep + 1, LISTEN.repeats)} of ${LISTEN.repeats}`;
+    $('view-test').innerHTML = `<div class="listen">
+      <div class="lhead"><span class="meta">Sentence ${t.i + 1} of ${t.items.length}</span><button class="textbtn" type="button" data-l="quit">Stop</button></div>
+      <div class="lbar"><i style="width:${(t.i / t.items.length) * 100}%"></i></div>
+      <div class="lcard">
+        <div class="lwave${t.paused ? '' : t.phase === 'play' ? ' on' : ''}" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
+        <p class="lstatus">${status}</p>
+        ${t.show
+          ? `<p class="ls${han ? ' han' : ''}">${esc(w.example.text)}</p><p class="lt">${esc(w.example.translation)}</p><p class="lw">${esc(w.word)} · ${esc(w.meaning)}</p>`
+          : `<p class="lhidden">Text hidden. Just listen.</p>`}
+        <button class="textbtn" type="button" data-l="show">${t.show ? 'Hide text' : 'Show text'}</button>
+      </div>
+      <div class="lctl">
+        <button class="secondary" type="button" data-l="prev" ${t.i ? '' : 'disabled'}>‹ Back</button>
+        <button class="primary" type="button" data-l="pause">${t.paused ? '▶ Resume' : '❚❚ Pause'}</button>
+        <button class="secondary" type="button" data-l="next">Next ›</button>
+      </div></div>`;
+  }
+  $('view-test').addEventListener('click', (ev) => {
+    const b = ev.target.closest('[data-l]'); const t = test; if (!b || !t?.listen) return;
+    const act = b.dataset.l;
+    const jump = (i) => { stopListening(); t.i = i; t.rep = 0; t.paused = false; listenPlay(); };
+    if (act === 'quit') { stopListening(); setView('words'); }
+    else if (act === 'again') { t.i = 0; t.rep = 0; t.done = false; t.paused = false; listenPlay(); }
+    else if (act === 'show') { t.show = listenShow = !t.show; try { localStorage.setItem('tingyi.listenShow', t.show ? '1' : '0'); } catch {} renderTest(); }
+    else if (act === 'pause') { if (t.paused) { t.paused = false; t.rep = 0; listenPlay(); } else { t.paused = true; stopListening(); renderTest(); } }
+    else if (act === 'next') { if (t.i + 1 < t.items.length) jump(t.i + 1); else { stopListening(); t.done = true; renderTest(); } }
+    else if (act === 'prev') { if (t.i) jump(t.i - 1); }
+  });
+
   function renderTest() {
     const t = test; if (!t) { setView('words'); return; }
+    if (t.listen) return renderListen();
     if (t.done) return renderResults();
     const q = t.qs[t.i], w = q.w, han = w.lang === 'zh';
     const canSpeak = 'speechSynthesis' in window;
