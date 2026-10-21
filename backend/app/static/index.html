@@ -251,6 +251,13 @@ nav button[aria-selected="true"] { background: var(--surface); color: var(--ink)
 .fsep { width: 1px; height: 20px; background: var(--line); margin: 0 2px; }
 #w-filter .sgm { border-color: color-mix(in srgb, var(--rec) 55%, transparent); color: var(--rec); }
 #w-filter .sgm[aria-pressed="true"] { background: var(--rec); border-color: var(--rec); color: #fff; }
+.bankrow { display: flex; align-items: center; gap: 12px; width: 100%; text-align: left; border: 1px solid var(--line); background: var(--surface); border-radius: 14px; padding: 12px 14px; color: var(--ink); }
+.bankrow .flag { font-size: 26px; } .bankrow b { display: block; font-size: 16px; } .bankrow small { color: var(--muted); font-size: 13px; }
+.bankrow .chev { margin-left: auto; color: var(--faint); font-size: 22px; }
+.bank-h { margin: 6px 0 0; font-size: 22px; }
+.bank-test { display: flex; align-items: center; gap: 10px; width: 100%; border: 0; background: var(--yellow); color: var(--yellow-ink); border-radius: 18px; padding: 13px 16px; text-align: left; }
+.bank-test b { font-size: 16px; } .bank-test small { font-weight: 700; opacity: .7; font-size: 12.5px; } .bank-test span { margin-left: auto; font-size: 22px; }
+.bank-search { width: 100%; border: 1px solid var(--line); background: var(--surface); border-radius: 10px; padding: 10px 12px; font-size: 16px; margin: 12px 0 8px; color: var(--ink); }
 .sgm-letters { display: flex; gap: 5px; flex-wrap: wrap; margin-top: 8px; }
 .sgm-letters button { border: 0; background: var(--surface2); color: var(--muted); border-radius: 999px; min-width: 30px; padding: 4px 9px; font-size: 12.5px; font-weight: 700; }
 .sgm-letters button[aria-pressed="true"] { background: color-mix(in srgb, var(--rec) 22%, var(--surface)); color: var(--rec); }
@@ -553,13 +560,23 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
         <span class="grow"></span>
         <button type="button" id="w-copy">Copy list</button>
       </div>
-      <div class="sgm-letters" id="w-sgm-letters" hidden></div>
       <div class="meta" id="w-count"></div>
     </div>
     <ul class="wlist" id="wlist"></ul>
   </section>
 
   <section id="view-test" hidden></section>
+
+  <section id="view-bank" hidden>
+    <button class="textbtn" id="bank-back" type="button">‹ Settings</button>
+    <h1 class="bank-h">🇸🇬 Singapore Mandarin</h1>
+    <p class="meta" style="margin:2px 0 12px">From the Singaporean Mandarin Database</p>
+    <button class="testbtn bank-test" id="bank-test" type="button"><b>Start a test</b><small id="bank-test-sub"></small><span aria-hidden="true">›</span></button>
+    <input id="bank-search" class="bank-search" type="search" placeholder="Search terms" autocomplete="off">
+    <div class="sgm-letters" id="bank-letters"></div>
+    <div class="meta" id="bank-count" style="margin-top:8px"></div>
+    <ul class="wlist" id="bank-list"></ul>
+  </section>
 
   <section id="view-settings" hidden>
     <div class="field">
@@ -584,6 +601,10 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
         <button type="button" data-value="dark">Dark</button>
         <button type="button" data-value="light">Light</button>
       </div>
+    </div>
+    <div class="field">
+      <p class="label">Word banks</p>
+      <button type="button" class="bankrow" id="bank-open"><span class="flag" aria-hidden="true">🇸🇬</span><span><b>Singapore Mandarin</b><small id="bank-sub"></small></span><span class="chev" aria-hidden="true">›</span></button>
     </div>
     <div class="field">
       <p class="label">Translation style</p>
@@ -1102,8 +1123,8 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
     if (v !== 'session') stopPlayback();
     if (v === 'words' && view !== 'words' && view !== 'test') { wordFilter = learningLang(); colloqOnly = false; }
     view = v; editing = null; confirmDelete = false;
-    ['record', 'history', 'words', 'settings'].forEach((n) => $('tab-' + n).setAttribute('aria-selected', String(n === v || (v === 'session' && n === 'history') || (v === 'live' && n === 'record') || (v === 'test' && n === 'words'))));
-    ['record', 'live', 'session', 'history', 'words', 'test', 'settings'].forEach((n) => ($('view-' + n).hidden = n !== v));
+    ['record', 'history', 'words', 'settings'].forEach((n) => $('tab-' + n).setAttribute('aria-selected', String(n === v || (v === 'session' && n === 'history') || (v === 'live' && n === 'record') || (v === 'test' && n === (test?.bank ? 'settings' : 'words')) || (v === 'bank' && n === 'settings'))));
+    ['record', 'live', 'session', 'history', 'words', 'test', 'settings', 'bank'].forEach((n) => ($('view-' + n).hidden = n !== v));
     if (v !== 'test') { if (test?.listen) stopListening(); test = null; }
     closePanel();
     closeSheet();
@@ -1128,6 +1149,8 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
     if (view === 'history') renderHistory();
     if (view === 'words') renderWords();
     if (view === 'test') renderTest();
+    if (view === 'bank') renderBank();
+    if (view === 'settings') renderBankRow();
     if (view === 'settings') renderSettings();
     renderActions();
   }
@@ -1751,27 +1774,52 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
     try { sgm = await fetch('/assets/sgm.json?v=1').then((r) => r.json()); } catch { sgm = []; }
     return sgm;
   }
-  async function renderSgm() {
-    $('w-copy').hidden = true;
-    if (!sgm) { $('wlist').innerHTML = '<li class="empty">Loading…</li>'; await loadSgm(); if (wordFilter !== 'sgm') return; }
+  let bankSearch = '';
+  const sgmProgress = () => { try { return JSON.parse(localStorage.getItem('tingyi.sgmProgress') || '{}'); } catch { return {}; } };
+  async function renderBankRow() {
+    await loadSgm();
+    const tested = Object.keys(sgmProgress()).length;
+    $('bank-sub').textContent = `${sgm.length} terms · ${tested} tested`;
+  }
+  async function renderBank() {
+    await loadSgm(); if (view !== 'bank') return;
     const letters = [...new Set(sgm.map((t) => plain(t.pinyin)[0].toUpperCase()))].sort();
     if (sgmLetter !== 'all' && !letters.includes(sgmLetter)) sgmLetter = 'all';
-    $('w-sgm-letters').hidden = false;
-    $('w-sgm-letters').innerHTML = [['all', 'All'], ...letters.map((l) => [l, l])].map(([v, l]) => `<button type="button" data-sl="${v}" aria-pressed="${sgmLetter === v}">${l}</button>`).join('');
-    const q = plain(wordSearch.trim());
+    $('bank-letters').innerHTML = [['all', 'All'], ...letters.map((l) => [l, l])].map(([v, l]) => `<button type="button" data-sl="${v}" aria-pressed="${sgmLetter === v}">${l}</button>`).join('');
+    const raw = bankSearch.trim(), q = plain(raw);
     const list = sgm.filter((t) => (sgmLetter === 'all' || plain(t.pinyin)[0].toUpperCase() === sgmLetter)
-      && (!q || t.word.includes(wordSearch.trim()) || plain(t.pinyin).replace(/\s+/g, '').includes(q.replace(/\s+/g, '')) || plain(t.meaning).includes(q)));
-    $('w-count').textContent = `${list.length} of ${sgm.length} Singapore Mandarin terms · not in All or tests`;
-    $('wlist').innerHTML = !list.length ? '<li class="empty">No terms match.</li>' : list.map((t) => {
+      && (!q || t.word.includes(raw) || plain(t.pinyin).replace(/\s+/g, '').includes(q.replace(/\s+/g, '')) || plain(t.meaning).includes(q)));
+    $('bank-test-sub').textContent = `${Math.min(10, sgm.length)} questions from ${sgm.length} terms`;
+    $('bank-count').textContent = raw || sgmLetter !== 'all' ? `${list.length} of ${sgm.length} terms` : `${sgm.length} terms`;
+    $('bank-list').innerHTML = !list.length ? '<li class="empty">No terms match.</li>' : list.map((t) => {
       const have = words.some((w) => w.id === wordId('zh', t.word));
       return `<li class="wcard sgcard">
         <div class="top">${'speechSynthesis' in window ? `<button class="wspk" type="button" data-sg-speak="${esc(t.word)}" aria-label="Hear ${esc(t.word)}">🔊</button>` : ''}<div class="wmain"><span class="wd han">${esc(t.word)}</span>
           ${settings.pinyin ? `<span class="py">${pinyinHtml(t.pinyin)}</span>` : ''}</div>
-          ${have ? '<span class="famhave">✓ In my words</span>' : `<button class="famadd" type="button" data-sg-add="${esc(t.word)}">＋ Add</button>`}</div>
+          ${have ? '<span class="famhave">✓ In my words</span>' : `<button class="textbtn wedit" type="button" data-sg-add="${esc(t.word)}">＋ My words</button>`}</div>
         <p class="m">${esc(t.meaning)}</p></li>`;
     }).join('');
   }
-  $('w-sgm-letters').onclick = (ev) => { const b = ev.target.closest('[data-sl]'); if (b) { sgmLetter = b.dataset.sl; renderSgm(); } };
+  $('bank-letters').onclick = (ev) => { const b = ev.target.closest('[data-sl]'); if (b) { sgmLetter = b.dataset.sl; renderBank(); } };
+  $('bank-search').oninput = (e) => { bankSearch = e.target.value; renderBank(); };
+  $('bank-open').onclick = () => setView('bank');
+  $('bank-back').onclick = () => setView('settings');
+  $('bank-test').onclick = () => startBankTest();
+  $('bank-list').addEventListener('click', (ev) => {
+    const b = ev.target.closest('button'); if (!b) return;
+    if (b.dataset.sgSpeak) speak({ word: b.dataset.sgSpeak, lang: 'zh' });
+    else if (b.dataset.sgAdd) { const t = sgm.find((x) => x.word === b.dataset.sgAdd); if (t) openAddWord({ lang: 'zh', text: t.word, source: 'SG Mandarin', hint: t.meaning }); }
+  });
+  // A bank test: its own questions and its own scores (your saved words' progress isn't touched)
+  const bankWord = (t) => ({ id: 'sgm:' + t.word, word: t.word, lang: 'zh', pinyin: t.pinyin, meaning: t.meaning, example: null, bank: true });
+  async function startBankTest(only) {
+    await loadSgm(); if (!sgm.length) return;
+    const pool = sgm.map(bankWord);
+    const items = only || shuffle(pool).slice(0, 10);
+    const kinds = testSetup.kinds.filter((k) => k !== 'gap'); // the bank has no example sentences
+    test = { bank: true, qs: items.map((w) => makeQuestion(w, kinds.length ? kinds : ['meaning', 'word'], pool)), i: 0, right: 0, streak: 0, best: 0, started: Date.now(), missed: [], answer: null, done: false };
+    setView('test');
+  }
 
   // Words saved before colloquial/standard was recorded: ask the server once, in the background
   async function checkRegisters() {
@@ -1799,16 +1847,14 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
   }
   function renderWords() {
     const have = wordLangs().filter(([code]) => words.some((w) => w.lang === code));
-    if (wordFilter !== 'all' && wordFilter !== 'sgm' && !have.some(([c]) => c === wordFilter)) wordFilter = 'all';
+    if (wordFilter !== 'all' && !have.some(([c]) => c === wordFilter)) wordFilter = 'all';
     if (wordFilter !== 'id') colloqOnly = false;
     $('w-langs').innerHTML = [['all', 'All'], ...(have.length > 1 || wordFilter !== 'all' ? have : [])]
       .map(([code, label]) => `<button type="button" data-f="${code}" aria-pressed="${wordFilter === code}">${label}</button>`).join('')
       // Colloquial: only once Indonesian is picked
       + (wordFilter === 'id'
         ? `<button type="button" data-f="colloq" class="colloq" aria-pressed="${colloqOnly}">Colloquial</button>` : '')
-      + `<span class="fsep" aria-hidden="true"></span><button type="button" data-f="sgm" class="sgm" aria-pressed="${wordFilter === 'sgm'}">🇸🇬 SG Mandarin</button>`;
-    if (wordFilter === 'sgm') { renderSgm(); return; }
-    $('w-sgm-letters').hidden = true;
+      ;
     const list = filteredWords();
     $('w-test').disabled = !words.length;
     $('w-test-sub').textContent = words.length >= 4 ? `${words.length} words saved` : words.length ? `Save ${4 - words.length} more to test yourself` : 'Save some words first';
@@ -1903,8 +1949,6 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
   $('wlist').addEventListener('pointercancel', () => (famSwipe = null));
   $('wlist').addEventListener('click', async (ev) => {
     const b = ev.target.closest('button'); if (!b || famSwiped) return;
-    if (b.dataset.sgSpeak) { speak({ word: b.dataset.sgSpeak, lang: 'zh' }); return; }
-    if (b.dataset.sgAdd) { const t = sgm.find((x) => x.word === b.dataset.sgAdd); if (t) openAddWord({ lang: 'zh', text: t.word, source: 'SG Mandarin', hint: t.meaning }); return; }
     if (b.dataset.famGo) { famStep(b.dataset.famGo, 0, +b.dataset.j); return; }
     if (b.dataset.speakForm) {
       const w = words.find((x) => x.id === b.dataset.speakForm); const f = w?.family?.forms[famView[w.id]];
@@ -2110,7 +2154,7 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
       };
       await putWord(w).catch(() => {});
       words = [w, ...words.filter((x) => x.id !== w.id)];
-      closePanel(); renderWords(); toast(existing ? 'Word updated' : 'Added to your words');
+      closePanel(); renderWords(); if (view === 'bank') renderBank(); toast(existing ? 'Word updated' : 'Added to your words');
     }
   });
   $('w-add').onclick = () => openAddWord();
@@ -2168,8 +2212,8 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
   });
   $('w-test').onclick = openTestSetup;
 
-  function makeQuestion(w, kinds) {
-    const others = shuffle(words.filter((x) => x.id !== w.id));
+  function makeQuestion(w, kinds, from = words) {
+    const others = shuffle(from.filter((x) => x.id !== w.id));
     const sameLang = others.filter((x) => x.lang === w.lang);
     const pickDistractors = (key) => {
       const seen = new Set([String(w[key]).toLowerCase()]); const out = [];
@@ -2327,10 +2371,16 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
     const t = test, w = t.qs[t.i].w;
     t.answer = { ok, ...extra };
     if (ok) { t.right++; t.streak++; t.best = Math.max(t.best, t.streak); } else { t.streak = 0; t.missed.push(w); }
-    const updated = { ...w, level: ok ? Math.min(3, (w.level || 0) + 1) : Math.max(0, (w.level || 0) - 1),
-      right: (w.right || 0) + (ok ? 1 : 0), wrong: (w.wrong || 0) + (ok ? 0 : 1), lastTested: Date.now() };
-    words = words.map((x) => (x.id === w.id ? updated : x));
-    await putWord(updated).catch(() => {});
+    if (t.bank) { // word bank: scores kept apart from your words
+      const pr = sgmProgress(), cur = pr[w.word] || { right: 0, wrong: 0 };
+      pr[w.word] = { right: cur.right + (ok ? 1 : 0), wrong: cur.wrong + (ok ? 0 : 1), lastTested: Date.now() };
+      try { localStorage.setItem('tingyi.sgmProgress', JSON.stringify(pr)); } catch {}
+    } else {
+      const updated = { ...w, level: ok ? Math.min(3, (w.level || 0) + 1) : Math.max(0, (w.level || 0) - 1),
+        right: (w.right || 0) + (ok ? 1 : 0), wrong: (w.wrong || 0) + (ok ? 0 : 1), lastTested: Date.now() };
+      words = words.map((x) => (x.id === w.id ? updated : x));
+      await putWord(updated).catch(() => {});
+    }
     if (ok) playCry(); else playWrong();
     if (settings.vibrate && navigator.vibrate) { try { navigator.vibrate(ok ? 30 : [60, 60, 60]); } catch {} }
     renderTest();
@@ -2365,10 +2415,10 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
       case 'check': checkTyped(); break;
       case 'speak': speak(q.w); break;
       case 'next': if (t.i + 1 < t.qs.length) { t.i++; t.answer = null; } else t.done = true; renderTest(); window.scrollTo(0, 0); break;
-      case 'quit': if (t.i > 0 || t.answer) { t.qs = t.qs.slice(0, t.i + (t.answer ? 1 : 0)); t.done = true; renderTest(); } else setView('words'); break;
-      case 'again': { const missed = test.missed.map((m) => words.find((x) => x.id === m.id) || m); startTest(missed); break; }
-      case 'new': setView('words'); openTestSetup(); break;
-      case 'done': setView('words'); break;
+      case 'quit': if (t.i > 0 || t.answer) { t.qs = t.qs.slice(0, t.i + (t.answer ? 1 : 0)); t.done = true; renderTest(); } else setView(t.bank ? 'bank' : 'words'); break;
+      case 'again': { if (t.bank) { startBankTest(t.missed); break; } const missed = test.missed.map((m) => words.find((x) => x.id === m.id) || m); startTest(missed); break; }
+      case 'new': if (t.bank) { startBankTest(); break; } setView('words'); openTestSetup(); break;
+      case 'done': setView(t.bank ? 'bank' : 'words'); break;
     }
   });
 
