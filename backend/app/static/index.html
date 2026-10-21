@@ -248,6 +248,12 @@ nav button[aria-selected="true"] { background: var(--surface); color: var(--ink)
 .famrow .dots button.sv::after { background: var(--yellow); }
 .famrow .dots button.on { width: 20px; }
 .famrow .dots button.on::after { width: 16px; border-radius: 9px; background: var(--accent); }
+.fsep { width: 1px; height: 20px; background: var(--line); margin: 0 2px; }
+#w-filter .sgm { border-color: color-mix(in srgb, var(--rec) 55%, transparent); color: var(--rec); }
+#w-filter .sgm[aria-pressed="true"] { background: var(--rec); border-color: var(--rec); color: #fff; }
+.sgm-letters { display: flex; gap: 5px; flex-wrap: wrap; margin-top: 8px; }
+.sgm-letters button { border: 0; background: var(--surface2); color: var(--muted); border-radius: 999px; min-width: 30px; padding: 4px 9px; font-size: 12.5px; font-weight: 700; }
+.sgm-letters button[aria-pressed="true"] { background: color-mix(in srgb, var(--rec) 22%, var(--surface)); color: var(--rec); }
 .famhint { font-size: 11.5px; color: var(--faint); }
 .famadd { margin-left: auto; border: 0; background: var(--accent); color: var(--accent-ink, #fff); border-radius: 999px; padding: 5px 12px; font-weight: 700; font-size: 13px; }
 .famhave { margin-left: auto; color: var(--muted); font-size: 13px; font-weight: 700; }
@@ -547,6 +553,7 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
         <span class="grow"></span>
         <button type="button" id="w-copy">Copy list</button>
       </div>
+      <div class="sgm-letters" id="w-sgm-letters" hidden></div>
       <div class="meta" id="w-count"></div>
     </div>
     <ul class="wlist" id="wlist"></ul>
@@ -1736,6 +1743,36 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
       && (!q || [w.word, w.pinyin, w.meaning, w.root].join(' ').toLowerCase().includes(q)
         || (w.pinyin || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().includes(q)));
   }
+  // ---------- Singapore Mandarin: terms from the Singaporean Mandarin Database, kept apart from your words ----------
+  let sgm = null, sgmLetter = 'all';
+  const plain = (t) => String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  async function loadSgm() {
+    if (sgm) return sgm;
+    try { sgm = await fetch('/assets/sgm.json?v=1').then((r) => r.json()); } catch { sgm = []; }
+    return sgm;
+  }
+  async function renderSgm() {
+    $('w-copy').hidden = true;
+    if (!sgm) { $('wlist').innerHTML = '<li class="empty">Loading…</li>'; await loadSgm(); if (wordFilter !== 'sgm') return; }
+    const letters = [...new Set(sgm.map((t) => plain(t.pinyin)[0].toUpperCase()))].sort();
+    if (sgmLetter !== 'all' && !letters.includes(sgmLetter)) sgmLetter = 'all';
+    $('w-sgm-letters').hidden = false;
+    $('w-sgm-letters').innerHTML = [['all', 'All'], ...letters.map((l) => [l, l])].map(([v, l]) => `<button type="button" data-sl="${v}" aria-pressed="${sgmLetter === v}">${l}</button>`).join('');
+    const q = plain(wordSearch.trim());
+    const list = sgm.filter((t) => (sgmLetter === 'all' || plain(t.pinyin)[0].toUpperCase() === sgmLetter)
+      && (!q || t.word.includes(wordSearch.trim()) || plain(t.pinyin).replace(/\s+/g, '').includes(q.replace(/\s+/g, '')) || plain(t.meaning).includes(q)));
+    $('w-count').textContent = `${list.length} of ${sgm.length} Singapore Mandarin terms · not in All or tests`;
+    $('wlist').innerHTML = !list.length ? '<li class="empty">No terms match.</li>' : list.map((t) => {
+      const have = words.some((w) => w.id === wordId('zh', t.word));
+      return `<li class="wcard sgcard">
+        <div class="top">${'speechSynthesis' in window ? `<button class="wspk" type="button" data-sg-speak="${esc(t.word)}" aria-label="Hear ${esc(t.word)}">🔊</button>` : ''}<div class="wmain"><span class="wd han">${esc(t.word)}</span>
+          ${settings.pinyin ? `<span class="py">${pinyinHtml(t.pinyin)}</span>` : ''}</div>
+          ${have ? '<span class="famhave">✓ In my words</span>' : `<button class="famadd" type="button" data-sg-add="${esc(t.word)}">＋ Add</button>`}</div>
+        <p class="m">${esc(t.meaning)}</p></li>`;
+    }).join('');
+  }
+  $('w-sgm-letters').onclick = (ev) => { const b = ev.target.closest('[data-sl]'); if (b) { sgmLetter = b.dataset.sl; renderSgm(); } };
+
   // Words saved before colloquial/standard was recorded: ask the server once, in the background
   async function checkRegisters() {
     const todo = words.filter((w) => !w.register && w.lang !== 'zh');
@@ -1762,13 +1799,16 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
   }
   function renderWords() {
     const have = wordLangs().filter(([code]) => words.some((w) => w.lang === code));
-    if (wordFilter !== 'all' && !have.some(([c]) => c === wordFilter)) wordFilter = 'all';
+    if (wordFilter !== 'all' && wordFilter !== 'sgm' && !have.some(([c]) => c === wordFilter)) wordFilter = 'all';
     if (wordFilter !== 'id') colloqOnly = false;
     $('w-langs').innerHTML = [['all', 'All'], ...(have.length > 1 || wordFilter !== 'all' ? have : [])]
       .map(([code, label]) => `<button type="button" data-f="${code}" aria-pressed="${wordFilter === code}">${label}</button>`).join('')
       // Colloquial: only once Indonesian is picked
       + (wordFilter === 'id'
-        ? `<button type="button" data-f="colloq" class="colloq" aria-pressed="${colloqOnly}">Colloquial</button>` : '');
+        ? `<button type="button" data-f="colloq" class="colloq" aria-pressed="${colloqOnly}">Colloquial</button>` : '')
+      + `<span class="fsep" aria-hidden="true"></span><button type="button" data-f="sgm" class="sgm" aria-pressed="${wordFilter === 'sgm'}">🇸🇬 SG Mandarin</button>`;
+    if (wordFilter === 'sgm') { renderSgm(); return; }
+    $('w-sgm-letters').hidden = true;
     const list = filteredWords();
     $('w-test').disabled = !words.length;
     $('w-test-sub').textContent = words.length >= 4 ? `${words.length} words saved` : words.length ? `Save ${4 - words.length} more to test yourself` : 'Save some words first';
@@ -1819,7 +1859,7 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
   $('w-search').oninput = (e) => { wordSearch = e.target.value; renderWords(); };
   $('w-filter').onclick = async (ev) => {
     const b = ev.target.closest('[data-f]');
-    if (b) { if (b.dataset.f === 'colloq') colloqOnly = !colloqOnly; else { wordFilter = b.dataset.f; colloqOnly = false; } renderWords(); }
+    if (b) { if (b.dataset.f === 'colloq') colloqOnly = !colloqOnly; else { wordFilter = b.dataset.f; colloqOnly = false; sgmLetter = 'all'; } renderWords(); }
   };
   $('w-copy').onclick = async () => {
     const text = filteredWords().map((w) => `${w.word}${w.pinyin ? ` (${w.pinyin})` : ''} — ${w.meaning}${w.example ? `\n  ${w.example.text}\n  ${w.example.translation}` : ''}`).join('\n');
@@ -1863,6 +1903,8 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
   $('wlist').addEventListener('pointercancel', () => (famSwipe = null));
   $('wlist').addEventListener('click', async (ev) => {
     const b = ev.target.closest('button'); if (!b || famSwiped) return;
+    if (b.dataset.sgSpeak) { speak({ word: b.dataset.sgSpeak, lang: 'zh' }); return; }
+    if (b.dataset.sgAdd) { const t = sgm.find((x) => x.word === b.dataset.sgAdd); if (t) openAddWord({ lang: 'zh', text: t.word, source: 'SG Mandarin', hint: t.meaning }); return; }
     if (b.dataset.famGo) { famStep(b.dataset.famGo, 0, +b.dataset.j); return; }
     if (b.dataset.speakForm) {
       const w = words.find((x) => x.id === b.dataset.speakForm); const f = w?.family?.forms[famView[w.id]];
@@ -1902,12 +1944,12 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
   const cleanWord = (t) => String(t || '').replace(/[。，！？、；：,.!?;:"“”'‘’()（）]/g, ' ').replace(/\s+/g, ' ').trim();
 
   const langName = (code) => (code === 'zh' ? 'Chinese' : LANGS[code] || code);
-  function openAddWord() {
+  function openAddWord(preset) {
     const codes = wordLangs().map(([c]) => c);
-    const lang = codes.includes(learningLang()) ? learningLang() : codes[0] || 'zh';
-    addState = { lang, text: '', entry: null, loading: false, error: '', recording: false, fromEn: true };
+    const lang = preset?.lang || (codes.includes(learningLang()) ? learningLang() : codes[0] || 'zh');
+    addState = { lang, text: preset?.text || '', entry: null, loading: false, error: '', recording: false, fromEn: !preset, source: preset?.source || '', hint: preset?.hint || '' };
     renderAddWord();
-    setTimeout(() => $('add-input')?.focus(), 50);
+    if (preset?.text) addLookup(); else setTimeout(() => $('add-input')?.focus(), 50);
   }
   function renderAddWord() {
     const a = addState; if (!a) return;
@@ -1958,7 +2000,7 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
     const id = a.req = (a.req || 0) + 1; // answers to older lookups (a word you've since changed) are ignored
     try {
       const res = await fetch('/api/lookup', { method: 'POST', headers: { ...authHeaders(), 'Content-Type': 'application/json' },
-        body: JSON.stringify({ word, sentence: a.fromEn ? '' : word, lang: a.lang, script: settings.script, from_english: a.fromEn, strict: true, sense }) });
+        body: JSON.stringify({ word, sentence: a.fromEn ? '' : a.hint && word === a.text ? `${word} (a Singapore Mandarin term meaning: ${a.hint})` : word, lang: a.lang, script: settings.script, from_english: a.fromEn, strict: true, sense }) });
       if (!res.ok) throw new Error(await apiError(res));
       if (addState !== a || a.req !== id) return;
       const entry = await res.json();
@@ -2063,7 +2105,7 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
         ...(existing || {}), id: wordId(a.lang, e.word), word: caseFor(e.word, e.part_of_speech), lang: a.lang, pinyin: e.pinyin || '', root: caseFor(e.root, e.part_of_speech),
         part_of_speech: e.part_of_speech || '', meaning, in_context: '', notes: e.notes || '', example: e.example || null,
         register: e.register || '', standard: e.standard || '',
-        sentence: existing?.sentence || '', sessionId: existing?.sessionId || '', sessionTitle: existing?.sessionTitle || 'Added by you',
+        sentence: existing?.sentence || '', sessionId: existing?.sessionId || '', sessionTitle: existing?.sessionTitle || a.source || 'Added by you',
         createdAt: existing?.createdAt || Date.now(),
       };
       await putWord(w).catch(() => {});
@@ -2071,7 +2113,7 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
       closePanel(); renderWords(); toast(existing ? 'Word updated' : 'Added to your words');
     }
   });
-  $('w-add').onclick = openAddWord;
+  $('w-add').onclick = () => openAddWord();
 
   // ---------- word test ----------
   const TEST_KINDS = [
