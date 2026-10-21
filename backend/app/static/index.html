@@ -2000,7 +2000,7 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
     const id = a.req = (a.req || 0) + 1; // answers to older lookups (a word you've since changed) are ignored
     try {
       const res = await fetch('/api/lookup', { method: 'POST', headers: { ...authHeaders(), 'Content-Type': 'application/json' },
-        body: JSON.stringify({ word, sentence: a.fromEn ? '' : a.hint && word === a.text ? `${word} (a Singapore Mandarin term meaning: ${a.hint})` : word, lang: a.lang, script: settings.script, from_english: a.fromEn, strict: true, sense }) });
+        body: JSON.stringify({ word, sentence: a.fromEn ? '' : word, known: a.hint && word === a.text ? a.hint : '', lang: a.lang, script: settings.script, from_english: a.fromEn, strict: true, sense }) });
       if (!res.ok) throw new Error(await apiError(res));
       if (addState !== a || a.req !== id) return;
       const entry = await res.json();

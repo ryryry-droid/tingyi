@@ -209,7 +209,7 @@ async def lookup(req: LookupRequest) -> LookupResponse:
     try:
         entry = await run_in_threadpool(
             translate.lookup_word, word, req.sentence.strip(), req.lang, req.script, req.from_english, req.strict,
-            req.sense.strip()
+            req.sense.strip(), req.known.strip()
         )
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"Lookup failed: {e}")

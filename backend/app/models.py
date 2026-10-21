@@ -159,6 +159,9 @@ class LookupRequest(BaseModel):
     script: Script = "simplified"
     from_english: bool = False  # "word" is English: find how to say it in lang
     sense: str = Field(default="", max_length=80)  # with from_english: which meaning of the English word
+    # a meaning that is known to be right (e.g. a Singapore Mandarin term's meaning from the Singaporean
+    # Mandarin Database): the entry is written around it and never contradicts it
+    known: str = Field(default="", max_length=200)
     strict: bool = True  # think harder and have the entry checked a second time (all word lookups)
 
 

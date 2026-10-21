@@ -707,3 +707,19 @@ def test_word_family(monkeypatch):
     assert body["forms"][1]["example"]["text"] == "Dia menipu."
     assert "never invent a form" in seen[0]
     assert client.post("/api/family", json={"word": "周末", "lang": "zh"}).status_code == 422  # Indonesian and Malay only
+
+
+def test_lookup_known_singapore_term(monkeypatch):
+    setup(monkeypatch)
+    seen = []
+
+    def fake(prompt, max_tokens=200, **kw):
+        seen.append(prompt)
+        # the dictionary drifts to the mainland sense and even calls it made up
+        return '{"word": "巴刹", "meaning": "a bazaar", "exists": false, "suggestions": ["市场"], "notes": "Standard Mandarin: 市场"}'
+
+    monkeypatch.setattr(translate, "_complete_simple", fake)
+    r = client.post("/api/lookup", json={"word": "巴刹", "lang": "zh", "known": "market"}).json()
+    assert r["exists"] is True and r["meaning"] == "market" and r["suggestions"] == []
+    assert "Singapore Mandarin term" in seen[0] and "Its meaning is: market" in seen[0]
+    assert "meaning: market (this meaning is correct" in seen[1]  # the second check is told too

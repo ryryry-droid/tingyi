@@ -349,7 +349,7 @@ def classify_register(words: list[str], lang: str) -> dict[str, tuple[str, str]]
 
 
 def lookup_word(word: str, sentence: str, lang: str, script: str, from_english: bool = False, strict: bool = False,
-                sense: str = "") -> dict:
+                sense: str = "", known: str = "") -> dict:
     """strict=True (Add word, Double-check): thinks harder and has the entry checked a second time."""
     """Dictionary entry for a word, aimed at an English-speaking learner."""
     language = LOOKUP_LANG.get(lang) or LANG_NAMES[lang]
@@ -389,6 +389,16 @@ def lookup_word(word: str, sentence: str, lang: str, script: str, from_english: 
             f"word or phrase \"{word}\" in {language}. Give the most common everyday {language} word for it "
             "(in its most common meaning), and describe that word.\n\n"
         )
+    elif known:
+        intro = (
+            f"You are a {language}–English learner's dictionary. \"{word}\" is a Singapore Mandarin term (from the "
+            f"Singaporean Mandarin Database). Its meaning is: {known}. That meaning is correct: use it for \"meaning\" "
+            "(you may add a few words to make it clearer, never change it), and describe the term as it is used in "
+            "Singapore, not mainland China. In \"notes\", give the standard Mandarin word for it if there is a "
+            "different one, and where the term comes from (e.g. from Malay, Hokkien, Cantonese or English) only if "
+            "you are sure; otherwise leave that out. Write the example as something a Singaporean would naturally say. "
+            "Don't guess: if you're unsure about anything except the meaning, leave it out.\n\n"
+        )
     else:
         intro = (
             f"You are a {language}–English learner's dictionary. The learner tapped the {language} word "
@@ -425,7 +435,9 @@ def lookup_word(word: str, sentence: str, lang: str, script: str, from_english: 
         return entry
     # Second opinion: a separate check of the entry, so invented words and meanings get caught
     asked = (f'the learner asked how to say the English "{word}"' + (f" meaning {sense}" if sense else "")
-             if from_english else sentence or word)
+             if from_english else
+             f'"{word}" is a Singapore Mandarin term meaning: {known} (this meaning is correct; check the rest against '
+             "how it is used in Singapore)" if known else sentence or word)
     try:
         checked = _json(_complete_simple(_CHECK.format(language=language, entry=json.dumps(entry, ensure_ascii=False),
                                                        sentence=asked), max_tokens=600, effort="low"))  # checking is lighter work than writing
@@ -434,6 +446,11 @@ def lookup_word(word: str, sentence: str, lang: str, script: str, from_english: 
     if checked and checked.get("word"):
         checked.pop("senses", None)
         entry = {**entry, **checked}
+    if known:  # a known term: it exists, and its meaning stays the known one
+        entry["exists"] = True
+        entry["suggestions"] = []
+        if known.lower() not in str(entry.get("meaning") or "").lower():
+            entry["meaning"] = known
     if entry.get("exists") is False:
         entry["meaning"] = ""
         entry["example"] = None
