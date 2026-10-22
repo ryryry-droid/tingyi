@@ -14,9 +14,11 @@ type Props = {
   buzzPreview: () => void;
   onBackup: () => void;
   onRestore: () => void;
+  onOpenBank: () => void;
+  bankSummary: string; // e.g. "37 terms · 10 tested"
 };
 
-export default function SettingsScreen({ settings: s, onChange, toast, buzzPreview, onBackup, onRestore }: Props) {
+export default function SettingsScreen({ settings: s, onChange, toast, buzzPreview, onBackup, onRestore, onOpenBank, bankSummary }: Props) {
   const c = useColors();
   const [showCode, setShowCode] = useState(false);
   const [langsOpen, setLangsOpen] = useState(false);
@@ -115,6 +117,16 @@ export default function SettingsScreen({ settings: s, onChange, toast, buzzPrevi
           { value: 'light', label: 'Light' },
         ]}
       />
+
+      <Label style={styles.gap}>Word banks</Label>
+      <Pressable onPress={onOpenBank} accessibilityRole="button" style={[styles.bankRow, { borderColor: c.line, backgroundColor: c.surface }]}>
+        <Text style={{ fontSize: 26 }}>🇸🇬</Text>
+        <View style={{ flex: 1 }}>
+          <Text style={{ color: c.ink, fontSize: 16, fontWeight: '700' }}>Singapore Mandarin</Text>
+          <Text style={{ color: c.muted, fontSize: 13 }}>{bankSummary}</Text>
+        </View>
+        <Text style={{ color: c.faint, fontSize: 22 }}>›</Text>
+      </Pressable>
 
       <Label style={styles.gap}>Translation style</Label>
       <Segmented
@@ -250,6 +262,7 @@ const styles = StyleSheet.create({
   switchRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 24, gap: 12 },
   langs: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   backupBtn: { flex: 1, alignItems: 'center', borderRadius: 14, paddingVertical: 14 },
+  bankRow: { flexDirection: 'row', alignItems: 'center', gap: 12, borderWidth: 1, borderRadius: 14, paddingHorizontal: 14, paddingVertical: 12 },
   langSum: { flexDirection: 'row', alignItems: 'center', gap: 12, borderWidth: 1, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12 },
   levels: { flexDirection: 'row', gap: 8, marginTop: 10 },
   level: { flex: 1, alignItems: 'center', gap: 6, borderRadius: 16, borderWidth: 2, paddingVertical: 8, paddingHorizontal: 4 },

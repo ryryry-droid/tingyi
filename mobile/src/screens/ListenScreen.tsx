@@ -30,9 +30,9 @@ export default function ListenScreen({ settings, words, setup, onDone }: Props) 
   useKeepAwake(); // keep the screen on while it plays
   const c = useColors();
   const [items] = useState(() => {
-    let pool = testPool(words, setup.group).filter((w) => w.example?.text);
+    let pool = testPool(words, setup.group, setup.theme).filter((w) => w.example?.text);
     const n = [5, 10, 20].includes(setup.count) && setup.count < pool.length ? setup.count : pool.length;
-    return setup.group === 'weak' ? shuffle(pool.slice(0, n)) : shuffle(pool).slice(0, n);
+    return shuffle(pool).slice(0, n);
   });
   const [i, setI] = useState(0);
   const [rep, setRep] = useState(0);

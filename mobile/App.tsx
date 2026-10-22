@@ -4,7 +4,9 @@ import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, BackHandler, Image, ImageBackground, Pressable, StyleSheet, Text, Vibration, View } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 
-import { checkRegister, checkServer, translateRecording } from './src/api';
+import { checkRegister, checkServer, checkTheme, translateRecording } from './src/api';
+import { bankWord, loadBank, loadBankProgress, saveBankResult } from './src/bank';
+import BankScreen from './src/screens/BankScreen';
 import { backUp, restore } from './src/backup';
 import { preloadSounds, setSoundVolume } from './src/sounds';
 import Splash from './src/Splash';
@@ -35,7 +37,8 @@ type Route =
   | { name: 'tab' }
   | { name: 'session'; id: string }
   | { name: 'live'; mode: 'subtitles' | 'conversation' }
-  | { name: 'test'; only?: Word[]; key: number }
+  | { name: 'test'; only?: Word[]; key: number; bank?: Word[] }
+  | { name: 'bank' }
   | { name: 'listen'; key: number };
 type Toast = { msg: string; action?: { label: string; run: () => void } } | null;
 
@@ -110,6 +113,35 @@ export default function App() {
       }
     })();
   }, [ready]);
+  // Daily / Technical for each word (testing by theme): asked once per word, in the background
+  const themesRunning = useRef(false);
+  useEffect(() => {
+    if (!ready || !settings.serverUrl || themesRunning.current) return;
+    const todo = words.filter((w) => !w.theme);
+    if (!todo.length) return;
+    themesRunning.current = true;
+    (async () => {
+      try {
+        for (const lang of [...new Set(todo.map((w) => w.lang))]) {
+          const list = todo.filter((w) => w.lang === lang).slice(0, 100);
+          const { results } = await checkTheme(settingsRef.current, lang, list.map((w) => ({ word: w.word, meaning: w.meaning || '' })));
+          const found = new Map(results.map((r) => [r.word, r.theme]));
+          setWords((prev) => prev.map((w) => (w.lang === lang && !w.theme && found.has(w.word) ? { ...w, theme: found.get(w.word) } : w)));
+        }
+      } catch {}
+      themesRunning.current = false;
+    })();
+  }, [ready, words.length]);
+
+  // Word bank summary for Settings
+  const [bankSummary, setBankSummary] = useState('');
+  useEffect(() => {
+    if (!ready || tab !== 'settings' || route.name !== 'tab') return;
+    Promise.all([loadBank(settingsRef.current), loadBankProgress()]).then(([terms, prog]) =>
+      setBankSummary(`${terms.length} terms · ${Object.keys(prog).length} tested`),
+    );
+  }, [ready, tab, route.name]);
+
   useEffect(() => {
     SystemUI.setBackgroundColorAsync(c.bg).catch(() => {});
   }, [c.bg]);
@@ -123,6 +155,11 @@ export default function App() {
       if (route.name === 'session') {
         setRoute({ name: 'tab' });
         setTab('history');
+        return true;
+      }
+      if (route.name === 'bank' || (route.name === 'test' && route.bank)) {
+        setRoute(route.name === 'bank' ? { name: 'tab' } : { name: 'bank' });
+        if (route.name === 'bank') setTab('settings');
         return true;
       }
       if (route.name === 'test' || route.name === 'listen') {
@@ -284,7 +321,7 @@ export default function App() {
   }
 
   const current = route.name === 'session' ? sessions.find((s) => s.id === route.id) : undefined;
-  const selectedTab: Tab = route.name === 'session' ? 'history' : route.name === 'live' ? 'record' : route.name === 'test' || route.name === 'listen' ? 'words' : tab;
+  const selectedTab: Tab = route.name === 'session' ? 'history' : route.name === 'live' ? 'record' : route.name === 'bank' || (route.name === 'test' && route.bank) ? 'settings' : route.name === 'test' || route.name === 'listen' ? 'words' : tab;
 
   let screen: React.ReactNode;
   if (!ready) {
@@ -319,6 +356,17 @@ export default function App() {
         toast={showToast}
       />
     );
+  } else if (route.name === 'bank') {
+    screen = (
+      <BankScreen
+        settings={settings}
+        words={words}
+        onBack={() => goTab('settings')}
+        onTest={(terms) => setRoute({ name: 'test', key: Date.now(), bank: terms.map(bankWord) })}
+        onSaveWord={saveWord}
+        toast={showToast}
+      />
+    );
   } else if (route.name === 'listen') {
     screen = <ListenScreen key={route.key} settings={settings} words={words} setup={testSetup} onDone={() => goTab('words')} />;
   } else if (route.name === 'test') {
@@ -329,10 +377,14 @@ export default function App() {
         words={words}
         setup={testSetup}
         only={route.only}
+        bank={route.bank}
+        onBankResult={(word, ok) => saveBankResult(word, ok)}
         onUpdateWord={updateWord}
-        onAgain={(missed) => setRoute({ name: 'test', only: missed.map((m) => words.find((x) => x.id === m.id) || m), key: Date.now() })}
-        onNew={() => goTab('words')}
-        onDone={() => goTab('words')}
+        onAgain={(missed) =>
+          setRoute({ name: 'test', only: route.bank ? missed : missed.map((m) => words.find((x) => x.id === m.id) || m), key: Date.now(), bank: route.bank })
+        }
+        onNew={() => (route.bank ? setRoute({ name: 'test', key: Date.now(), bank: route.bank }) : goTab('words'))}
+        onDone={() => (route.bank ? setRoute({ name: 'bank' }) : goTab('words'))}
         buzzAnswer={(ok) => settings.vibrate && Vibration.vibrate(ok ? 30 : [0, 60, 60, 60])}
       />
     );
@@ -363,6 +415,8 @@ export default function App() {
         onChange={updateSettings}
         toast={showToast}
         buzzPreview={() => Vibration.vibrate(90)}
+        onOpenBank={() => setRoute({ name: 'bank' })}
+        bankSummary={bankSummary}
         onBackup={async () => {
           try {
             const msg = await backUp(words, sessions, settingsRef.current);

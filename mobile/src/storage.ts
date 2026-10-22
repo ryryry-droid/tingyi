@@ -71,7 +71,9 @@ export async function saveWords(words: Word[]): Promise<void> {
 }
 
 export async function loadTestSetup(): Promise<TestSetup> {
-  return { ...DEFAULT_TEST_SETUP, ...(await readJson<Partial<TestSetup>>(TEST_KEY, {})) };
+  const t = { ...DEFAULT_TEST_SETUP, ...(await readJson<Partial<TestSetup>>(TEST_KEY, {})) };
+  if (t.group === 'weak') t.group = 'all'; // "Weakest" was removed
+  return t;
 }
 
 export function saveTestSetup(setup: TestSetup) {

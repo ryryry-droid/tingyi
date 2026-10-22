@@ -1,6 +1,6 @@
 import { File, Paths } from 'expo-file-system';
 
-import { LookupEntry, Segment, Session, Settings, WordFamily } from './types';
+import { BankTerm, LookupEntry, Segment, Session, Settings, WordFamily } from './types';
 
 function baseUrl(s: Settings) {
   let url = s.serverUrl.trim().replace(/\/+$/, '');
@@ -122,13 +122,29 @@ export function retranslate(
 }
 
 /** fromEnglish: "word" is English, find how to say it in lang. */
-export function lookupWord(s: Settings, word: string, sentence: string, lang: string, fromEnglish = false, sense = ''): Promise<LookupEntry> {
-  return postJson(s, '/api/lookup', { word, sentence, lang, script: s.script, from_english: fromEnglish, sense });
+export function lookupWord(s: Settings, word: string, sentence: string, lang: string, fromEnglish = false, sense = '', known = ''): Promise<LookupEntry> {
+  return postJson(s, '/api/lookup', { word, sentence, lang, script: s.script, from_english: fromEnglish, sense, known });
 }
 
 /** An Indonesian / Malay word's family: its base word and the common forms built from it. */
 export function wordFamily(s: Settings, word: string, lang: string, meaning: string): Promise<WordFamily> {
   return postJson(s, '/api/family', { word, lang, meaning });
+}
+
+/** Daily or Technical, for each word (testing by theme). */
+export function checkTheme(
+  s: Settings,
+  lang: string,
+  words: { word: string; meaning: string }[],
+): Promise<{ results: { word: string; theme: 'daily' | 'technical' }[] }> {
+  return postJson(s, '/api/theme', { lang, words });
+}
+
+/** The Singapore Mandarin word bank's terms, as the server has them now. */
+export async function fetchBank(s: Settings): Promise<BankTerm[]> {
+  const r = await fetch(`${baseUrl(s)}/assets/sgm.json`);
+  if (!r.ok) throw new Error(`HTTP ${r.status}`);
+  return r.json();
 }
 
 /** Which of these words are colloquial (for words saved before this was recorded). */

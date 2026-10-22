@@ -7,7 +7,7 @@ import { liveTranscribe, lookupWord, options, wordFamily } from '../api';
 import { Btn, Label, NotAWord, Pinyin, Segmented, Sheet, sheetStyles, TextBtn, Working } from '../components';
 import { speakWord } from '../speech';
 import { deaccent, formatDate, HAN_FONT, useColors } from '../theme';
-import { caseFor, DEFAULT_TEST_SETUP, FamilyForm, LANGS, learningLang, LookupEntry, Settings, TestKind, TestSetup, Word, WORD_EXAMPLE, wordId, wordLangOf, wordLangs } from '../types';
+import { caseFor, DEFAULT_TEST_SETUP, FamilyForm, themeOf, LANGS, learningLang, LookupEntry, Settings, TestKind, TestSetup, Word, WORD_EXAMPLE, wordId, wordLangOf, wordLangs } from '../types';
 import { cleanWord } from '../words';
 import { ExampleBox } from './SessionScreen';
 
@@ -31,14 +31,10 @@ export const TEST_KINDS: { id: TestKind; title: string; hint: string }[] = [
   { id: 'type', title: 'Type it', hint: 'Type the word yourself (pinyin is fine for Chinese)' },
 ];
 
-export function testPool(words: Word[], group: string): Word[] {
-  if (group === 'weak') {
-    return words
-      .slice()
-      .sort((a, b) => (a.level || 0) - (b.level || 0) || (b.wrong || 0) - (a.wrong || 0) || (a.lastTested || 0) - (b.lastTested || 0));
-  }
-  if (group !== 'all') return words.filter((w) => w.lang === group);
-  return words;
+export function testPool(words: Word[], group: string, theme: string = 'any'): Word[] {
+  let pool = group !== 'all' ? words.filter((w) => w.lang === group) : words;
+  if (theme === 'daily' || theme === 'technical') pool = pool.filter((w) => themeOf(w) === theme);
+  return pool;
 }
 
 export default function WordsScreen(p: Props) {
@@ -374,15 +370,27 @@ export default function WordsScreen(p: Props) {
 }
 
 // ---------- add a word by typing or speaking ----------
-function AddWordSheet({ settings, words, onSaveWord, toast, onClose }: Props & { onClose: () => void }) {
+export type AddPreset = { lang: string; text: string; source: string; known: string };
+export function AddWordSheet({
+  settings,
+  words,
+  onSaveWord,
+  toast,
+  onClose,
+  preset,
+}: Pick<Props, 'settings' | 'words' | 'onSaveWord' | 'toast'> & { onClose: () => void; preset?: AddPreset }) {
   const c = useColors();
   const ss = sheetStyles(c);
   const langs = wordLangs(settings.langs, words);
   const codes = langs.map(([code]) => code);
   const main = learningLang(settings);
-  const [lang, setLang] = useState(codes.includes(main) ? main : codes[0] || 'zh');
-  const [text, setText] = useState('');
-  const [fromEn, setFromEn] = useState(true); // typing or saying an English word (on to start with)
+  const [lang, setLang] = useState(preset?.lang || (codes.includes(main) ? main : codes[0] || 'zh'));
+  const [text, setText] = useState(preset?.text || '');
+  const [fromEn, setFromEn] = useState(!preset); // typing or saying an English word (on to start with)
+  // a word bank term opens already looked up, written around the bank's meaning
+  useEffect(() => {
+    if (preset?.text) doLookup(preset.text);
+  }, []);
   // An English word with several meanings ("track"): pick which. senses[0] is the one looked up first.
   const [senses, setSenses] = useState<NonNullable<LookupEntry['senses']>>([]);
   const [sense, setSense] = useState('');
@@ -431,7 +439,7 @@ function AddWordSheet({ settings, words, onSaveWord, toast, onClose }: Props & {
     setLoading(which ? `Looking up “${word}” as in ${which}…` : 'Looking it up…');
     const id = ++req.current;
     try {
-      const e = await lookupWord(settings, word, fromEn ? '' : word, lang, fromEn, which);
+      const e = await lookupWord(settings, word, fromEn ? '' : word, lang, fromEn, which, preset && word === preset.text ? preset.known : '');
       if (!alive.current || id !== req.current) return;
       setEntry(e);
       setMeaning(e.meaning);
@@ -508,7 +516,7 @@ function AddWordSheet({ settings, words, onSaveWord, toast, onClose }: Props & {
       standard: entry.standard || '',
       sentence: existing?.sentence || '',
       sessionId: existing?.sessionId || '',
-      sessionTitle: existing?.sessionTitle || 'Added by you',
+      sessionTitle: existing?.sessionTitle || preset?.source || 'Added by you',
       createdAt: existing?.createdAt || Date.now(),
     });
     toast(existing ? 'Word updated' : 'Added to your words');
@@ -671,6 +679,7 @@ function EditWordSheet({ word: w, onClose, onSave }: { word: Word; onClose: () =
   const [meaning, setMeaning] = useState(w.meaning);
   const [exText, setExText] = useState(w.example?.text || '');
   const [exTr, setExTr] = useState(w.example?.translation || '');
+  const [theme, setTheme] = useState<'daily' | 'technical'>(themeOf(w));
   const field = [styles.meaning, { borderColor: c.line, backgroundColor: c.bg, color: c.ink, minHeight: 0 }];
   return (
     <Sheet visible onClose={onClose}>
@@ -703,6 +712,15 @@ function EditWordSheet({ word: w, onClose, onSave }: { word: Word; onClose: () =
         placeholderTextColor={c.faint}
         style={[field, { minHeight: 64 }]}
       />
+      <Text style={ss.k}>Theme</Text>
+      <Segmented
+        value={theme}
+        onChange={(v) => setTheme(v)}
+        options={[
+          { value: 'daily', label: 'Daily' },
+          { value: 'technical', label: 'Technical' },
+        ]}
+      />
       <View style={{ flexDirection: 'row', gap: 10 }}>
         <Btn
           title="Save"
@@ -714,6 +732,7 @@ function EditWordSheet({ word: w, onClose, onSave }: { word: Word; onClose: () =
               word: caseFor(word.trim(), w.part_of_speech),
               pinyin: pinyin.trim(),
               meaning: meaning.trim() || w.meaning,
+              theme,
               example: exText.trim()
                 ? {
                     ...(w.example || {}),
@@ -749,9 +768,10 @@ function TestSetupSheet({
 }) {
   const c = useColors();
   const ss = sheetStyles(c);
-  const groups: [string, string][] = [['all', 'All'], ...wordLangs([], words), ['weak', 'Weakest']];
+  const groups: [string, string][] = [['all', 'All'], ...wordLangs([], words)];
   const t = groups.some(([g]) => g === setup.group) ? setup : { ...setup, group: 'all' };
-  const pool = testPool(words, t.group);
+  const theme = t.theme || 'any';
+  const pool = testPool(words, t.group, theme);
   const counts = [5, 10, 20].filter((n) => n < pool.length);
   const n = Math.min(pool.length, counts.includes(t.count) ? t.count : pool.length);
   const set = (patch: Partial<TestSetup>) => onChange({ ...DEFAULT_TEST_SETUP, ...t, ...patch });
@@ -770,6 +790,16 @@ function TestSetupSheet({
           </Pressable>
         ))}
       </View>
+      <Label style={{ marginBottom: 0 }}>Theme</Label>
+      <Segmented
+        value={theme}
+        onChange={(v) => set({ theme: v as TestSetup['theme'] })}
+        options={[
+          { value: 'any', label: 'Any' },
+          { value: 'daily', label: `Daily ${testPool(words, t.group, 'daily').length}` },
+          { value: 'technical', label: `Technical ${testPool(words, t.group, 'technical').length}` },
+        ]}
+      />
       <Label style={{ marginBottom: 0 }}>Questions</Label>
       <Segmented
         value={String(counts.includes(t.count) ? t.count : 0)}

@@ -48,6 +48,8 @@ type Props = {
   words: Word[];
   setup: TestSetup;
   only?: Word[]; // practise just these (the missed words)
+  bank?: Word[]; // a word bank's terms: questions come from these and scores are kept apart from your words
+  onBankResult?: (word: string, ok: boolean) => void;
   onUpdateWord: (w: Word) => void;
   onAgain: (missed: Word[]) => void;
   onNew: () => void;
@@ -55,14 +57,19 @@ type Props = {
   buzzAnswer: (ok: boolean) => void;
 };
 
-export default function TestScreen({ settings, words, setup, only, onUpdateWord, onAgain, onNew, onDone, buzzAnswer }: Props) {
+export default function TestScreen({ settings, words, setup, only, bank, onBankResult, onUpdateWord, onAgain, onNew, onDone, buzzAnswer }: Props) {
   const c = useColors();
   const scroller = useRef<ScrollViewInstance>(null);
   const qs = useMemo(() => {
-    let pool = only || testPool(words, setup.group);
+    if (bank) {
+      const items = only || shuffle(bank).slice(0, 10);
+      const kinds = setup.kinds.filter((k) => k !== 'gap'); // the bank has no example sentences
+      return items.map((w) => makeQuestion(w, bank, kinds.length ? kinds : ['meaning', 'word']));
+    }
+    let pool = only || testPool(words, setup.group, setup.theme);
     if (!only) {
       const n = [5, 10, 20].includes(setup.count) && setup.count < pool.length ? setup.count : pool.length;
-      pool = setup.group === 'weak' ? shuffle(pool.slice(0, n)) : shuffle(pool).slice(0, n);
+      pool = shuffle(pool).slice(0, n);
     }
     const kinds = setup.kinds.length ? setup.kinds : (['meaning'] as TestKind[]);
     return pool.map((w) => makeQuestion(w, words, kinds));
@@ -83,6 +90,13 @@ export default function TestScreen({ settings, words, setup, only, onUpdateWord,
       const streak = ok ? s.streak + 1 : 0;
       return { right: s.right + (ok ? 1 : 0), streak, best: Math.max(s.best, streak), missed: ok ? s.missed : [...s.missed, w] };
     });
+    if (bank) {
+      onBankResult?.(w.word, ok);
+      if (ok) playCry();
+      else playWrong();
+      buzzAnswer(ok);
+      return;
+    }
     const cur = words.find((x) => x.id === w.id) || w;
     onUpdateWord({
       ...cur,
