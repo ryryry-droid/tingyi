@@ -15,6 +15,9 @@ from fastapi.staticfiles import StaticFiles
 from . import audioclip, config, translate
 from .models import (
     ExampleRequest,
+    ThemeRequest,
+    ThemeResponse,
+    ThemeResult,
     FamilyForm,
     FamilyRequest,
     FamilyResponse,
@@ -316,6 +319,17 @@ async def word_register(req: RegisterRequest) -> RegisterResponse:
         reg, std = found.get(w.lower(), ("standard", ""))
         results.append(RegisterResult(word=w, register=reg, standard=std))
     return RegisterResponse(results=results)
+
+
+@app.post("/api/theme", response_model=ThemeResponse, dependencies=[Depends(check_token)])
+async def word_theme(req: ThemeRequest) -> ThemeResponse:
+    """Daily or Technical, for each saved word (used to test by theme)."""
+    items = [(w.word.strip(), w.meaning.strip()) for w in req.words if w.word.strip()]
+    try:
+        found = await run_in_threadpool(translate.classify_theme, items, req.lang)
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Check failed: {e}")
+    return ThemeResponse(results=[ThemeResult(word=w, theme=found.get(w.lower(), "daily")) for w, _ in items])
 
 
 # ---------------- live mode ----------------

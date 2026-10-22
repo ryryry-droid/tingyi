@@ -327,6 +327,27 @@ def example_for(word: str, lang: str, script: str, meaning: str, english: str) -
     return text
 
 
+def classify_theme(items: list[tuple[str, str]], lang: str) -> dict[str, str]:
+    """For each (word, meaning): "daily" or "technical"."""
+    language = LOOKUP_LANG.get(lang) or LANG_NAMES[lang]
+    prompt = (
+        f"Sort these {language} words into two themes for a learner's tests:\n"
+        "- daily: everyday life — food, family, home, shopping, feelings, chatting, slang, time, places, travel\n"
+        "- technical: work and specialist subjects — business, money and finance, law, government, science, medicine, "
+        "technology, engineering, academic or formal vocabulary\n\n"
+        + "\n".join(f"{w} — {m}" if m else w for w, m in items)
+        + '\n\nReply with JSON only: {"words": [{"word": "...", "theme": "daily" or "technical"}]}'
+    )
+    text = _complete_simple(prompt, max_tokens=60 + 25 * len(items))
+    data = _json(text) or {}
+    out: dict[str, str] = {}
+    for item in data.get("words") or []:
+        w = str(item.get("word") or "").strip()
+        if w:
+            out[w.lower()] = "technical" if str(item.get("theme") or "").lower().startswith("tech") else "daily"
+    return out
+
+
 def classify_register(words: list[str], lang: str) -> dict[str, tuple[str, str]]:
     """For each word: ("colloquial" | "standard", standard form if colloquial)."""
     language = LOOKUP_LANG.get(lang) or LANG_NAMES[lang]

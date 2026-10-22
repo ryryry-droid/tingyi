@@ -229,6 +229,11 @@ class ExampleRequest(BaseModel):
     english: str = Field(min_length=1, max_length=300)
 
 
+class ThemeWord(BaseModel):
+    word: str = Field(min_length=1, max_length=60)
+    meaning: str = Field(default="", max_length=200)
+
+
 class RegisterRequest(BaseModel):
     """Check which saved words are colloquial (for words saved before this was recorded)."""
 
@@ -244,6 +249,22 @@ class RegisterResult(BaseModel):
 
 class RegisterResponse(BaseModel):
     results: list[RegisterResult]
+
+
+class ThemeRequest(BaseModel):
+    """Sort saved words into Daily (everyday life) or Technical (work, specialist, formal subjects)."""
+
+    lang: LookupLang
+    words: list[ThemeWord] = Field(min_length=1, max_length=100)
+
+
+class ThemeResult(BaseModel):
+    word: str
+    theme: Literal["daily", "technical"]
+
+
+class ThemeResponse(BaseModel):
+    results: list[ThemeResult]
 
 
 class LiveSegment(BaseModel):

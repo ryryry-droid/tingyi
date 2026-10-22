@@ -723,3 +723,18 @@ def test_lookup_known_singapore_term(monkeypatch):
     assert r["exists"] is True and r["meaning"] == "market" and r["suggestions"] == []
     assert "Singapore Mandarin term" in seen[0] and "Its meaning is: market" in seen[0]
     assert "meaning: market (this meaning is correct" in seen[1]  # the second check is told too
+
+
+def test_word_themes(monkeypatch):
+    setup(monkeypatch)
+    seen = []
+
+    def fake(prompt, max_tokens=200, **kw):
+        seen.append(prompt)
+        return '{"words": [{"word": "makan", "theme": "daily"}, {"word": "anggaran", "theme": "technical"}]}'
+
+    monkeypatch.setattr(translate, "_complete_simple", fake)
+    r = client.post("/api/theme", json={"lang": "id", "words": [{"word": "makan", "meaning": "to eat"}, {"word": "anggaran", "meaning": "budget"}, {"word": "rumah"}]})
+    assert r.status_code == 200, r.text
+    assert r.json()["results"] == [{"word": "makan", "theme": "daily"}, {"word": "anggaran", "theme": "technical"}, {"word": "rumah", "theme": "daily"}]
+    assert "anggaran — budget" in seen[0]
