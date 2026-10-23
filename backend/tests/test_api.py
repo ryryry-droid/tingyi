@@ -738,3 +738,12 @@ def test_word_themes(monkeypatch):
     assert r.status_code == 200, r.text
     assert r.json()["results"] == [{"word": "makan", "theme": "daily"}, {"word": "anggaran", "theme": "technical"}, {"word": "rumah", "theme": "daily"}]
     assert "anggaran — budget" in seen[0]
+
+
+def test_convert_script(monkeypatch):
+    setup(monkeypatch)
+    r = client.post("/api/convert", json={"script": "simplified", "texts": ["自動販賣機", "請把通知貼在公告欄上。", "hello", ""]})
+    assert r.status_code == 200
+    assert r.json()["texts"] == ["自动贩卖机", "请把通知贴在公告栏上。", "hello", ""]
+    r = client.post("/api/convert", json={"script": "traditional", "texts": ["自动贩卖机"]})
+    assert r.json()["texts"] == ["自動販賣機"]

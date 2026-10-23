@@ -2626,8 +2626,43 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
   }
   document.querySelectorAll('.seg').forEach((g) => (g.onclick = (ev) => {
     const b = ev.target.closest('button'); if (!b) return;
+    const was = settings[g.dataset.setting];
     settings[g.dataset.setting] = b.dataset.value; saveSettings(); rerender();
+    if (g.dataset.setting === 'script' && was !== b.dataset.value) convertWords(b.dataset.value);
   }));
+  // Changing Chinese characters also changes the Chinese words you've already saved
+  const ZH_FIELDS = ['word', 'root', 'sentence', 'meaning', 'in_context', 'notes', 'standard'];
+  async function convertWords(script) {
+    const list = words.filter((w) => isHan(w.lang));
+    if (!list.length) return;
+    const texts = [];
+    for (const w of list) { for (const f of ZH_FIELDS) texts.push(w[f] || ''); texts.push(w.example?.text || ''); }
+    let out;
+    try {
+      const res = await fetch('/api/convert', { method: 'POST', headers: { ...authHeaders(), 'Content-Type': 'application/json' }, body: JSON.stringify({ script, texts }) });
+      if (!res.ok) throw new Error();
+      out = (await res.json()).texts;
+    } catch { toast('Couldn’t change your saved words. Try again when the server is awake.'); return; }
+    if (settings.script !== script) return; // changed again meanwhile
+    let k = 0, changed = 0;
+    const taken = new Set(words.map((w) => w.id));
+    for (const w of list) {
+      const nw = { ...w };
+      for (const f of ZH_FIELDS) { const v = out[k++]; if (w[f]) nw[f] = v; }
+      const ex = out[k++]; if (w.example?.text) nw.example = { ...w.example, text: ex };
+      nw.id = wordId(nw.lang, nw.word);
+      if (JSON.stringify(nw) === JSON.stringify(w)) continue;
+      changed++;
+      if (nw.id !== w.id) {
+        await deleteWord(w.id).catch(() => {}); taken.delete(w.id);
+        if (taken.has(nw.id)) { words = words.filter((x) => x.id !== w.id); continue; } // you already have it in this script
+        taken.add(nw.id);
+      }
+      await putWord(nw).catch(() => {});
+      words = words.map((x) => (x.id === w.id ? nw : x));
+    }
+    if (changed) { toast(`Changed ${changed} saved ${changed === 1 ? 'word' : 'words'} to ${script === 'traditional' ? 'Traditional' : 'Simplified'}`); if (view === 'words') renderWords(); }
+  }
   $('set-langs-sum').onclick = () => {
     const open = $('set-langs').hidden;
     $('set-langs').hidden = !open; $('set-langs-sum').setAttribute('aria-expanded', String(open)); $('set-langs-btn').textContent = open ? 'Done' : 'Edit';

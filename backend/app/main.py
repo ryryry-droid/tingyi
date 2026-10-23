@@ -14,6 +14,8 @@ from fastapi.staticfiles import StaticFiles
 
 from . import audioclip, config, translate
 from .models import (
+    ConvertRequest,
+    ConvertResponse,
     ExampleRequest,
     ThemeRequest,
     ThemeResponse,
@@ -305,6 +307,12 @@ async def word_example(req: ExampleRequest) -> Example:
     if chinese:
         text = to_script(text, req.script)
     return Example(text=text, pinyin=to_pinyin(text) if chinese else None, translation=req.english.strip())
+
+
+@app.post("/api/convert", response_model=ConvertResponse, dependencies=[Depends(check_token)])
+async def convert_script(req: ConvertRequest) -> ConvertResponse:
+    """Saved words in the other kind of Chinese characters. Text with no Chinese comes back unchanged."""
+    return ConvertResponse(texts=[to_script(t, req.script) if t else t for t in req.texts])
 
 
 @app.post("/api/register", response_model=RegisterResponse, dependencies=[Depends(check_token)])

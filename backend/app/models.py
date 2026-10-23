@@ -315,3 +315,14 @@ class TitleRequest(BaseModel):
 
 class TitleResponse(BaseModel):
     title: str
+
+
+class ConvertRequest(BaseModel):
+    """Turn Chinese text into Simplified or Traditional characters (used when the setting changes)."""
+
+    script: Script
+    texts: list[str] = Field(default_factory=list, max_length=5000)
+
+
+class ConvertResponse(BaseModel):
+    texts: list[str]
