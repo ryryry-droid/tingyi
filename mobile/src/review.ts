@@ -9,8 +9,10 @@ export const REVIEW_MAX = 20; // per session, so a big backlog comes in manageab
 export const dayNum = (t = Date.now()) => Math.floor((t - new Date(t).getTimezoneOffset() * 60000) / 86400000);
 export const srsOf = (w: Word) => w.srs || { step: 0, due: dayNum(w.createdAt || Date.now()) + 1 }; // new words: the day after saving
 export const dueIn = (w: Word) => srsOf(w).due - dayNum();
-export const dueWords = (words: Word[]) =>
-  words.filter((w) => dueIn(w) <= 0).sort((a, b) => srsOf(a).due - srsOf(b).due || srsOf(a).step - srsOf(b).step);
+// the review follows the language picked on the Words tab ('all': every language)
+export const langWords = (words: Word[], lang = 'all') => (lang === 'all' ? words : words.filter((w) => w.lang === lang));
+export const dueWords = (words: Word[], lang = 'all') =>
+  langWords(words, lang).filter((w) => dueIn(w) <= 0).sort((a, b) => srsOf(a).due - srsOf(b).due || srsOf(a).step - srsOf(b).step);
 export const whenText = (d: number) => (d <= 0 ? 'today' : d === 1 ? 'tomorrow' : `in ${d} days`);
 export const nextReview = (words: Word[]) => whenText(Math.min(...words.map(dueIn)));
 

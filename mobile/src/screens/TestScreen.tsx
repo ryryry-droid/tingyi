@@ -8,7 +8,7 @@ import { speakWord } from '../speech';
 import { formatTime, HAN_FONT, toneless, useColors } from '../theme';
 import { LANGS, Settings, TestKind, TestSetup, Word } from '../types';
 import { liveTranscribe, options } from '../api';
-import { afterReview, dueWords, markReviewDay, nextReview, REVIEW_MAX } from '../review';
+import { afterReview, dueWords, langWords, markReviewDay, nextReview, REVIEW_MAX } from '../review';
 import { cleanWord } from '../words';
 import { Ladder, testPool } from './WordsScreen';
 
@@ -62,7 +62,7 @@ type Props = {
   only?: Word[]; // practise just these (the missed words)
   bank?: Word[]; // a word bank's terms: questions come from these and scores are kept apart from your words
   onBankResult?: (word: string, ok: boolean) => void;
-  review?: boolean; // the daily review: today's due words, recalled from the meaning
+  review?: string; // the daily review of this language ('all': every language): today's due words, recalled from the meaning
   onReviewMore?: () => void;
   onUpdateWord: (w: Word) => void;
   onAgain: (missed: Word[]) => void;
@@ -75,7 +75,7 @@ export default function TestScreen({ settings, words, setup, only, bank, onBankR
   const c = useColors();
   const scroller = useRef<ScrollViewInstance>(null);
   const qs = useMemo((): Question[] => {
-    if (review && !only) return dueWords(words).slice(0, REVIEW_MAX).map((w) => ({ w, kind: 'recall' }));
+    if (review && !only) return dueWords(words, review).slice(0, REVIEW_MAX).map((w) => ({ w, kind: 'recall' }));
     if (bank) {
       const items = only || shuffle(bank).slice(0, 10);
       const kinds = setup.kinds.filter((k) => k !== 'gap'); // the bank has no example sentences
@@ -211,9 +211,10 @@ export default function TestScreen({ settings, words, setup, only, bank, onBankR
   if (done) {
     const total = count;
     const pct = Math.round((stats.right / Math.max(1, total)) * 100);
-    const left = review ? dueWords(words).length : 0;
+    const left = review ? dueWords(words, review).length : 0;
+    const rw = review ? langWords(words, review) : [];
     const msg = review ? (left ? `${left} more due today` : 'All caught up') : pct === 100 ? 'Perfect!' : pct >= 80 ? 'Nice work!' : pct >= 50 ? 'Good effort' : 'Keep practising';
-    const nextLine = review && !left && words.length ? `Next review ${nextReview(words)}` : '';
+    const nextLine = review && !left && rw.length ? `Next review ${nextReview(rw)}` : '';
     const DOTS = 40;
     return (
       <ScrollView contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 40 }}>

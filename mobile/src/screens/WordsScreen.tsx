@@ -10,7 +10,7 @@ import { deaccent, formatDate, HAN_FONT, useColors } from '../theme';
 import { caseFor, DEFAULT_TEST_SETUP, FamilyForm, themeOf, LANGS, learningLang, LookupEntry, Settings, TestKind, TestSetup, Word, WORD_EXAMPLE, wordId, wordLangOf, wordLangs } from '../types';
 import { cleanWord } from '../words';
 import { ExampleBox } from './SessionScreen';
-import { dueIn, dueWords, LADDER, nextReview, reviewStreak, srsOf, whenText } from '../review';
+import { dueIn, dueWords, LADDER, langWords, nextReview, reviewStreak, srsOf, whenText } from '../review';
 
 type Props = {
   settings: Settings;
@@ -18,7 +18,7 @@ type Props = {
   testSetup: TestSetup;
   onTestSetup: (s: TestSetup) => void;
   onStartTest: () => void;
-  onReview: () => void; // today's due words
+  onReview: (lang: string) => void; // today's due words in that language ('all': every language)
   onListen?: () => void; // example sentences read aloud
   onSaveWord: (w: Word) => void;
   onUpdateWord?: (w: Word) => void; // change a word in place (keeps its place in the list)
@@ -123,7 +123,9 @@ export default function WordsScreen(p: Props) {
       (!q || [w.word, w.pinyin, w.meaning, w.root].join(' ').toLowerCase().includes(q) || deaccent(w.pinyin || '').includes(deaccent(q))),
   );
 
-  const due = dueWords(words).length;
+  const f0 = filter !== 'all' && words.some((w) => w.lang === filter) ? filter : 'all';
+  const rlName = f0 === 'all' ? '' : ` ${(wordLangs([], words).find(([code]) => code === f0) || [])[1] || ''}`;
+  const due = dueWords(words, f0).length;
   const streak = reviewStreak();
 
   function openTest() {
@@ -146,7 +148,7 @@ export default function WordsScreen(p: Props) {
           <View style={{ gap: 10, marginBottom: 6, marginTop: 4 }}>
             <View style={{ flexDirection: 'row', gap: 10 }}>
               <Pressable
-                onPress={due ? p.onReview : openTest}
+                onPress={due ? () => p.onReview(f0) : openTest}
                 disabled={!words.length}
                 style={[styles.testBtn, { backgroundColor: c.yellow }, !words.length && { opacity: 0.55 }]}
                 accessibilityRole="button"
@@ -155,9 +157,9 @@ export default function WordsScreen(p: Props) {
                   <Text style={{ fontSize: 18, fontWeight: '800', color: c.yellowInk }}>{words.length && !due ? '✓' : '↻'}</Text>
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={{ fontWeight: '800', fontSize: 16, color: c.yellowInk }}>{words.length && !due ? 'All caught up' : 'Review'}</Text>
+                  <Text style={{ fontWeight: '800', fontSize: 16, color: c.yellowInk }}>{words.length && !due ? 'All caught up' : `Review${rlName}`}</Text>
                   <Text style={{ fontWeight: '700', fontSize: 12.5, color: c.yellowInk, opacity: 0.75 }}>
-                    {!words.length ? 'Save some words first' : due ? `${due} ${due === 1 ? 'word' : 'words'} due today` : `Next review ${nextReview(words)}`}
+                    {!words.length ? 'Save some words first' : due ? `${due} ${due === 1 ? 'word' : 'words'} due today` : `Next review ${nextReview(langWords(words, f0))}`}
                   </Text>
                 </View>
                 <Text style={{ fontSize: 22, color: c.yellowInk }}>›</Text>

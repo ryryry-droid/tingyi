@@ -38,7 +38,7 @@ type Route =
   | { name: 'tab' }
   | { name: 'session'; id: string }
   | { name: 'live'; mode: 'subtitles' | 'conversation' }
-  | { name: 'test'; only?: Word[]; key: number; bank?: Word[]; review?: boolean }
+  | { name: 'test'; only?: Word[]; key: number; bank?: Word[]; review?: string } // review: which language ('all' for every one)
   | { name: 'bank' }
   | { name: 'listen'; key: number };
 type Toast = { msg: string; action?: { label: string; run: () => void } } | null;
@@ -430,7 +430,7 @@ export default function App() {
         only={route.only}
         bank={route.bank}
         review={route.review}
-        onReviewMore={() => setRoute({ name: 'test', key: Date.now(), review: true })}
+        onReviewMore={() => setRoute({ name: 'test', key: Date.now(), review: route.review })}
         onBankResult={(word, ok) => saveBankResult(word, ok)}
         onUpdateWord={updateWord}
         onAgain={(missed) =>
@@ -454,7 +454,7 @@ export default function App() {
           saveTestSetup(t);
         }}
         onStartTest={() => setRoute({ name: 'test', key: Date.now() })}
-        onReview={() => setRoute({ name: 'test', key: Date.now(), review: true })}
+        onReview={(lang) => setRoute({ name: 'test', key: Date.now(), review: lang })}
         onListen={() => setRoute({ name: 'listen', key: Date.now() })}
         onSaveWord={saveWord}
         onUpdateWord={updateWord}
