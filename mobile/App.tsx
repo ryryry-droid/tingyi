@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, BackHandler, Image, ImageBackground, Pressable, StyleSheet, Text, Vibration, View } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 
-import { checkRegister, checkServer, checkTheme, translateRecording } from './src/api';
+import { checkRegister, checkServer, checkTheme, convertScript, translateRecording } from './src/api';
 import { bankWord, loadBank, loadBankProgress, saveBankResult } from './src/bank';
 import BankScreen from './src/screens/BankScreen';
 import { backUp, restore } from './src/backup';
@@ -30,7 +30,7 @@ import {
   saveWords,
 } from './src/storage';
 import { formatDate, formatTime, PALETTES, ThemeContext } from './src/theme';
-import { DEFAULT_SETTINGS, DEFAULT_TEST_SETUP, Segment, Session, Settings, TestSetup, Word } from './src/types';
+import { DEFAULT_SETTINGS, DEFAULT_TEST_SETUP, isChinese, Segment, Session, Settings, TestSetup, Word, wordId } from './src/types';
 
 type Tab = 'record' | 'history' | 'words' | 'settings';
 type Route =
@@ -66,6 +66,8 @@ export default function App() {
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const settingsRef = useRef(settings);
   settingsRef.current = settings;
+  const wordsRef = useRef(words);
+  wordsRef.current = words;
   const c = PALETTES[settings.theme] || PALETTES.dark;
 
   useEffect(() => {
@@ -189,8 +191,56 @@ export default function App() {
   }
 
   function updateSettings(next: Settings) {
+    const was = settingsRef.current.script;
     setSettings(next);
     saveSettings(next);
+    if (next.script !== was) convertWords(next);
+  }
+
+  // Changing Chinese characters also changes the Chinese words you've already saved
+  async function convertWords(s: Settings) {
+    const FIELDS = ['word', 'root', 'sentence', 'meaning', 'in_context', 'notes', 'standard'];
+    const list = wordsRef.current.filter((w) => isChinese(w.lang));
+    if (!list.length) return;
+    const texts: string[] = [];
+    for (const w of list) {
+      for (const f of FIELDS) texts.push((w as any)[f] || '');
+      texts.push(w.example?.text || '');
+    }
+    let out: string[];
+    try {
+      out = (await convertScript(s, s.script, texts)).texts;
+    } catch {
+      showToast('Couldn’t change your saved words. Try again when the server is awake.');
+      return;
+    }
+    if (settingsRef.current.script !== s.script) return; // changed again meanwhile
+    const changed = new Map<string, Word>();
+    let k = 0;
+    for (const w of list) {
+      const nw: any = { ...w };
+      for (const f of FIELDS) {
+        const v = out[k++];
+        if ((w as any)[f]) nw[f] = v;
+      }
+      const ex = out[k++];
+      if (w.example?.text) nw.example = { ...w.example, text: ex };
+      nw.id = wordId(nw.lang, nw.word);
+      if (JSON.stringify(nw) !== JSON.stringify(w)) changed.set(w.id, nw);
+    }
+    if (!changed.size) return;
+    setWords((prev) => {
+      const taken = new Set(prev.filter((x) => !changed.has(x.id)).map((x) => x.id));
+      const next: Word[] = [];
+      for (const x of prev) {
+        const nw = changed.get(x.id) || x;
+        if (changed.has(x.id) && taken.has(nw.id)) continue; // you already have it in this script
+        taken.add(nw.id);
+        next.push(nw);
+      }
+      return next;
+    });
+    showToast(`Changed ${changed.size} saved ${changed.size === 1 ? 'word' : 'words'} to ${s.script === 'traditional' ? 'Traditional' : 'Simplified'}`);
   }
 
   function updateSession(id: string, change: (s: Session) => Session) {

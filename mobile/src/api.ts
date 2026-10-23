@@ -140,6 +140,11 @@ export function checkTheme(
   return postJson(s, '/api/theme', { lang, words });
 }
 
+/** The same texts in Simplified or Traditional characters (text with no Chinese comes back unchanged). */
+export function convertScript(s: Settings, script: Settings['script'], texts: string[]): Promise<{ texts: string[] }> {
+  return postJson(s, '/api/convert', { script, texts });
+}
+
 /** The Singapore Mandarin word bank's terms, as the server has them now. */
 export async function fetchBank(s: Settings): Promise<BankTerm[]> {
   const r = await fetch(`${baseUrl(s)}/assets/sgm.json`);
