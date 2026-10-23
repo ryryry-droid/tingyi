@@ -1903,12 +1903,13 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
         ? `<button type="button" data-f="colloq" class="colloq" aria-pressed="${colloqOnly}">Colloquial</button>` : '')
       ;
     const list = filteredWords();
-    const due = dueWords().length;
+    const rl = reviewLang(), rlName = rl === 'all' ? '' : ` ${(wordLangs().find(([c]) => c === rl) || [])[1] || ''}`;
+    const rWords = langWords(rl), due = dueWords(rl).length;
     const card = (ic, title, sub) => `<span class="ic" aria-hidden="true">${ic}</span><span>${title}<small>${sub}</small></span><span class="go" aria-hidden="true">›</span>`;
     $('w-test').disabled = !words.length;
     $('w-test').innerHTML = !words.length ? card('↻', 'Review', 'Save some words first')
-      : due ? card('↻', 'Review', `${due} ${due === 1 ? 'word' : 'words'} due today`)
-      : card('✓', 'All caught up', `Next review ${whenText(Math.min(...words.map(dueIn)))}`);
+      : due ? card('↻', `Review${rlName}`, `${due} ${due === 1 ? 'word' : 'words'} due today`)
+      : card('✓', 'All caught up', `Next review ${whenText(Math.min(...rWords.map(dueIn)))}`);
     const streak = reviewStreak();
     $('w-sub').innerHTML = words.length ? `${streak ? `<span>🔥 ${streak}-day streak</span>` : ''}<button class="textbtn" type="button" id="w-practice">Practice test ›</button>` : '';
     $('w-count').textContent = words.length
@@ -2279,7 +2280,7 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
     try { localStorage.setItem('tingyi.testSetup', JSON.stringify(testSetup)); } catch {}
     openTestSetup();
   });
-  $('w-test').onclick = () => (dueWords().length ? startReview() : openTestSetup());
+  $('w-test').onclick = () => (dueWords(reviewLang()).length ? startReview(reviewLang()) : openTestSetup());
   $('w-sub').onclick = (ev) => { if (ev.target.closest('#w-practice')) openTestSetup(); };
 
   // ---------- daily review: each right answer moves a word up the ladder, a wrong one sends it back to tomorrow ----------
@@ -2288,7 +2289,10 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
   const dayNum = (t = Date.now()) => Math.floor((t - new Date(t).getTimezoneOffset() * 60000) / 86400000);
   const srsOf = (w) => w.srs || { step: 0, due: dayNum(w.createdAt || Date.now()) + 1 }; // new words: the day after saving
   const dueIn = (w) => srsOf(w).due - dayNum();
-  const dueWords = () => words.filter((w) => dueIn(w) <= 0).sort((a, b) => srsOf(a).due - srsOf(b).due || srsOf(a).step - srsOf(b).step);
+  // the review follows the language picked on the Words tab (All: every language)
+  const reviewLang = () => (wordFilter !== 'all' && words.some((w) => w.lang === wordFilter) ? wordFilter : 'all');
+  const langWords = (lang = 'all') => (lang === 'all' ? words : words.filter((w) => w.lang === lang));
+  const dueWords = (lang = 'all') => langWords(lang).filter((w) => dueIn(w) <= 0).sort((a, b) => srsOf(a).due - srsOf(b).due || srsOf(a).step - srsOf(b).step);
   const whenText = (d) => (d <= 0 ? 'today' : d === 1 ? 'tomorrow' : `in ${d} days`);
   function ladHtml(w) {
     const st = srsOf(w), d = dueIn(w), due = d <= 0, n = due ? Math.max(1, st.step) : st.step;
@@ -2303,9 +2307,9 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
     const days = reviewDays(); days.add(dayNum());
     try { localStorage.setItem('tingyi.reviewDays', JSON.stringify([...days].sort((a, b) => a - b).slice(-400))); } catch {}
   }
-  function startReview() {
-    const pool = dueWords().slice(0, REVIEW_MAX); if (!pool.length) return;
-    test = { review: true, qs: pool.map((w) => ({ w, kind: 'recall' })), i: 0, right: 0, streak: 0, best: 0, started: Date.now(), missed: [], answer: null, done: false };
+  function startReview(lang = 'all') {
+    const pool = dueWords(lang).slice(0, REVIEW_MAX); if (!pool.length) return;
+    test = { review: true, reviewLang: lang, qs: pool.map((w) => ({ w, kind: 'recall' })), i: 0, right: 0, streak: 0, best: 0, started: Date.now(), missed: [], answer: null, done: false };
     setView('test');
   }
   // the answer said out loud: recorded, transcribed, then checked like a typed one
@@ -2549,9 +2553,9 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
   function renderResults() {
     const t = test, pct = Math.round((t.right / t.qs.length) * 100), secs = Math.round((Date.now() - t.started) / 1000);
     t.secs = t.secs || secs;
-    const left = t.review ? dueWords().length : 0;
+    const left = t.review ? dueWords(t.reviewLang).length : 0, rw = t.review ? langWords(t.reviewLang) : [];
     const msg = t.review ? (left ? `${left} more due today` : 'All caught up') : pct === 100 ? 'Perfect!' : pct >= 80 ? 'Nice work!' : pct >= 50 ? 'Good effort' : 'Keep practising';
-    const next = t.review && !left && words.length ? `Next review ${whenText(Math.min(...words.map(dueIn)))}` : '';
+    const next = t.review && !left && rw.length ? `Next review ${whenText(Math.min(...rw.map(dueIn)))}` : '';
     $('view-test').innerHTML = `
       <div class="rscore">
         <div class="ring" style="background:conic-gradient(var(--yellow) 0 ${pct}%, var(--surface) ${pct}% 100%)"><div><span><b>${t.right}/${t.qs.length}</b><small>correct</small></span></div></div>
@@ -2570,7 +2574,7 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
       case 'check': checkTyped(); break;
       case 'mic': if (qMic) stopQMic(true); else startQMic(); break;
       case 'choices': stopQMic(false); q.choices = makeQuestion(q.w, ['word']).choices; renderTest(); break;
-      case 'review': startReview(); break;
+      case 'review': startReview(t.reviewLang); break;
       case 'speak': speak(q.w); break;
       case 'next': stopQMic(false); if (t.i + 1 < t.qs.length) { t.i++; t.answer = null; } else t.done = true; renderTest(); window.scrollTo(0, 0); break;
       case 'quit': stopQMic(false); if (t.i > 0 || t.answer) { t.qs = t.qs.slice(0, t.i + (t.answer ? 1 : 0)); t.done = true; renderTest(); } else setView(t.bank ? 'bank' : 'words'); break;
