@@ -17,6 +17,7 @@ import RecordScreen, { StopReason } from './src/screens/RecordScreen';
 import SessionScreen from './src/screens/SessionScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
 import TestScreen from './src/screens/TestScreen';
+import { loadReviewDays } from './src/review';
 import WordsScreen from './src/screens/WordsScreen';
 import {
   deleteAudio,
@@ -37,7 +38,7 @@ type Route =
   | { name: 'tab' }
   | { name: 'session'; id: string }
   | { name: 'live'; mode: 'subtitles' | 'conversation' }
-  | { name: 'test'; only?: Word[]; key: number; bank?: Word[] }
+  | { name: 'test'; only?: Word[]; key: number; bank?: Word[]; review?: boolean }
   | { name: 'bank' }
   | { name: 'listen'; key: number };
 type Toast = { msg: string; action?: { label: string; run: () => void } } | null;
@@ -72,7 +73,7 @@ export default function App() {
 
   useEffect(() => {
     preloadSounds();
-    Promise.all([loadSessions(), loadSettings(), loadWords(), loadTestSetup()]).then(([sess, sett, w, t]) => {
+    Promise.all([loadSessions(), loadSettings(), loadWords(), loadTestSetup(), loadReviewDays()]).then(([sess, sett, w, t]) => {
       setSessions(sess);
       setSettings(sett);
       setWords(w);
@@ -428,6 +429,8 @@ export default function App() {
         setup={testSetup}
         only={route.only}
         bank={route.bank}
+        review={route.review}
+        onReviewMore={() => setRoute({ name: 'test', key: Date.now(), review: true })}
         onBankResult={(word, ok) => saveBankResult(word, ok)}
         onUpdateWord={updateWord}
         onAgain={(missed) =>
@@ -451,6 +454,7 @@ export default function App() {
           saveTestSetup(t);
         }}
         onStartTest={() => setRoute({ name: 'test', key: Date.now() })}
+        onReview={() => setRoute({ name: 'test', key: Date.now(), review: true })}
         onListen={() => setRoute({ name: 'listen', key: Date.now() })}
         onSaveWord={saveWord}
         onUpdateWord={updateWord}

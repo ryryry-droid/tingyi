@@ -150,6 +150,7 @@ export type Word = {
   lastTested?: number;
   family?: WordFamily; // Indonesian / Malay: the base word and its other forms (loaded on the first swipe)
   theme?: 'daily' | 'technical'; // for testing by theme (sorted by the AI once, changeable in Edit word)
+  srs?: { step: number; due: number }; // daily review: right answers in a row, and the day it's due (days since 1970, local)
 };
 
 export type FamilyForm = { word: string; part_of_speech: string; meaning: string; example?: Example | null };

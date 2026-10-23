@@ -1,4 +1,5 @@
-import { useMemo, useRef, useState } from 'react';
+import { RecordingPresets, requestRecordingPermissionsAsync, setAudioModeAsync, useAudioRecorder } from 'expo-audio';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, ScrollView, ScrollViewInstance, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { Btn, Label } from '../components';
@@ -6,10 +7,21 @@ import { playCry, playWrong } from '../sounds';
 import { speakWord } from '../speech';
 import { formatTime, HAN_FONT, toneless, useColors } from '../theme';
 import { LANGS, Settings, TestKind, TestSetup, Word } from '../types';
-import { testPool } from './WordsScreen';
+import { liveTranscribe, options } from '../api';
+import { afterReview, dueWords, markReviewDay, nextReview, REVIEW_MAX } from '../review';
+import { cleanWord } from '../words';
+import { Ladder, testPool } from './WordsScreen';
 
-type Question = { w: Word; kind: TestKind; choices?: Word[] };
-type Answer = { ok: boolean; pick?: string; typed?: string };
+type Question = { w: Word; kind: TestKind | 'recall'; choices?: Word[] };
+type Answer = { ok: boolean; pick?: string; typed?: string; heard?: string };
+
+/** A typed or spoken answer: the word itself, or for Chinese its pinyin (tones optional, homophones heard by the mic count). */
+function matches(w: Word, typed: string, heardPinyin = '') {
+  const n = toneless(typed);
+  if (w.lang === 'zh')
+    return typed.replace(/[\s.,!?;:。，！？、；：]/g, '') === w.word || (!!n && n === toneless(w.pinyin)) || (!!heardPinyin && toneless(heardPinyin) === toneless(w.pinyin));
+  return !!n && [w.word, w.root].filter(Boolean).some((x) => toneless(x) === n);
+}
 
 const shuffle = <T,>(xs: T[]): T[] => {
   const a = xs.slice();
@@ -50,6 +62,8 @@ type Props = {
   only?: Word[]; // practise just these (the missed words)
   bank?: Word[]; // a word bank's terms: questions come from these and scores are kept apart from your words
   onBankResult?: (word: string, ok: boolean) => void;
+  review?: boolean; // the daily review: today's due words, recalled from the meaning
+  onReviewMore?: () => void;
   onUpdateWord: (w: Word) => void;
   onAgain: (missed: Word[]) => void;
   onNew: () => void;
@@ -57,10 +71,11 @@ type Props = {
   buzzAnswer: (ok: boolean) => void;
 };
 
-export default function TestScreen({ settings, words, setup, only, bank, onBankResult, onUpdateWord, onAgain, onNew, onDone, buzzAnswer }: Props) {
+export default function TestScreen({ settings, words, setup, only, bank, onBankResult, review, onReviewMore, onUpdateWord, onAgain, onNew, onDone, buzzAnswer }: Props) {
   const c = useColors();
   const scroller = useRef<ScrollViewInstance>(null);
-  const qs = useMemo(() => {
+  const qs = useMemo((): Question[] => {
+    if (review && !only) return dueWords(words).slice(0, REVIEW_MAX).map((w) => ({ w, kind: 'recall' }));
     if (bank) {
       const items = only || shuffle(bank).slice(0, 10);
       const kinds = setup.kinds.filter((k) => k !== 'gap'); // the bank has no example sentences
@@ -82,6 +97,58 @@ export default function TestScreen({ settings, words, setup, only, bank, onBankR
   const [done, setDone] = useState(false);
   const started = useRef(Date.now());
   const secs = useRef(0);
+  const [shown, setShown] = useState<Word[] | null>(null); // review: the choices, once asked for
+  const [rec, setRec] = useState(false);
+  const [hearing, setHearing] = useState(false);
+  const recorder = useAudioRecorder({ ...RecordingPresets.HIGH_QUALITY, sampleRate: 16000, numberOfChannels: 1, bitRate: 32000 });
+  const micTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const alive = useRef(true);
+  const qRef = useRef(0);
+  qRef.current = i;
+  useEffect(
+    () => () => {
+      alive.current = false;
+      if (micTimer.current) clearTimeout(micTimer.current);
+      if (recorder.isRecording) recorder.stop().catch(() => {});
+    },
+    [],
+  );
+
+  async function startMic() {
+    if (answer || rec || hearing) return;
+    const perm = await requestRecordingPermissionsAsync();
+    if (!perm.granted) return;
+    try {
+      await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
+      await recorder.prepareToRecordAsync();
+      recorder.record();
+      setRec(true);
+      micTimer.current = setTimeout(() => stopMic(true), 5000);
+    } catch {}
+  }
+  async function stopMic(send: boolean) {
+    if (micTimer.current) clearTimeout(micTimer.current);
+    setRec(false);
+    try {
+      await recorder.stop();
+    } catch {}
+    await setAudioModeAsync({ allowsRecording: false, playsInSilentMode: true }).catch(() => {});
+    if (!send || !recorder.uri || !alive.current) return;
+    const at = qRef.current;
+    const w = qs[at].w;
+    setHearing(true);
+    try {
+      const r = await liveTranscribe(settings, recorder.uri, { ...options(settings, w.lang, w.lang === 'en' ? 'zh' : 'en'), pinyin: true }, 0, false);
+      if (!alive.current || qRef.current !== at) return;
+      setHearing(false);
+      const heard = cleanWord(r.segments.map((x) => x.text).join(' '));
+      if (!heard) return;
+      setTyped(heard);
+      answerWith(matches(w, heard, r.segments.map((x) => x.pinyin || '').join(' ')), { typed: heard, heard });
+    } catch {
+      if (alive.current) setHearing(false);
+    }
+  }
 
   function answerWith(ok: boolean, extra: Partial<Answer>) {
     const w = qs[i].w;
@@ -98,8 +165,10 @@ export default function TestScreen({ settings, words, setup, only, bank, onBankR
       return;
     }
     const cur = words.find((x) => x.id === w.id) || w;
+    if (review) markReviewDay();
     onUpdateWord({
       ...cur,
+      ...(review ? { srs: afterReview(cur, ok, !!shown) } : {}),
       level: ok ? Math.min(3, (cur.level || 0) + 1) : Math.max(0, (cur.level || 0) - 1),
       right: (cur.right || 0) + (ok ? 1 : 0),
       wrong: (cur.wrong || 0) + (ok ? 0 : 1),
@@ -114,12 +183,7 @@ export default function TestScreen({ settings, words, setup, only, bank, onBankR
     const w = qs[i].w;
     const t = typed.trim();
     if (!t) return;
-    const n = toneless(t);
-    const ok =
-      w.lang === 'zh'
-        ? t.replace(/\s/g, '') === w.word || (!!n && n === toneless(w.pinyin))
-        : !!n && [w.word, w.root].filter(Boolean).some((x) => toneless(x) === n);
-    answerWith(ok, { typed: t });
+    answerWith(matches(w, t), { typed: t });
   }
 
   function next() {
@@ -127,6 +191,7 @@ export default function TestScreen({ settings, words, setup, only, bank, onBankR
       setI(i + 1);
       setAnswer(null);
       setTyped('');
+      setShown(null);
       scroller.current?.scrollTo({ y: 0, animated: false });
     } else finish();
   }
@@ -135,6 +200,7 @@ export default function TestScreen({ settings, words, setup, only, bank, onBankR
     setDone(true);
   }
   function quit() {
+    if (rec) stopMic(false);
     if (i > 0 || answer) {
       setCount(i + (answer ? 1 : 0));
       finish();
@@ -145,7 +211,9 @@ export default function TestScreen({ settings, words, setup, only, bank, onBankR
   if (done) {
     const total = count;
     const pct = Math.round((stats.right / Math.max(1, total)) * 100);
-    const msg = pct === 100 ? 'Perfect!' : pct >= 80 ? 'Nice work!' : pct >= 50 ? 'Good effort' : 'Keep practising';
+    const left = review ? dueWords(words).length : 0;
+    const msg = review ? (left ? `${left} more due today` : 'All caught up') : pct === 100 ? 'Perfect!' : pct >= 80 ? 'Nice work!' : pct >= 50 ? 'Good effort' : 'Keep practising';
+    const nextLine = review && !left && words.length ? `Next review ${nextReview(words)}` : '';
     const DOTS = 40;
     return (
       <ScrollView contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 40 }}>
@@ -170,7 +238,7 @@ export default function TestScreen({ settings, words, setup, only, bank, onBankR
           </View>
           <Text style={{ fontSize: 22, fontWeight: '800', color: c.ink, marginTop: 14 }}>{msg}</Text>
           <Text style={{ color: c.muted, marginTop: 2 }}>
-            {stats.missed.length ? `${stats.missed.length} ${stats.missed.length === 1 ? 'word' : 'words'} to practise again` : 'You got every word right'}
+            {nextLine || (stats.missed.length ? `${stats.missed.length} ${stats.missed.length === 1 ? 'word' : 'words'} to practise again` : 'You got every word right')}
           </Text>
         </View>
         <View style={styles.rstats}>
@@ -198,6 +266,11 @@ export default function TestScreen({ settings, words, setup, only, bank, onBankR
               </View>
             ))}
           </>
+        ) : null}
+        {left && onReviewMore ? (
+          <View style={{ flexDirection: 'row', marginTop: 16 }}>
+            <Btn title={`Review the next ${Math.min(left, REVIEW_MAX)}`} onPress={onReviewMore} />
+          </View>
         ) : null}
         <View style={{ flexDirection: 'row', gap: 8, marginTop: 16 }}>
           {stats.missed.length ? (
@@ -244,6 +317,17 @@ export default function TestScreen({ settings, words, setup, only, bank, onBankR
         <Text style={{ fontSize: 14, marginTop: 6, color: c.yellowInk, opacity: 0.8, fontWeight: '700' }}>{w.example?.translation}</Text>
       </View>
     );
+  } else if (q.kind === 'recall') {
+    prompt = '';
+    card = (
+      <View style={[styles.qcard, { backgroundColor: c.sky }]}>
+        <Text style={{ color: '#fff', fontSize: 24, fontWeight: '800', textAlign: 'center' }}>{w.meaning}</Text>
+        <Text style={{ color: '#fff', opacity: 0.85, fontSize: 13.5, fontWeight: '600', marginTop: 6 }}>
+          {LANGS[w.lang] || w.lang}
+          {w.part_of_speech ? ` · ${w.part_of_speech}` : ''}
+        </Text>
+      </View>
+    );
   } else {
     prompt = q.kind === 'type' ? (han ? 'Type this word, in characters or pinyin' : `Type this word in ${LANGS[w.lang] || 'the language'}`) : 'Which word means this?';
     card = (
@@ -267,10 +351,50 @@ export default function TestScreen({ settings, words, setup, only, bank, onBankR
             {i + 1} / {count}
           </Text>
         </View>
-        <Text style={{ marginTop: 14, color: c.muted, fontWeight: '700', fontSize: 13.5 }}>{prompt}</Text>
+        {prompt ? <Text style={{ marginTop: 14, color: c.muted, fontWeight: '700', fontSize: 13.5 }}>{prompt}</Text> : <View style={{ height: 8 }} />}
         {card}
 
-        {q.kind === 'type' ? (
+        {q.kind === 'recall' && !shown ? (
+          <View style={{ marginTop: 18, gap: 10 }}>
+            <View style={{ flexDirection: 'row', gap: 10, alignItems: 'center' }}>
+              <TextInput
+                value={answer ? answer.typed : typed}
+                onChangeText={setTyped}
+                editable={!answer && !rec && !hearing}
+                autoCapitalize="none"
+                autoCorrect={false}
+                onSubmitEditing={checkTyped}
+                placeholder={hearing ? 'Listening back…' : rec ? 'Listening…' : 'Type the word'}
+                placeholderTextColor={c.faint}
+                style={[styles.typeInput, { flex: 1, minWidth: 0, width: 0, borderColor: c.line, backgroundColor: c.surface, color: c.ink }, han && { fontFamily: HAN_FONT }]}
+              />
+              <Pressable
+                onPress={() => (rec ? stopMic(true) : startMic())}
+                disabled={!!answer || hearing}
+                style={[styles.mic, { backgroundColor: c.rec }, (!!answer || hearing) && { opacity: 0.5 }]}
+                accessibilityLabel={rec ? 'Stop' : 'Say it'}
+              >
+                <Text style={{ fontSize: 22, color: '#fff' }}>{rec ? '■' : '🎙'}</Text>
+              </Pressable>
+            </View>
+            {!answer ? (
+              <>
+                <View style={{ flexDirection: 'row' }}>
+                  <Btn title="Check" onPress={checkTyped} disabled={rec || hearing} />
+                </View>
+                <Pressable
+                  onPress={() => {
+                    if (rec) stopMic(false);
+                    setShown(makeQuestion(w, words, ['word']).choices!);
+                  }}
+                  style={{ alignSelf: 'center', padding: 6 }}
+                >
+                  <Text style={{ color: c.muted, fontWeight: '600', fontSize: 14 }}>Show choices</Text>
+                </Pressable>
+              </>
+            ) : null}
+          </View>
+        ) : q.kind === 'type' ? (
           <View style={{ gap: 10, marginTop: 18 }}>
             <TextInput
               value={answer ? answer.typed : typed}
@@ -292,7 +416,7 @@ export default function TestScreen({ settings, words, setup, only, bank, onBankR
           </View>
         ) : (
           <View style={{ gap: 9, marginTop: 18 }}>
-            {q.choices!.map((ch, k) => {
+            {(shown || q.choices!).map((ch, k) => {
               const right = ch.id === w.id;
               const picked = answer?.pick === ch.id;
               const state = !answer ? '' : right ? 'ok' : picked ? 'bad' : 'dim';
@@ -321,7 +445,7 @@ export default function TestScreen({ settings, words, setup, only, bank, onBankR
                       {state === 'ok' ? '✓' : state === 'bad' ? '✕' : k + 1}
                     </Text>
                   </View>
-                  <Text style={[{ flex: 1, fontSize: 16, fontWeight: '700', color: c.ink }, q.kind === 'word' && ch.lang === 'zh' && { fontFamily: HAN_FONT, fontSize: 20 }]}>
+                  <Text style={[{ flex: 1, fontSize: 16, fontWeight: '700', color: c.ink }, q.kind !== 'meaning' && ch.lang === 'zh' && { fontFamily: HAN_FONT, fontSize: 20 }]}>
                     {q.kind === 'meaning' ? ch.meaning : ch.word}
                   </Text>
                 </Pressable>
@@ -333,7 +457,10 @@ export default function TestScreen({ settings, words, setup, only, bank, onBankR
       </ScrollView>
         {answer ? (
           <View style={[styles.feed, { backgroundColor: c.surface }, answer.ok ? { backgroundColor: c.okSoft, borderColor: '#5BC48A' } : { backgroundColor: c.badSoft, borderColor: c.rec }]}>
-            <Text style={{ fontWeight: '800', fontSize: 17, color: answer.ok ? c.ok : c.rec }}>{answer.ok ? 'Correct!' : 'Not quite'}</Text>
+            <Text style={{ fontWeight: '800', fontSize: 17, color: answer.ok ? c.ok : c.rec }}>
+              {answer.ok ? 'Correct!' : 'Not quite'}
+              {answer.heard ? <Text style={{ fontSize: 13, fontWeight: '600', color: c.muted }}>  You said “{answer.heard}”</Text> : null}
+            </Text>
             <Text style={{ color: c.ink, fontSize: 15 }}>
               <Text style={[{ fontWeight: '800', fontSize: 17 }, han && { fontFamily: HAN_FONT, fontSize: 19 }]}>{w.word}</Text>
               {han && w.pinyin ? <Text style={{ color: c.muted }}> {w.pinyin}</Text> : null} · {w.meaning}
@@ -344,6 +471,7 @@ export default function TestScreen({ settings, words, setup, only, bank, onBankR
                 <Text style={{ color: c.muted, fontSize: 14 }}>{w.example.translation}</Text>
               </>
             ) : null}
+            {review ? <Ladder w={words.find((x) => x.id === w.id) || w} onDark /> : null}
             <View style={{ flexDirection: 'row', marginTop: 8 }}>
               <Btn title={i + 1 < count ? 'Next' : 'See results'} onPress={next} />
             </View>
@@ -362,6 +490,7 @@ const styles = StyleSheet.create({
   spk: { position: 'absolute', right: 12, top: 12, width: 34, height: 34, borderRadius: 17, backgroundColor: 'rgba(255,255,255,0.22)', alignItems: 'center', justifyContent: 'center' },
   qopt: { borderWidth: 1.5, borderRadius: 14, paddingVertical: 13, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', gap: 10 },
   k: { width: 24, height: 24, borderRadius: 7, alignItems: 'center', justifyContent: 'center' },
+  mic: { width: 52, height: 52, borderRadius: 26, alignItems: 'center', justifyContent: 'center' },
   typeInput: { borderWidth: 1.5, borderRadius: 14, paddingHorizontal: 14, paddingVertical: 13, fontSize: 19, fontWeight: '700' },
   // the answer is pinned to the bottom, so the question and choices never move
   feed: {

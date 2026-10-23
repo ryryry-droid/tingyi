@@ -10,6 +10,7 @@ import { deaccent, formatDate, HAN_FONT, useColors } from '../theme';
 import { caseFor, DEFAULT_TEST_SETUP, FamilyForm, themeOf, LANGS, learningLang, LookupEntry, Settings, TestKind, TestSetup, Word, WORD_EXAMPLE, wordId, wordLangOf, wordLangs } from '../types';
 import { cleanWord } from '../words';
 import { ExampleBox } from './SessionScreen';
+import { dueIn, dueWords, LADDER, nextReview, reviewStreak, srsOf, whenText } from '../review';
 
 type Props = {
   settings: Settings;
@@ -17,6 +18,7 @@ type Props = {
   testSetup: TestSetup;
   onTestSetup: (s: TestSetup) => void;
   onStartTest: () => void;
+  onReview: () => void; // today's due words
   onListen?: () => void; // example sentences read aloud
   onSaveWord: (w: Word) => void;
   onUpdateWord?: (w: Word) => void; // change a word in place (keeps its place in the list)
@@ -35,6 +37,25 @@ export function testPool(words: Word[], group: string, theme: string = 'any'): W
   let pool = group !== 'all' ? words.filter((w) => w.lang === group) : words;
   if (theme === 'daily' || theme === 'technical') pool = pool.filter((w) => themeOf(w) === theme);
   return pool;
+}
+
+/** How far up the review ladder a word is, and when it's due next. */
+export function Ladder({ w, onDark }: { w: Word; onDark?: boolean }) {
+  const c = useColors();
+  const st = srsOf(w);
+  const d = dueIn(w);
+  const due = d <= 0;
+  const n = due ? Math.max(1, st.step) : st.step;
+  return (
+    <View style={styles.lad}>
+      {LADDER.map((_, i) => (
+        <View key={i} style={[styles.ladStep, { backgroundColor: i < n ? (due ? c.yellow : '#5BC48A') : onDark ? 'rgba(255,255,255,0.18)' : c.line }]} />
+      ))}
+      <Text style={{ fontSize: 12, marginLeft: 8, color: due ? c.yellowText : onDark ? c.muted : c.faint, fontWeight: due ? '700' : '400' }}>
+        {due ? 'due today' : `next review ${whenText(d)}`}
+      </Text>
+    </View>
+  );
 }
 
 export default function WordsScreen(p: Props) {
@@ -102,6 +123,9 @@ export default function WordsScreen(p: Props) {
       (!q || [w.word, w.pinyin, w.meaning, w.root].join(' ').toLowerCase().includes(q) || deaccent(w.pinyin || '').includes(deaccent(q))),
   );
 
+  const due = dueWords(words).length;
+  const streak = reviewStreak();
+
   function openTest() {
     if (words.length < 4) {
       p.toast(words.length ? `Save ${4 - words.length} more words to start a test` : 'Save some words first');
@@ -122,18 +146,18 @@ export default function WordsScreen(p: Props) {
           <View style={{ gap: 10, marginBottom: 6, marginTop: 4 }}>
             <View style={{ flexDirection: 'row', gap: 10 }}>
               <Pressable
-                onPress={openTest}
+                onPress={due ? p.onReview : openTest}
                 disabled={!words.length}
                 style={[styles.testBtn, { backgroundColor: c.yellow }, !words.length && { opacity: 0.55 }]}
                 accessibilityRole="button"
               >
                 <View style={styles.testIc}>
-                  <Text style={{ fontSize: 18, color: c.yellowInk }}>✎</Text>
+                  <Text style={{ fontSize: 18, fontWeight: '800', color: c.yellowInk }}>{words.length && !due ? '✓' : '↻'}</Text>
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={{ fontWeight: '800', fontSize: 16, color: c.yellowInk }}>Start a test</Text>
+                  <Text style={{ fontWeight: '800', fontSize: 16, color: c.yellowInk }}>{words.length && !due ? 'All caught up' : 'Review'}</Text>
                   <Text style={{ fontWeight: '700', fontSize: 12.5, color: c.yellowInk, opacity: 0.75 }}>
-                    {words.length >= 4 ? `${words.length} words saved` : words.length ? `Save ${4 - words.length} more to test yourself` : 'Save some words first'}
+                    {!words.length ? 'Save some words first' : due ? `${due} ${due === 1 ? 'word' : 'words'} due today` : `Next review ${nextReview(words)}`}
                   </Text>
                 </View>
                 <Text style={{ fontSize: 22, color: c.yellowInk }}>›</Text>
@@ -143,6 +167,13 @@ export default function WordsScreen(p: Props) {
                 <Text style={{ color: c.accentInk, fontWeight: '800', fontSize: 11.5 }}>Add word</Text>
               </Pressable>
             </View>
+            {words.length ? (
+              <View style={styles.wsub}>
+                {streak ? <Text style={{ fontSize: 13, fontWeight: '700', color: c.muted }}>🔥 {streak}-day streak</Text> : null}
+                <View style={{ flex: 1 }} />
+                <TextBtn title="Practice test ›" color={c.accent} bold onPress={openTest} />
+              </View>
+            ) : null}
             <TextInput
               value={search}
               onChangeText={setSearch}
@@ -304,6 +335,7 @@ export default function WordsScreen(p: Props) {
                 </Text>
               ) : null}
               {famRow}
+              <Ladder w={w} />
               <View style={styles.src}>
                 <Text style={{ fontSize: 12, color: c.faint, flex: 1 }} numberOfLines={1}>
                   {w.sessionTitle ? `From “${w.sessionTitle}” · ` : ''}
@@ -852,6 +884,9 @@ const styles = StyleSheet.create({
   wmain: { flex: 1, minWidth: 0, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', columnGap: 10, rowGap: 4 },
   spk: { width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center' },
   src: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  wsub: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: -2 },
+  lad: { flexDirection: 'row', alignItems: 'center', gap: 3, marginTop: 2 },
+  ladStep: { width: 14, height: 5, borderRadius: 3 },
   addInput: { flex: 1, minWidth: 0, borderWidth: 1.5, borderRadius: 14, paddingHorizontal: 14, paddingVertical: 12, fontSize: 20, fontWeight: '700' },
   mic: { width: 52, height: 52, borderRadius: 26, alignItems: 'center', justifyContent: 'center' },
   meaning: { minHeight: 64, borderWidth: 1.5, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, fontSize: 17, fontWeight: '700', textAlignVertical: 'top' },
