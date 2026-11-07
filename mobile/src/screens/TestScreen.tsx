@@ -13,7 +13,7 @@ import { cleanWord } from '../words';
 import { Ladder, testPool } from './WordsScreen';
 
 type Question = { w: Word; kind: TestKind | 'recall'; choices?: Word[] };
-type Answer = { ok: boolean; pick?: string; typed?: string; heard?: string };
+type Answer = { ok: boolean; pick?: string; typed?: string; heard?: string; dontknow?: boolean };
 
 /** A typed or spoken answer: the word itself, or for Chinese its pinyin (tones optional, homophones heard by the mic count). */
 function matches(w: Word, typed: string, heardPinyin = '') {
@@ -63,6 +63,7 @@ type Props = {
   bank?: Word[]; // a word bank's terms: questions come from these and scores are kept apart from your words
   onBankResult?: (word: string, ok: boolean) => void;
   review?: string; // the daily review of this language ('all': every language): today's due words, recalled from the meaning
+  reviewSet?: string;
   onReviewMore?: () => void;
   onUpdateWord: (w: Word) => void;
   onAgain: (missed: Word[]) => void;
@@ -71,17 +72,17 @@ type Props = {
   buzzAnswer: (ok: boolean) => void;
 };
 
-export default function TestScreen({ settings, words, setup, only, bank, onBankResult, review, onReviewMore, onUpdateWord, onAgain, onNew, onDone, buzzAnswer }: Props) {
+export default function TestScreen({ settings, words, setup, only, bank, onBankResult, review, reviewSet, onReviewMore, onUpdateWord, onAgain, onNew, onDone, buzzAnswer }: Props) {
   const c = useColors();
   const scroller = useRef<ScrollViewInstance>(null);
   const qs = useMemo((): Question[] => {
-    if (review && !only) return dueWords(words, review).slice(0, REVIEW_MAX).map((w) => ({ w, kind: 'recall' }));
+    if (review && !only) return dueWords(words, review, reviewSet).slice(0, REVIEW_MAX).map((w) => ({ w, kind: 'recall' }));
     if (bank) {
       const items = only || shuffle(bank).slice(0, 10);
       const kinds = setup.kinds.filter((k) => k !== 'gap'); // the bank has no example sentences
       return items.map((w) => makeQuestion(w, bank, kinds.length ? kinds : ['meaning', 'word']));
     }
-    let pool = only || testPool(words, setup.group, setup.theme);
+    let pool = only || testPool(words, setup.group, setup.theme, setup.set);
     if (!only) {
       const n = [5, 10, 20].includes(setup.count) && setup.count < pool.length ? setup.count : pool.length;
       pool = shuffle(pool).slice(0, n);
@@ -211,8 +212,8 @@ export default function TestScreen({ settings, words, setup, only, bank, onBankR
   if (done) {
     const total = count;
     const pct = Math.round((stats.right / Math.max(1, total)) * 100);
-    const left = review ? dueWords(words, review).length : 0;
-    const rw = review ? langWords(words, review) : [];
+    const left = review ? dueWords(words, review, reviewSet).length : 0;
+    const rw = review ? langWords(words, review, reviewSet) : [];
     const msg = review ? (left ? `${left} more due today` : 'All caught up') : pct === 100 ? 'Perfect!' : pct >= 80 ? 'Nice work!' : pct >= 50 ? 'Good effort' : 'Keep practising';
     const nextLine = review && !left && rw.length ? `Next review ${nextReview(rw)}` : '';
     const DOTS = 40;
@@ -454,12 +455,23 @@ export default function TestScreen({ settings, words, setup, only, bank, onBankR
             })}
           </View>
         )}
+        {!answer ? (
+          <Pressable
+            onPress={() => {
+              if (rec) stopMic(false);
+              answerWith(false, { typed: '', dontknow: true });
+            }}
+            style={{ alignSelf: 'center', padding: 8, marginTop: 4 }}
+          >
+            <Text style={{ color: c.rec, fontWeight: '700', fontSize: 14 }}>Don’t know</Text>
+          </Pressable>
+        ) : null}
 
       </ScrollView>
         {answer ? (
           <View style={[styles.feed, { backgroundColor: c.surface }, answer.ok ? { backgroundColor: c.okSoft, borderColor: '#5BC48A' } : { backgroundColor: c.badSoft, borderColor: c.rec }]}>
             <Text style={{ fontWeight: '800', fontSize: 17, color: answer.ok ? c.ok : c.rec }}>
-              {answer.ok ? 'Correct!' : 'Not quite'}
+              {answer.ok ? 'Correct!' : answer.dontknow ? 'The answer' : 'Not quite'}
               {answer.heard ? <Text style={{ fontSize: 13, fontWeight: '600', color: c.muted }}>  You said “{answer.heard}”</Text> : null}
             </Text>
             <Text style={{ color: c.ink, fontSize: 15 }}>

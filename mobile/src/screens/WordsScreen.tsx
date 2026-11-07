@@ -10,7 +10,7 @@ import { deaccent, formatDate, HAN_FONT, useColors } from '../theme';
 import { caseFor, DEFAULT_TEST_SETUP, FamilyForm, themeOf, LANGS, learningLang, LookupEntry, Settings, TestKind, TestSetup, Word, WORD_EXAMPLE, wordId, wordLangOf, wordLangs } from '../types';
 import { cleanWord } from '../words';
 import { ExampleBox } from './SessionScreen';
-import { dueIn, dueWords, LADDER, langWords, nextReview, reviewStreak, srsOf, whenText } from '../review';
+import { dueIn, dueWords, inSet, LADDER, langWords, nextReview, reviewStreak, srsOf, whenText } from '../review';
 
 type Props = {
   settings: Settings;
@@ -18,7 +18,7 @@ type Props = {
   testSetup: TestSetup;
   onTestSetup: (s: TestSetup) => void;
   onStartTest: () => void;
-  onReview: (lang: string) => void; // today's due words in that language ('all': every language)
+  onReview: (lang: string, set: string) => void; // today's due words in that language ('all': every language) and set ('': any)
   onListen?: () => void; // example sentences read aloud
   onSaveWord: (w: Word) => void;
   onUpdateWord?: (w: Word) => void; // change a word in place (keeps its place in the list)
@@ -33,10 +33,18 @@ export const TEST_KINDS: { id: TestKind; title: string; hint: string }[] = [
   { id: 'type', title: 'Type it', hint: 'Type the word yourself (pinyin is fine for Chinese)' },
 ];
 
-export function testPool(words: Word[], group: string, theme: string = 'any'): Word[] {
+export function testPool(words: Word[], group: string, theme: string = 'any', set = ''): Word[] {
   let pool = group !== 'all' ? words.filter((w) => w.lang === group) : words;
+  if (set && words.some((w) => inSet(w, set))) pool = pool.filter((w) => inSet(w, set)); // a deleted set counts as Any
   if (theme === 'daily' || theme === 'technical') pool = pool.filter((w) => themeOf(w) === theme);
   return pool;
+}
+
+/** Your sets and how many words each has, A–Z. */
+export function allSets(words: Word[]): [string, number][] {
+  const n = new Map<string, number>();
+  words.forEach((w) => (w.sets || []).forEach((x) => n.set(x, (n.get(x) || 0) + 1)));
+  return [...n].sort((a, b) => a[0].localeCompare(b[0]));
 }
 
 /** How far up the review ladder a word is, and when it's due next. */
@@ -69,6 +77,48 @@ export default function WordsScreen(p: Props) {
   const [adding, setAdding] = useState(false);
   const [setup, setSetup] = useState(false);
   const [editingWord, setEditingWord] = useState<Word | null>(null);
+  // sets: your own groups of words, each testable on its own
+  const [wordSetRaw, setWordSet] = useState('');
+  const [picking, setPicking] = useState(false);
+  const [picked, setPicked] = useState<string[]>([]);
+  const [confirmSetDel, setConfirmSetDel] = useState(false);
+  const [setSheet, setSetSheet] = useState<'add' | 'rename' | null>(null);
+  const [setName, setSetName] = useState('');
+  const sets = allSets(words);
+  const wordSet = sets.some(([n]) => n === wordSetRaw) ? wordSetRaw : '';
+  const togglePick = (id: string) => setPicked((xs) => (xs.includes(id) ? xs.filter((x) => x !== id) : [...xs, id]));
+  function editSets(ids: string[], fn: (xs: string[]) => string[]) {
+    const want = new Set(ids);
+    for (const w of words) {
+      if (!want.has(w.id)) continue;
+      const next = [...new Set(fn(w.sets || []))];
+      const { sets: _old, ...rest } = w;
+      (p.onUpdateWord || p.onSaveWord)(next.length ? { ...rest, sets: next } : rest);
+    }
+  }
+  function endPicking() {
+    setPicking(false);
+    setPicked([]);
+  }
+  function saveSetName(name: string) {
+    name = name.trim().replace(/\s+/g, ' ');
+    if (!name) return p.toast('Give the set a name');
+    if (setSheet === 'rename') {
+      const old = wordSet;
+      setSetSheet(null);
+      if (name === old) return;
+      editSets(words.filter((w) => inSet(w, old)).map((w) => w.id), (xs) => xs.map((x) => (x === old ? name : x)));
+      setWordSet(name);
+      p.toast(`Renamed to “${name}”`);
+      return;
+    }
+    const n = picked.length;
+    editSets(picked, (xs) => [...xs, name]);
+    setSetSheet(null);
+    endPicking();
+    setWordSet(name);
+    p.toast(`Added ${n} ${n === 1 ? 'word' : 'words'} to “${name}”`);
+  }
   // Word family: swipe a saved Indonesian / Malay word to see its other forms
   const [famView, setFamView] = useState<Record<string, number>>({});
   const [famLoading, setFamLoading] = useState<string | null>(null);
@@ -120,15 +170,17 @@ export default function WordsScreen(p: Props) {
     (w) =>
       (f === 'all' || w.lang === f) &&
       (!colloqOnly || f !== 'id' || isColloq(w)) &&
+      inSet(w, wordSet) &&
       (!q || [w.word, w.pinyin, w.meaning, w.root].join(' ').toLowerCase().includes(q) || deaccent(w.pinyin || '').includes(deaccent(q))),
   );
 
   const f0 = filter !== 'all' && words.some((w) => w.lang === filter) ? filter : 'all';
-  const rlName = f0 === 'all' ? '' : ` ${(wordLangs([], words).find(([code]) => code === f0) || [])[1] || ''}`;
-  const due = dueWords(words, f0).length;
+  const rlName = wordSet ? ` ${wordSet}` : f0 === 'all' ? '' : ` ${(wordLangs([], words).find(([code]) => code === f0) || [])[1] || ''}`;
+  const due = dueWords(words, f0, wordSet).length;
   const streak = reviewStreak();
 
   function openTest() {
+    if (wordSet) p.onTestSetup({ ...p.testSetup, set: wordSet });
     if (words.length < 4) {
       p.toast(words.length ? `Save ${4 - words.length} more words to start a test` : 'Save some words first');
       return;
@@ -143,12 +195,12 @@ export default function WordsScreen(p: Props) {
         extraData={[famView, famLoading, words, settings.pinyin]}
         keyExtractor={(w) => w.id}
         keyboardShouldPersistTaps="handled"
-        contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 40 }}
+        contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: picking ? 150 : 40 }}
         ListHeaderComponent={
           <View style={{ gap: 10, marginBottom: 6, marginTop: 4 }}>
             <View style={{ flexDirection: 'row', gap: 10 }}>
               <Pressable
-                onPress={due ? () => p.onReview(f0) : openTest}
+                onPress={due ? () => p.onReview(f0, wordSet) : openTest}
                 disabled={!words.length}
                 style={[styles.testBtn, { backgroundColor: c.yellow }, !words.length && { opacity: 0.55 }]}
                 accessibilityRole="button"
@@ -159,7 +211,7 @@ export default function WordsScreen(p: Props) {
                 <View style={{ flex: 1 }}>
                   <Text style={{ fontWeight: '800', fontSize: 16, color: c.yellowInk }}>{words.length && !due ? 'All caught up' : `Review${rlName}`}</Text>
                   <Text style={{ fontWeight: '700', fontSize: 12.5, color: c.yellowInk, opacity: 0.75 }}>
-                    {!words.length ? 'Save some words first' : due ? `${due} ${due === 1 ? 'word' : 'words'} due today` : `Next review ${nextReview(langWords(words, f0))}`}
+                    {!words.length ? 'Save some words first' : due ? `${due} ${due === 1 ? 'word' : 'words'} due today` : `Next review ${nextReview(langWords(words, f0, wordSet))}`}
                   </Text>
                 </View>
                 <Text style={{ fontSize: 22, color: c.yellowInk }}>›</Text>
@@ -206,7 +258,19 @@ export default function WordsScreen(p: Props) {
                 </Pressable>
               ) : null}
               <View style={{ flex: 1 }} />
-              {list.length ? (
+              {list.length && !picking ? (
+                <Pressable
+                  style={[styles.chip, { borderColor: c.line }]}
+                  onPress={() => {
+                    setPicking(true);
+                    setPicked([]);
+                    setConfirm(null);
+                  }}
+                >
+                  <Text style={{ fontSize: 13, color: c.muted, fontWeight: '600' }}>Select</Text>
+                </Pressable>
+              ) : null}
+              {list.length && !picking ? (
                 <Pressable
                   style={[styles.chip, { borderColor: c.line }]}
                   onPress={async () => {
@@ -221,10 +285,61 @@ export default function WordsScreen(p: Props) {
                 </Pressable>
               ) : null}
             </View>
+            {sets.length ? (
+              <View style={styles.filter}>
+                {sets.map(([n, k]) => (
+                  <Pressable
+                    key={n}
+                    onPress={() => {
+                      setWordSet(wordSet === n ? '' : n);
+                      setConfirmSetDel(false);
+                    }}
+                    style={[styles.chip, { borderColor: c.line }, wordSet === n && { backgroundColor: c.accent, borderColor: c.accent }]}
+                  >
+                    <Text style={{ fontSize: 13, color: wordSet === n ? c.accentInk : c.muted, fontWeight: wordSet === n ? '800' : '600' }}>
+                      ▤ {n} <Text style={{ fontSize: 11.5, opacity: 0.75 }}>{k}</Text>
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+            ) : null}
             {words.length ? (
-              <Text style={{ fontSize: 13, color: c.muted, fontWeight: '600' }}>
-                {list.length} of {words.length} {words.length === 1 ? 'word' : 'words'}
-              </Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
+                <Text style={{ fontSize: 13, color: c.muted, fontWeight: '600' }}>
+                  {list.length} of {words.length} {words.length === 1 ? 'word' : 'words'}
+                </Text>
+                {wordSet && !picking ? (
+                  confirmSetDel ? (
+                    <>
+                      <TextBtn
+                        title="Delete set"
+                        color={c.rec}
+                        bold
+                        onPress={() => {
+                          const n = wordSet;
+                          setConfirmSetDel(false);
+                          setWordSet('');
+                          editSets(words.filter((w) => inSet(w, n)).map((w) => w.id), (xs) => xs.filter((x) => x !== n));
+                          p.toast(`Deleted “${n}”. The words are still in your list.`);
+                        }}
+                      />
+                      <TextBtn title="Keep" onPress={() => setConfirmSetDel(false)} />
+                    </>
+                  ) : (
+                    <>
+                      <TextBtn
+                        title="Rename set"
+                        color={c.accent}
+                        onPress={() => {
+                          setSetName(wordSet);
+                          setSetSheet('rename');
+                        }}
+                      />
+                      <TextBtn title="Delete set" color={c.accent} onPress={() => setConfirmSetDel(true)} />
+                    </>
+                  )
+                ) : null}
+              </View>
             ) : null}
           </View>
         }
@@ -302,6 +417,24 @@ export default function WordsScreen(p: Props) {
               </FamSwipe>
             );
           }
+          if (picking) {
+            const on = picked.includes(w.id);
+            return (
+              <Pressable onPress={() => togglePick(w.id)} style={[styles.card, { borderBottomColor: c.line }]} accessibilityRole="checkbox" accessibilityState={{ checked: on }}>
+                <View style={styles.top}>
+                  <View style={[styles.pickBox, { borderColor: on ? c.accent : c.line, backgroundColor: on ? c.accent : 'transparent' }]}>
+                    {on ? <Text style={{ color: '#fff', fontSize: 14, fontWeight: '800' }}>✓</Text> : null}
+                  </View>
+                  <View style={styles.wmain}>
+                    <Text style={[{ fontSize: 22, color: c.ink, flexShrink: 1 }, han && { fontFamily: HAN_FONT, fontWeight: '600' }]}>{w.word}</Text>
+                    {settings.pinyin && w.pinyin ? <Pinyin value={w.pinyin} /> : null}
+                  </View>
+                </View>
+                <Text style={{ color: c.ink, fontSize: 16 }}>{w.meaning}</Text>
+                <Ladder w={w} />
+              </Pressable>
+            );
+          }
           return (
             <FamSwipe onSwipe={onSwipe} style={[styles.card, { borderBottomColor: c.line }]}>
               <View style={styles.top}>
@@ -366,6 +499,68 @@ export default function WordsScreen(p: Props) {
         }}
       />
 
+      {picking ? (
+        <View style={[styles.selbar, { backgroundColor: c.surface, borderTopColor: c.line }]}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
+            <Text style={{ fontWeight: '700', fontSize: 14, color: c.ink }}>{picked.length} selected</Text>
+            <TextBtn title={`Select all ${list.length}`} color={c.accent} onPress={() => setPicked([...new Set([...picked, ...list.map((w) => w.id)])])} />
+            <View style={{ flex: 1 }} />
+            <TextBtn title="Cancel" onPress={endPicking} />
+          </View>
+          <View style={{ flexDirection: 'row', gap: 8 }}>
+            <Btn
+              title="Add to set"
+              disabled={!picked.length}
+              style={{ flex: 1 }}
+              onPress={() => {
+                setSetName('');
+                setSetSheet('add');
+              }}
+            />
+            {wordSet ? (
+              <Btn
+                title={`Remove from ${wordSet}`}
+                kind="secondary"
+                disabled={!picked.length}
+                style={{ flex: 1 }}
+                onPress={() => {
+                  const n = picked.length;
+                  editSets(picked, (xs) => xs.filter((x) => x !== wordSet));
+                  endPicking();
+                  p.toast(`Removed ${n} ${n === 1 ? 'word' : 'words'} from “${wordSet}”`);
+                }}
+              />
+            ) : null}
+          </View>
+        </View>
+      ) : null}
+      {setSheet ? (
+        <Sheet visible onClose={() => setSetSheet(null)}>
+          <Text style={sheetStyles(c).h2}>{setSheet === 'rename' ? 'Rename set' : `Add ${picked.length} ${picked.length === 1 ? 'word' : 'words'} to a set`}</Text>
+          {setSheet === 'add'
+            ? sets.map(([n, k]) => (
+                <Pressable key={n} onPress={() => saveSetName(n)} style={[styles.setRow, { backgroundColor: c.bg }]}>
+                  <Text style={{ color: c.ink, fontWeight: '700', fontSize: 15, flex: 1 }}>{n}</Text>
+                  <Text style={{ color: c.muted, fontSize: 13 }}>{k}</Text>
+                </Pressable>
+              ))
+            : null}
+          <TextInput
+            value={setName}
+            onChangeText={setSetName}
+            placeholder={setSheet === 'rename' ? 'Set name' : 'New set name'}
+            placeholderTextColor={c.faint}
+            maxLength={40}
+            autoFocus={setSheet === 'rename' || !sets.length}
+            onSubmitEditing={() => saveSetName(setName)}
+            style={[styles.search, { borderColor: c.line, backgroundColor: c.bg, color: c.ink }]}
+          />
+          <View style={{ flexDirection: 'row', gap: 8 }}>
+            <Btn title={setSheet === 'rename' ? 'Save' : 'Create set'} style={{ flex: 1 }} onPress={() => saveSetName(setName)} />
+            <Btn title="Cancel" kind="secondary" onPress={() => setSetSheet(null)} />
+          </View>
+        </Sheet>
+      ) : null}
       {adding ? <AddWordSheet {...p} onClose={() => setAdding(false)} /> : null}
       {editingWord ? (
         <EditWordSheet
@@ -805,7 +1000,9 @@ function TestSetupSheet({
   const groups: [string, string][] = [['all', 'All'], ...wordLangs([], words)];
   const t = groups.some(([g]) => g === setup.group) ? setup : { ...setup, group: 'all' };
   const theme = t.theme || 'any';
-  const pool = testPool(words, t.group, theme);
+  const sets = allSets(words);
+  const tset = sets.some(([n]) => n === t.set) ? t.set! : '';
+  const pool = testPool(words, t.group, theme, tset);
   const counts = [5, 10, 20].filter((n) => n < pool.length);
   const n = Math.min(pool.length, counts.includes(t.count) ? t.count : pool.length);
   const set = (patch: Partial<TestSetup>) => onChange({ ...DEFAULT_TEST_SETUP, ...t, ...patch });
@@ -824,14 +1021,33 @@ function TestSetupSheet({
           </Pressable>
         ))}
       </View>
+      {sets.length ? (
+        <>
+          <Label style={{ marginBottom: 0 }}>Set</Label>
+          <View style={styles.wrap}>
+            {[['', 'Any'] as [string, string], ...sets.map(([n]) => [n, n] as [string, string])].map(([v, label]) => (
+              <Pressable
+                key={v || '-'}
+                onPress={() => set({ set: v })}
+                style={[styles.chip, { borderColor: c.line }, tset === v && { backgroundColor: c.accent, borderColor: c.accent }]}
+              >
+                <Text style={{ fontSize: 14, color: tset === v ? c.accentInk : c.muted, fontWeight: tset === v ? '800' : '600' }}>
+                  {label}
+                  {v ? <Text style={{ fontSize: 12, opacity: 0.75 }}> {testPool(words, t.group, 'any', v).length}</Text> : null}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+        </>
+      ) : null}
       <Label style={{ marginBottom: 0 }}>Theme</Label>
       <Segmented
         value={theme}
         onChange={(v) => set({ theme: v as TestSetup['theme'] })}
         options={[
           { value: 'any', label: 'Any' },
-          { value: 'daily', label: `Daily ${testPool(words, t.group, 'daily').length}` },
-          { value: 'technical', label: `Technical ${testPool(words, t.group, 'technical').length}` },
+          { value: 'daily', label: `Daily ${testPool(words, t.group, 'daily', tset).length}` },
+          { value: 'technical', label: `Technical ${testPool(words, t.group, 'technical', tset).length}` },
         ]}
       />
       <Label style={{ marginBottom: 0 }}>Questions</Label>
@@ -882,6 +1098,9 @@ const styles = StyleSheet.create({
   chip: { borderWidth: 1, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 5 },
   wrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   card: { paddingVertical: 14, borderBottomWidth: StyleSheet.hairlineWidth, gap: 4 },
+  pickBox: { width: 24, height: 24, borderRadius: 7, borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
+  selbar: { position: 'absolute', left: 0, right: 0, bottom: 0, borderTopWidth: StyleSheet.hairlineWidth, paddingHorizontal: 16, paddingTop: 10, paddingBottom: 14, gap: 8 },
+  setRow: { flexDirection: 'row', alignItems: 'center', borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12 },
   top: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   wmain: { flex: 1, minWidth: 0, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', columnGap: 10, rowGap: 4 },
   spk: { width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center' },

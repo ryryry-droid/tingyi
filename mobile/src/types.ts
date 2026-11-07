@@ -150,6 +150,7 @@ export type Word = {
   lastTested?: number;
   family?: WordFamily; // Indonesian / Malay: the base word and its other forms (loaded on the first swipe)
   theme?: 'daily' | 'technical'; // for testing by theme (sorted by the AI once, changeable in Edit word)
+  sets?: string[]; // your own groups of words, each testable on its own
   srs?: { step: number; due: number }; // daily review: right answers in a row, and the day it's due (days since 1970, local)
 };
 
@@ -157,7 +158,7 @@ export type FamilyForm = { word: string; part_of_speech: string; meaning: string
 export type WordFamily = { base: string; forms: FamilyForm[] };
 
 export type TestKind = 'meaning' | 'word' | 'gap' | 'type';
-export type TestSetup = { group: string; count: number; kinds: TestKind[]; theme?: 'any' | 'daily' | 'technical' };
+export type TestSetup = { group: string; count: number; kinds: TestKind[]; theme?: 'any' | 'daily' | 'technical'; set?: string };
 export const DEFAULT_TEST_SETUP: TestSetup = { group: 'all', count: 10, kinds: ['meaning', 'word', 'gap'], theme: 'any' };
 export const themeOf = (w: { theme?: string }) => (w.theme === 'technical' ? 'technical' : 'daily'); // not sorted yet: Daily
 

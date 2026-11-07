@@ -10,9 +10,10 @@ export const dayNum = (t = Date.now()) => Math.floor((t - new Date(t).getTimezon
 export const srsOf = (w: Word) => w.srs || { step: 0, due: dayNum(w.createdAt || Date.now()) + 1 }; // new words: the day after saving
 export const dueIn = (w: Word) => srsOf(w).due - dayNum();
 // the review follows the language picked on the Words tab ('all': every language)
-export const langWords = (words: Word[], lang = 'all') => (lang === 'all' ? words : words.filter((w) => w.lang === lang));
-export const dueWords = (words: Word[], lang = 'all') =>
-  langWords(words, lang).filter((w) => dueIn(w) <= 0).sort((a, b) => srsOf(a).due - srsOf(b).due || srsOf(a).step - srsOf(b).step);
+export const inSet = (w: Word, set = '') => !set || (w.sets || []).includes(set);
+export const langWords = (words: Word[], lang = 'all', set = '') => words.filter((w) => (lang === 'all' || w.lang === lang) && inSet(w, set));
+export const dueWords = (words: Word[], lang = 'all', set = '') =>
+  langWords(words, lang, set).filter((w) => dueIn(w) <= 0).sort((a, b) => srsOf(a).due - srsOf(b).due || srsOf(a).step - srsOf(b).step);
 export const whenText = (d: number) => (d <= 0 ? 'today' : d === 1 ? 'tomorrow' : `in ${d} days`);
 export const nextReview = (words: Word[]) => whenText(Math.min(...words.map(dueIn)));
 
