@@ -231,6 +231,23 @@ nav button[aria-selected="true"] { background: var(--surface); color: var(--ink)
 .filter button { border: 1px solid var(--line); background: none; border-radius: 999px; padding: 5px 12px; font-size: 13px; color: var(--muted); }
 .filter button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
 .filter .grow { flex: 1; }
+.filter.sets { margin-top: 8px; }
+.filter.sets button[data-set]::before { content: '▤ '; opacity: .7; }
+.filter.sets small { opacity: .7; font-weight: 700; margin-left: 2px; }
+.setact { display: inline-flex; gap: 12px; margin-left: 10px; }
+.setact .textbtn { padding: 0; font-size: 13px; }
+.wlist.picking .wcard { cursor: pointer; }
+.wlist.picking .wcard button { pointer-events: none; }
+.pickbox { flex-shrink: 0; width: 24px; height: 24px; border-radius: 7px; border: 2px solid var(--line); display: grid; place-items: center; font-size: 14px; font-weight: 800; color: transparent; }
+.wcard.picked .pickbox { background: var(--accent); border-color: var(--accent); color: #fff; }
+.selbar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 30; background: var(--surface); border-top: 1px solid var(--line); padding: 10px 16px calc(12px + env(safe-area-inset-bottom)); display: grid; gap: 8px; box-shadow: 0 -8px 24px rgba(0,0,0,.25); }
+.selbar .row { display: flex; align-items: center; gap: 14px; font-weight: 700; font-size: 14px; }
+.selbar .row .grow { flex: 1; }
+.selbar .btns { display: flex; gap: 8px; }
+.selbar .btns button { flex: 1; }
+.setlist { display: grid; gap: 8px; margin: 10px 0 14px; }
+.setlist button { text-align: left; display: flex; justify-content: space-between; }
+.dontknow { color: var(--t1) !important; font-weight: 700; justify-self: center; }
 .wlist { list-style: none; margin: 0; padding: 0; }
 .wcard { padding: 14px 0; border-bottom: 1px solid var(--line); display: grid; gap: 4px; }
 .wcard .top { display: flex; align-items: center; gap: 10px; }
@@ -578,11 +595,14 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
       <div class="filter" id="w-filter">
         <span id="w-langs" style="display:contents"></span>
         <span class="grow"></span>
+        <button type="button" id="w-select">Select</button>
         <button type="button" id="w-copy">Copy list</button>
       </div>
+      <div class="filter sets" id="w-sets" hidden></div>
       <div class="meta" id="w-count"></div>
     </div>
     <ul class="wlist" id="wlist"></ul>
+    <div class="selbar" id="w-selbar" hidden></div>
   </section>
 
   <section id="view-test" hidden></section>
@@ -1143,6 +1163,7 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
     if (v !== 'session') stopPlayback();
     if (v === 'words' && view !== 'words' && view !== 'test') { wordFilter = learningLang(); colloqOnly = false; }
     view = v; editing = null; confirmDelete = false;
+    if (v !== 'words') { picking = false; picked.clear(); confirmSetDel = false; $('w-selbar').hidden = true; }
     ['record', 'history', 'words', 'settings'].forEach((n) => $('tab-' + n).setAttribute('aria-selected', String(n === v || (v === 'session' && n === 'history') || (v === 'live' && n === 'record') || (v === 'test' && n === (test?.bank ? 'settings' : 'words')) || (v === 'bank' && n === 'settings'))));
     ['record', 'live', 'session', 'history', 'words', 'test', 'settings', 'bank'].forEach((n) => ($('view-' + n).hidden = n !== v));
     if (v !== 'test') { if (test?.listen) stopListening(); test = null; }
@@ -1779,10 +1800,19 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
 
   // ---------- vocabulary bank ----------
   let wordFilter = 'all', wordSearch = '', confirmWord = null, colloqOnly = false;
+  // sets: your own groups of words (word.sets holds the names), each testable on its own
+  let wordSet = '', picking = false, confirmSetDel = false;
+  const picked = new Set();
+  const inSet = (w, set) => !set || (w.sets || []).includes(set);
+  function allSets() {
+    const n = new Map();
+    words.forEach((w) => (w.sets || []).forEach((x) => n.set(x, (n.get(x) || 0) + 1)));
+    return [...n].sort((a, b) => a[0].localeCompare(b[0]));
+  }
   const isColloq = (w) => w.register === 'colloquial';
   function filteredWords() {
     const q = wordSearch.trim().toLowerCase();
-    return words.filter((w) => (wordFilter === 'all' || w.lang === wordFilter) && (!colloqOnly || isColloq(w))
+    return words.filter((w) => (wordFilter === 'all' || w.lang === wordFilter) && (!colloqOnly || isColloq(w)) && inSet(w, wordSet)
       && (!q || [w.word, w.pinyin, w.meaning, w.root].join(' ').toLowerCase().includes(q)
         || (w.pinyin || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().includes(q)));
   }
@@ -1902,9 +1932,13 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
       + (wordFilter === 'id'
         ? `<button type="button" data-f="colloq" class="colloq" aria-pressed="${colloqOnly}">Colloquial</button>` : '')
       ;
+    const sets = allSets();
+    if (wordSet && !sets.some(([n]) => n === wordSet)) wordSet = '';
+    $('w-sets').hidden = !sets.length;
+    $('w-sets').innerHTML = sets.map(([n, k]) => `<button type="button" data-set="${esc(n)}" aria-pressed="${wordSet === n}">${esc(n)} <small>${k}</small></button>`).join('');
     const list = filteredWords();
-    const rl = reviewLang(), rlName = rl === 'all' ? '' : ` ${(wordLangs().find(([c]) => c === rl) || [])[1] || ''}`;
-    const rWords = langWords(rl), due = dueWords(rl).length;
+    const rl = reviewLang(), rlName = wordSet ? ` ${esc(wordSet)}` : rl === 'all' ? '' : ` ${(wordLangs().find(([c]) => c === rl) || [])[1] || ''}`;
+    const rWords = langWords(rl, wordSet), due = dueWords(rl, wordSet).length;
     const card = (ic, title, sub) => `<span class="ic" aria-hidden="true">${ic}</span><span>${title}<small>${sub}</small></span><span class="go" aria-hidden="true">›</span>`;
     $('w-test').disabled = !words.length;
     $('w-test').innerHTML = !words.length ? card('↻', 'Review', 'Save some words first')
@@ -1912,10 +1946,15 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
       : card('✓', 'All caught up', `Next review ${whenText(Math.min(...rWords.map(dueIn)))}`);
     const streak = reviewStreak();
     $('w-sub').innerHTML = words.length ? `${streak ? `<span>🔥 ${streak}-day streak</span>` : ''}<button class="textbtn" type="button" id="w-practice">Practice test ›</button>` : '';
-    $('w-count').textContent = words.length
+    $('w-count').innerHTML = (words.length
       ? `${list.length} of ${words.length} ${words.length === 1 ? 'word' : 'words'}`
-      : '';
-    $('w-copy').hidden = !list.length;
+      : '') + (wordSet && !picking ? `<span class="setact">${confirmSetDel
+        ? `<button class="textbtn danger" type="button" data-setact="del">Delete set</button><button class="textbtn" type="button" data-setact="keep">Keep</button>`
+        : `<button class="textbtn" type="button" data-setact="rename">Rename set</button><button class="textbtn" type="button" data-setact="ask">Delete set</button>`}</span>` : '');
+    $('w-copy').hidden = !list.length || picking;
+    $('w-select').hidden = !list.length || picking;
+    $('wlist').classList.toggle('picking', picking);
+    renderSelbar();
     $('wlist').innerHTML = !words.length
       ? `<li class="empty">No saved words yet. Tap Add word to type or say one, or tap a word in any recording.</li>`
       : !list.length ? `<li class="empty">No words match.</li>`
@@ -1940,8 +1979,8 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
           <div class="src"><span>Same family as <b>${esc(w.word)}</b>${have ? '' : ' · not in your words'}</span></div>
         </li>`;
         }
-        return `<li class="wcard${famOk ? ' fam' : ''}" data-fam="${famOk ? esc(w.id) : ''}">
-          <div class="top">${'speechSynthesis' in window ? `<button class="wspk" type="button" data-speak="${esc(w.id)}" aria-label="Hear ${esc(w.word)}">🔊</button>` : ''}<div class="wmain"><span class="wd${han ? ' han' : ''}">${esc(w.word)}</span>
+        return `<li class="wcard${famOk && !picking ? ' fam' : ''}${picked.has(w.id) ? ' picked' : ''}" data-fam="${famOk && !picking ? esc(w.id) : ''}" data-wid="${esc(w.id)}">
+          <div class="top">${picking ? '<span class="pickbox" aria-hidden="true">✓</span>' : ''}${'speechSynthesis' in window ? `<button class="wspk" type="button" data-speak="${esc(w.id)}" aria-label="Hear ${esc(w.word)}">🔊</button>` : ''}<div class="wmain"><span class="wd${han ? ' han' : ''}">${esc(w.word)}</span>
             ${settings.pinyin && w.pinyin ? `<span class="py">${pinyinHtml(w.pinyin)}</span>` : ''}
             ${w.part_of_speech ? `<span class="pos" style="margin:0">${esc(w.part_of_speech)}</span>` : ''}
             ${isColloq(w) ? `<span class="pos colloq-tag" style="margin:0">colloquial</span>` : ''}</div>
@@ -1962,6 +2001,88 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
     const b = ev.target.closest('[data-f]');
     if (b) { if (b.dataset.f === 'colloq') colloqOnly = !colloqOnly; else { wordFilter = b.dataset.f; colloqOnly = false; sgmLetter = 'all'; } renderWords(); }
   };
+  $('w-sets').onclick = (ev) => {
+    const b = ev.target.closest('[data-set]'); if (!b) return;
+    wordSet = wordSet === b.dataset.set ? '' : b.dataset.set; confirmSetDel = false; renderWords();
+  };
+  $('w-count').onclick = (ev) => {
+    const b = ev.target.closest('[data-setact]'); if (!b) return;
+    const a = b.dataset.setact;
+    if (a === 'ask' || a === 'keep') { confirmSetDel = a === 'ask'; renderWords(); }
+    else if (a === 'del') { confirmSetDel = false; const n = wordSet; wordSet = ''; editSets(words.filter((w) => inSet(w, n)).map((w) => w.id), (xs) => xs.filter((x) => x !== n)).then(() => toast(`Deleted “${n}”. The words are still in your list.`)); }
+    else if (a === 'rename') openSetPanel('rename');
+  };
+  $('w-select').onclick = () => { picking = true; picked.clear(); confirmWord = null; renderWords(); };
+  $('wlist').addEventListener('click', (ev) => {
+    if (!picking) return;
+    const li = ev.target.closest('[data-wid]'); if (!li) return;
+    ev.stopPropagation(); ev.preventDefault();
+    const id = li.dataset.wid; picked.has(id) ? picked.delete(id) : picked.add(id);
+    li.classList.toggle('picked', picked.has(id)); renderSelbar();
+  }, true);
+  function renderSelbar() {
+    const bar = $('w-selbar'); bar.hidden = !picking || view !== 'words';
+    if (bar.hidden) return;
+    const n = picked.size;
+    bar.innerHTML = `<div class="row"><span>${n} selected</span><button class="textbtn" type="button" data-sel="all">Select all ${filteredWords().length}</button><span class="grow"></span><button class="textbtn" type="button" data-sel="cancel">Cancel</button></div>
+      <div class="btns"><button class="primary" type="button" data-sel="add" ${n ? '' : 'disabled'}>Add to set</button>${wordSet ? `<button class="secondary" type="button" data-sel="remove" ${n ? '' : 'disabled'}>Remove from ${esc(wordSet)}</button>` : ''}</div>`;
+  }
+  $('w-selbar').onclick = async (ev) => {
+    const b = ev.target.closest('[data-sel]'); if (!b) return;
+    const a = b.dataset.sel;
+    if (a === 'cancel') { picking = false; picked.clear(); renderWords(); }
+    else if (a === 'all') { filteredWords().forEach((w) => picked.add(w.id)); renderWords(); }
+    else if (a === 'add') openSetPanel('add');
+    else if (a === 'remove') {
+      const n = picked.size, set = wordSet;
+      await editSets([...picked], (xs) => xs.filter((x) => x !== set));
+      picking = false; picked.clear(); renderWords(); toast(`Removed ${n} ${n === 1 ? 'word' : 'words'} from “${set}”`);
+    }
+  };
+  /** Changes the sets of these words and saves them. */
+  async function editSets(ids, fn) {
+    const want = new Set(ids);
+    for (const w of words) {
+      if (!want.has(w.id)) continue;
+      const next = [...new Set(fn(w.sets || []))];
+      if (next.length) w.sets = next; else delete w.sets;
+      await putWord(w).catch(() => {});
+    }
+    renderWords();
+  }
+  let setPanel = null;
+  function openSetPanel(mode) {
+    setPanel = mode;
+    const sets = allSets(), n = picked.size;
+    openPanel(mode === 'rename' ? `
+      <h2>Rename set</h2>
+      <input id="set-name" type="text" autocomplete="off" value="${esc(wordSet)}" maxlength="40" style="margin-top:12px">
+      <div class="wc-actions"><button class="primary" type="button" data-setp="rename">Save</button><button class="secondary" type="button" data-setp="close">Cancel</button></div>` : `
+      <h2>Add ${n} ${n === 1 ? 'word' : 'words'} to a set</h2>
+      ${sets.length ? `<div class="setlist">${sets.map(([s, k]) => `<button class="secondary" type="button" data-setp="pick" data-name="${esc(s)}"><span>${esc(s)}</span><span class="meta">${k}</span></button>`).join('')}</div>` : ''}
+      <input id="set-name" type="text" autocomplete="off" placeholder="New set name" maxlength="40" style="margin-top:${sets.length ? 0 : 12}px">
+      <div class="wc-actions"><button class="primary" type="button" data-setp="new">Create set</button><button class="secondary" type="button" data-setp="close">Cancel</button></div>`);
+    if (!sets.length || mode === 'rename') setTimeout(() => $('set-name')?.focus(), 50);
+  }
+  $('panel').addEventListener('click', async (ev) => {
+    const b = ev.target.closest('[data-setp]'); if (!b || !setPanel) return;
+    const a = b.dataset.setp;
+    if (a === 'close') { setPanel = null; closePanel(); return; }
+    const name = (a === 'pick' ? b.dataset.name : $('set-name').value).trim().replace(/\s+/g, ' ');
+    if (!name) { toast('Give the set a name'); return; }
+    if (a === 'rename') {
+      const old = wordSet; setPanel = null; closePanel();
+      if (name === old) return;
+      wordSet = name;
+      await editSets(words.filter((w) => inSet(w, old)).map((w) => w.id), (xs) => xs.map((x) => (x === old ? name : x)));
+      toast(`Renamed to “${name}”`); return;
+    }
+    const n = picked.size;
+    setPanel = null; closePanel();
+    await editSets([...picked], (xs) => [...xs, name]);
+    picking = false; picked.clear(); wordSet = name; renderWords();
+    toast(`Added ${n} ${n === 1 ? 'word' : 'words'} to “${name}”`);
+  });
   $('w-copy').onclick = async () => {
     const text = filteredWords().map((w) => `${w.word}${w.pinyin ? ` (${w.pinyin})` : ''} — ${w.meaning}${w.example ? `\n  ${w.example.text}\n  ${w.example.translation}` : ''}`).join('\n');
     try { await navigator.clipboard.writeText(text); toast('Copied'); } catch { toast('Couldn’t copy.'); }
@@ -2236,14 +2357,17 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
   const toneless = (t) => String(t || '').replace(/[đĐ]/g, 'd').replace(/[ıİ]/g, 'i').normalize('NFD').replace(/[̀-ͯ]/g, '').normalize('NFC').toLowerCase().replace(/[\s\p{P}\p{S}]/gu, '');
 
   const themeOf = (w) => (w.theme === 'technical' ? 'technical' : 'daily'); // not sorted yet: Daily
-  function testPool(group, theme = testSetup.theme) {
+  function testPool(group, theme = testSetup.theme, set = testSetup.set) {
     let pool = wordLangs().some(([c]) => c === group) ? words.filter((w) => w.lang === group) : words;
+    if (set) pool = pool.filter((w) => inSet(w, set));
     if (theme === 'daily' || theme === 'technical') pool = pool.filter((w) => themeOf(w) === theme);
     return pool;
   }
 
   function openTestSetup() {
     if (testSetup.group !== 'all' && !words.some((w) => w.lang === testSetup.group)) testSetup.group = 'all';
+    const sets = allSets();
+    if (testSetup.set && !sets.some(([n]) => n === testSetup.set)) testSetup.set = '';
     checkThemes();
     if (words.length < 4) { toast(words.length ? `Save ${4 - words.length} more words to start a test` : 'Save some words first'); return; }
     const pool = testPool(testSetup.group);
@@ -2254,6 +2378,10 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
       <div class="seg wrap" role="group" aria-label="Words">
         ${[['all', 'All'], ...wordLangs().filter(([c]) => words.some((w) => w.lang === c))].map(([v, l]) => `<button type="button" data-ts="group" data-v="${v}" aria-pressed="${testSetup.group === v}">${l}</button>`).join('')}
       </div>
+      ${sets.length ? `<p class="label">Set</p>
+      <div class="seg wrap" role="group" aria-label="Set">
+        ${[['', 'Any'], ...sets.map(([n]) => [n, n])].map(([v, l]) => `<button type="button" data-ts="set" data-v="${esc(v)}" aria-pressed="${(testSetup.set || '') === v}">${esc(l)}${v ? ` <small class="tcount">${testPool(testSetup.group, 'any', v).length}</small>` : ''}</button>`).join('')}
+      </div>` : ''}
       <p class="label">Theme</p>
       <div class="seg" role="group" aria-label="Theme">
         ${[['any', 'Any'], ['daily', 'Daily'], ['technical', 'Technical']].map(([v, l]) => `<button type="button" data-ts="theme" data-v="${v}" aria-pressed="${(testSetup.theme || 'any') === v}">${l}${v === 'any' ? '' : ` <small class="tcount">${testPool(testSetup.group, v).length}</small>`}</button>`).join('')}
@@ -2274,14 +2402,15 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
     if (k === 'group') testSetup.group = v;
     else if (k === 'count') testSetup.count = +v;
     else if (k === 'theme') testSetup.theme = v;
+    else if (k === 'set') testSetup.set = v;
     else if (k === 'kind') testSetup.kinds = testSetup.kinds.includes(v) ? testSetup.kinds.filter((x) => x !== v) : [...testSetup.kinds, v];
     else if (k === 'start') { closePanel(); startTest(); return; }
     else if (k === 'listen') { closePanel(); startListening(); return; }
     try { localStorage.setItem('tingyi.testSetup', JSON.stringify(testSetup)); } catch {}
     openTestSetup();
   });
-  $('w-test').onclick = () => (dueWords(reviewLang()).length ? startReview(reviewLang()) : openTestSetup());
-  $('w-sub').onclick = (ev) => { if (ev.target.closest('#w-practice')) openTestSetup(); };
+  $('w-test').onclick = () => (dueWords(reviewLang(), wordSet).length ? startReview(reviewLang(), wordSet) : (wordSet && (testSetup.set = wordSet), openTestSetup()));
+  $('w-sub').onclick = (ev) => { if (ev.target.closest('#w-practice')) { if (wordSet) testSetup.set = wordSet; openTestSetup(); } };
 
   // ---------- daily review: each right answer moves a word up the ladder, a wrong one sends it back to tomorrow ----------
   const LADDER = [1, 3, 7, 14, 30, 90]; // days until the next review, after 1, 2, 3... right answers in a row
@@ -2291,8 +2420,8 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
   const dueIn = (w) => srsOf(w).due - dayNum();
   // the review follows the language picked on the Words tab (All: every language)
   const reviewLang = () => (wordFilter !== 'all' && words.some((w) => w.lang === wordFilter) ? wordFilter : 'all');
-  const langWords = (lang = 'all') => (lang === 'all' ? words : words.filter((w) => w.lang === lang));
-  const dueWords = (lang = 'all') => langWords(lang).filter((w) => dueIn(w) <= 0).sort((a, b) => srsOf(a).due - srsOf(b).due || srsOf(a).step - srsOf(b).step);
+  const langWords = (lang = 'all', set = '') => words.filter((w) => (lang === 'all' || w.lang === lang) && inSet(w, set));
+  const dueWords = (lang = 'all', set = '') => langWords(lang, set).filter((w) => dueIn(w) <= 0).sort((a, b) => srsOf(a).due - srsOf(b).due || srsOf(a).step - srsOf(b).step);
   const whenText = (d) => (d <= 0 ? 'today' : d === 1 ? 'tomorrow' : `in ${d} days`);
   function ladHtml(w) {
     const st = srsOf(w), d = dueIn(w), due = d <= 0, n = due ? Math.max(1, st.step) : st.step;
@@ -2307,9 +2436,9 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
     const days = reviewDays(); days.add(dayNum());
     try { localStorage.setItem('tingyi.reviewDays', JSON.stringify([...days].sort((a, b) => a - b).slice(-400))); } catch {}
   }
-  function startReview(lang = 'all') {
-    const pool = dueWords(lang).slice(0, REVIEW_MAX); if (!pool.length) return;
-    test = { review: true, reviewLang: lang, qs: pool.map((w) => ({ w, kind: 'recall' })), i: 0, right: 0, streak: 0, best: 0, started: Date.now(), missed: [], answer: null, done: false };
+  function startReview(lang = 'all', set = '') {
+    const pool = dueWords(lang, set).slice(0, REVIEW_MAX); if (!pool.length) return;
+    test = { review: true, reviewLang: lang, reviewSet: set, qs: pool.map((w) => ({ w, kind: 'recall' })), i: 0, right: 0, streak: 0, best: 0, started: Date.now(), missed: [], answer: null, done: false };
     setView('test');
   }
   // the answer said out loud: recorded, transcribed, then checked like a typed one
@@ -2496,19 +2625,19 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
       const canMic = !!(navigator.mediaDevices && window.MediaRecorder);
       answers = `<div class="qrecall"><input id="q-type" type="text" autocomplete="off" autocapitalize="off" lang="${esc(w.lang)}" placeholder="${q.hearing ? 'Listening back…' : q.rec ? 'Listening…' : 'Type the word'}" ${a || q.hearing || q.rec ? 'disabled' : ''} value="${a ? esc(a.typed) : ''}"${han ? ' style="font-family:var(--han)"' : ''}>
         ${canMic ? `<button class="mic${q.rec ? ' on' : ''}" type="button" data-q="mic" aria-label="${q.rec ? 'Stop' : 'Say it'}" ${a || q.hearing ? 'disabled' : ''}>${q.rec ? '■' : '🎙'}</button>` : ''}</div>
-        ${a ? '' : `<div class="qcheck"><button class="primary" type="button" data-q="check" ${q.hearing || q.rec ? 'disabled' : ''}>Check</button><button class="textbtn" type="button" data-q="choices">Show choices</button></div>`}`;
+        ${a ? '' : `<div class="qcheck"><button class="primary" type="button" data-q="check" ${q.hearing || q.rec ? 'disabled' : ''}>Check</button><button class="textbtn" type="button" data-q="choices">Show choices</button><button class="textbtn dontknow" type="button" data-q="dontknow">Don’t know</button></div>`}`;
     } else if (q.kind === 'type') {
       answers = `<div class="qtype"><input id="q-type" type="text" autocomplete="off" autocapitalize="off" placeholder="${han ? 'e.g. 周末 or zhoumo' : 'Type the word (accents optional)'}" ${a ? 'disabled' : ''} value="${a ? esc(a.typed) : ''}">
-        ${a ? '' : `<button class="primary" type="button" data-q="check">Check</button>`}</div>`;
+        ${a ? '' : `<button class="primary" type="button" data-q="check">Check</button>`}</div>${a ? '' : `<div class="qcheck"><button class="textbtn dontknow" type="button" data-q="dontknow">Don’t know</button></div>`}`;
     } else {
       answers = `<div class="qopts">${q.choices.map((c, k) => {
         const label = q.kind === 'meaning' ? esc(c.meaning) : `<span class="${c.lang === 'zh' ? 'han' : ''}">${esc(c.word)}</span>`;
         const cls = !a ? '' : c.id === w.id ? ' ok' : a.pick === c.id ? ' bad' : ' dim';
         return `<button class="qopt${cls}" type="button" data-q="pick" data-id="${esc(c.id)}" ${a ? 'disabled' : ''}><span class="k">${a && c.id === w.id ? '✓' : a && a.pick === c.id ? '✕' : k + 1}</span>${label}</button>`;
-      }).join('')}</div>`;
+      }).join('')}</div>${a ? '' : `<div class="qcheck"><button class="textbtn dontknow" type="button" data-q="dontknow">Don’t know</button></div>`}`;
     }
     const feedback = !a ? '' : `<div class="qfeed ${a.ok ? 'ok' : 'bad'}">
-      <div class="h">${a.ok ? 'Correct!' : 'Not quite'}${a.heard ? ` <span class="qheard">You said “${esc(a.heard)}”</span>` : ''}</div>
+      <div class="h">${a.ok ? 'Correct!' : a.dontknow ? 'The answer' : 'Not quite'}${a.heard ? ` <span class="qheard">You said “${esc(a.heard)}”</span>` : ''}</div>
       <div><b class="${han ? 'han' : ''}" style="${han ? 'font-family:var(--han);font-size:19px' : 'font-size:17px'}">${esc(w.word)}</b>${han && w.pinyin ? ` <span class="meta">${esc(w.pinyin)}</span>` : ''} · ${esc(w.meaning)}</div>
       ${w.example ? `<div class="x${han ? ' han' : ''}">${esc(w.example.text)}</div><div class="xt">${esc(w.example.translation)}</div>` : ''}
       ${t.review ? ladHtml(words.find((x) => x.id === w.id) || w) : ''}
@@ -2553,7 +2682,7 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
   function renderResults() {
     const t = test, pct = Math.round((t.right / t.qs.length) * 100), secs = Math.round((Date.now() - t.started) / 1000);
     t.secs = t.secs || secs;
-    const left = t.review ? dueWords(t.reviewLang).length : 0, rw = t.review ? langWords(t.reviewLang) : [];
+    const left = t.review ? dueWords(t.reviewLang, t.reviewSet).length : 0, rw = t.review ? langWords(t.reviewLang, t.reviewSet) : [];
     const msg = t.review ? (left ? `${left} more due today` : 'All caught up') : pct === 100 ? 'Perfect!' : pct >= 80 ? 'Nice work!' : pct >= 50 ? 'Good effort' : 'Keep practising';
     const next = t.review && !left && rw.length ? `Next review ${whenText(Math.min(...rw.map(dueIn)))}` : '';
     $('view-test').innerHTML = `
@@ -2572,9 +2701,10 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
     switch (b.dataset.q) {
       case 'pick': if (!t.answer) answer(b.dataset.id === q.w.id, { pick: b.dataset.id }); break;
       case 'check': checkTyped(); break;
+      case 'dontknow': stopQMic(false); answer(false, { typed: '', dontknow: true }); break;
       case 'mic': if (qMic) stopQMic(true); else startQMic(); break;
       case 'choices': stopQMic(false); q.choices = makeQuestion(q.w, ['word']).choices; renderTest(); break;
-      case 'review': startReview(t.reviewLang); break;
+      case 'review': startReview(t.reviewLang, t.reviewSet); break;
       case 'speak': speak(q.w); break;
       case 'next': stopQMic(false); if (t.i + 1 < t.qs.length) { t.i++; t.answer = null; } else t.done = true; renderTest(); window.scrollTo(0, 0); break;
       case 'quit': stopQMic(false); if (t.i > 0 || t.answer) { t.qs = t.qs.slice(0, t.i + (t.answer ? 1 : 0)); t.done = true; renderTest(); } else setView(t.bank ? 'bank' : 'words'); break;
