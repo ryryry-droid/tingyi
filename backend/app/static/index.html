@@ -596,7 +596,7 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
         <span id="w-langs" style="display:contents"></span>
         <span class="grow"></span>
         <button type="button" id="w-select">Select</button>
-        <button type="button" id="w-copy">Copy list</button>
+        <button type="button" id="w-setsbtn" aria-pressed="false">Sets ▾</button>
       </div>
       <div class="filter sets" id="w-sets" hidden></div>
       <div class="meta" id="w-count"></div>
@@ -1801,7 +1801,7 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
   // ---------- vocabulary bank ----------
   let wordFilter = 'all', wordSearch = '', confirmWord = null, colloqOnly = false;
   // sets: your own groups of words (word.sets holds the names), each testable on its own
-  let wordSet = '', picking = false, confirmSetDel = false;
+  let wordSet = '', picking = false, confirmSetDel = false, setsOpen = false; // the set chips show once Sets is tapped
   const picked = new Set();
   const inSet = (w, set) => !set || (w.sets || []).includes(set);
   function allSets() {
@@ -1934,7 +1934,8 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
       ;
     const sets = allSets();
     if (wordSet && !sets.some(([n]) => n === wordSet)) wordSet = '';
-    $('w-sets').hidden = !sets.length;
+    if (!sets.length) setsOpen = false;
+    $('w-sets').hidden = !setsOpen;
     $('w-sets').innerHTML = sets.map(([n, k]) => `<button type="button" data-set="${esc(n)}" aria-pressed="${wordSet === n}">${esc(n)} <small>${k}</small></button>`).join('');
     const list = filteredWords();
     const rl = reviewLang(), rlName = wordSet ? ` ${esc(wordSet)}` : rl === 'all' ? '' : ` ${(wordLangs().find(([c]) => c === rl) || [])[1] || ''}`;
@@ -1951,7 +1952,9 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
       : '') + (wordSet && !picking ? `<span class="setact">${confirmSetDel
         ? `<button class="textbtn danger" type="button" data-setact="del">Delete set</button><button class="textbtn" type="button" data-setact="keep">Keep</button>`
         : `<button class="textbtn" type="button" data-setact="rename">Rename set</button><button class="textbtn" type="button" data-setact="ask">Delete set</button>`}</span>` : '');
-    $('w-copy').hidden = !list.length || picking;
+    $('w-setsbtn').hidden = !sets.length || picking;
+    $('w-setsbtn').setAttribute('aria-pressed', String(setsOpen));
+    $('w-setsbtn').textContent = setsOpen ? 'Sets ▴' : 'Sets ▾';
     $('w-select').hidden = !list.length || picking;
     $('wlist').classList.toggle('picking', picking);
     renderSelbar();
@@ -2080,13 +2083,10 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
     const n = picked.size;
     setPanel = null; closePanel();
     await editSets([...picked], (xs) => [...xs, name]);
-    picking = false; picked.clear(); wordSet = name; renderWords();
+    picking = false; picked.clear(); wordSet = name; setsOpen = true; renderWords();
     toast(`Added ${n} ${n === 1 ? 'word' : 'words'} to “${name}”`);
   });
-  $('w-copy').onclick = async () => {
-    const text = filteredWords().map((w) => `${w.word}${w.pinyin ? ` (${w.pinyin})` : ''} — ${w.meaning}${w.example ? `\n  ${w.example.text}\n  ${w.example.translation}` : ''}`).join('\n');
-    try { await navigator.clipboard.writeText(text); toast('Copied'); } catch { toast('Couldn’t copy.'); }
-  };
+  $('w-setsbtn').onclick = () => { setsOpen = !setsOpen; if (!setsOpen) { wordSet = ''; confirmSetDel = false; } renderWords(); };
   // ---------- word family: swipe a saved Indonesian / Malay word to see its other forms ----------
   const FAMILY_LANGS = ['id', 'ms'];
   const famView = {}; // word id -> which form is showing (only while the app is open)
