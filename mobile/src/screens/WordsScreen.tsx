@@ -1,4 +1,3 @@
-import * as Clipboard from 'expo-clipboard';
 import { RecordingPresets, requestRecordingPermissionsAsync, setAudioModeAsync, useAudioRecorder } from 'expo-audio';
 import { useEffect, useRef, useState } from 'react';
 import { FlatList, PanResponder, Pressable, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
@@ -84,8 +83,10 @@ export default function WordsScreen(p: Props) {
   const [confirmSetDel, setConfirmSetDel] = useState(false);
   const [setSheet, setSetSheet] = useState<'add' | 'rename' | null>(null);
   const [setName, setSetName] = useState('');
+  const [setsOpenRaw, setSetsOpen] = useState(false); // the set chips show once Sets is tapped
   const sets = allSets(words);
-  const wordSet = sets.some(([n]) => n === wordSetRaw) ? wordSetRaw : '';
+  const setsOpen = setsOpenRaw && sets.length > 0;
+  const wordSet = setsOpen && sets.some(([n]) => n === wordSetRaw) ? wordSetRaw : '';
   const togglePick = (id: string) => setPicked((xs) => (xs.includes(id) ? xs.filter((x) => x !== id) : [...xs, id]));
   function editSets(ids: string[], fn: (xs: string[]) => string[]) {
     const want = new Set(ids);
@@ -117,6 +118,7 @@ export default function WordsScreen(p: Props) {
     setSetSheet(null);
     endPicking();
     setWordSet(name);
+    setSetsOpen(true);
     p.toast(`Added ${n} ${n === 1 ? 'word' : 'words'} to “${name}”`);
   }
   // Word family: swipe a saved Indonesian / Malay word to see its other forms
@@ -270,22 +272,22 @@ export default function WordsScreen(p: Props) {
                   <Text style={{ fontSize: 13, color: c.muted, fontWeight: '600' }}>Select</Text>
                 </Pressable>
               ) : null}
-              {list.length && !picking ? (
+              {sets.length && !picking ? (
                 <Pressable
-                  style={[styles.chip, { borderColor: c.line }]}
-                  onPress={async () => {
-                    const text = list
-                      .map((w) => `${w.word}${w.pinyin ? ` (${w.pinyin})` : ''} — ${w.meaning}${w.example ? `\n  ${w.example.text}\n  ${w.example.translation}` : ''}`)
-                      .join('\n');
-                    await Clipboard.setStringAsync(text);
-                    p.toast('Copied');
+                  style={[styles.chip, { borderColor: c.line }, setsOpen && { backgroundColor: c.accent, borderColor: c.accent }]}
+                  onPress={() => {
+                    if (setsOpen) {
+                      setWordSet('');
+                      setConfirmSetDel(false);
+                    }
+                    setSetsOpen(!setsOpen);
                   }}
                 >
-                  <Text style={{ fontSize: 13, color: c.muted, fontWeight: '600' }}>Copy list</Text>
+                  <Text style={{ fontSize: 13, color: setsOpen ? c.accentInk : c.muted, fontWeight: setsOpen ? '800' : '600' }}>Sets {setsOpen ? '▴' : '▾'}</Text>
                 </Pressable>
               ) : null}
             </View>
-            {sets.length ? (
+            {setsOpen ? (
               <View style={styles.filter}>
                 {sets.map(([n, k]) => (
                   <Pressable
