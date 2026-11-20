@@ -80,7 +80,7 @@ export default function ListenScreen({ settings, words, setup, onDone }: Props) 
         if (run.current !== id) return;
         setRep(r);
         setPhase('play');
-        await speakText(items[k].example!.text, items[k].lang, settings.script);
+        await speakText(items[k].example!.text, items[k].lang, settings.script, 0.9, true);
         if (run.current !== id) return;
         setPhase(r + 1 < REPEATS ? 'gap' : 'next');
         await wait(r + 1 < REPEATS ? GAP : PAUSE);

@@ -41,10 +41,18 @@ export async function speakWord(w: Pick<Word, 'word' | 'lang'>, script: 'simplif
   } catch {}
 }
 
-/** Read a sentence aloud; resolves when it has finished (or was stopped). */
-export async function speakText(text: string, lang: string, script: 'simplified' | 'traditional', rate = 0.9): Promise<void> {
+/** Read a sentence aloud; resolves when it has finished (or was stopped).
+ *  warm: first say the opening of it silently (volume 0), so the phone's speech engine is already running
+ *  when the real sentence starts. Otherwise the engine sometimes starts late and the first sound is cut off. */
+export async function speakText(text: string, lang: string, script: 'simplified' | 'traditional', rate = 0.9, warm = false): Promise<void> {
   const tag = lang === 'zh' ? (script === 'traditional' ? 'zh-TW' : 'zh-CN') : SPEECH_LANG[lang] || lang;
   const voice = pickVoice(await loadVoices(), tag);
+  if (warm) {
+    try {
+      const lead = lang === 'zh' || lang === 'yue' || lang === 'ja' ? text.slice(0, 2) : text.split(/\s+/)[0] || text;
+      Speech.speak(lead, { language: tag.split('-')[0], voice: voice?.identifier, rate: 1.5, volume: 0 }); // queued straight before the sentence
+    } catch {}
+  }
   return new Promise((resolve) => {
     try {
       Speech.speak(text, {
