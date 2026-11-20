@@ -1166,7 +1166,7 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
     if (v !== 'words') { picking = false; picked.clear(); confirmSetDel = false; $('w-selbar').hidden = true; }
     ['record', 'history', 'words', 'settings'].forEach((n) => $('tab-' + n).setAttribute('aria-selected', String(n === v || (v === 'session' && n === 'history') || (v === 'live' && n === 'record') || (v === 'test' && n === (test?.bank ? 'settings' : 'words')) || (v === 'bank' && n === 'settings'))));
     ['record', 'live', 'session', 'history', 'words', 'test', 'settings', 'bank'].forEach((n) => ($('view-' + n).hidden = n !== v));
-    if (v !== 'test') { if (test?.listen) stopListening(); test = null; }
+    if (v !== 'test') { if (test?.listen) { stopListening(); audioAwake(false); } test = null; }
     closePanel();
     closeSheet();
     rerender();
@@ -2527,9 +2527,24 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
     pool = shuffle(pool).slice(0, n);
     test = { listen: true, items: pool, i: 0, rep: 0, paused: false, done: false, show: listenShow, timer: null };
     setView('test');
-    listenPlay();
+    audioAwake(true);
+    test.timer = setTimeout(listenPlay, 400); // a moment for the audio output to wake before the first sentence
   }
   let listenShow = (() => { try { return localStorage.getItem('tingyi.listenShow') !== '0'; } catch { return true; } })();
+  // A near-silent tone while listening keeps the audio output awake between sentences,
+  // so the first syllable isn't lost while the speaker (or Bluetooth earbuds) wakes up.
+  let awake = null;
+  function audioAwake(on) {
+    try {
+      if (on && !awake) {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        const o = ctx.createOscillator(), g = ctx.createGain();
+        g.gain.value = 0.0005; o.frequency.value = 30;
+        o.connect(g).connect(ctx.destination); o.start();
+        awake = ctx;
+      } else if (!on && awake) { awake.close(); awake = null; }
+    } catch {}
+  }
   function stopListening() {
     const t = test; if (!t?.listen) return;
     clearTimeout(t.timer); t.timer = null;
@@ -2556,7 +2571,10 @@ nav button[aria-selected="true"] { background: var(--accent); color: var(--accen
     };
     u.onend = after; u.onerror = after;
     t.phase = 'play'; renderTest();
-    try { speechSynthesis.cancel(); speechSynthesis.speak(u); } catch { after(); }
+    try {
+      if (speechSynthesis.speaking || speechSynthesis.pending) speechSynthesis.cancel(); // cancelling right before speaking can clip the start
+      speechSynthesis.speak(u);
+    } catch { after(); }
   }
   function renderListen() {
     const t = test;
