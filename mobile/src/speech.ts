@@ -47,7 +47,15 @@ export async function speakWord(w: Pick<Word, 'word' | 'lang'>, script: 'simplif
 export async function speakText(text: string, lang: string, script: 'simplified' | 'traditional', rate = 0.9, warm = false): Promise<void> {
   const tag = lang === 'zh' ? (script === 'traditional' ? 'zh-TW' : 'zh-CN') : SPEECH_LANG[lang] || lang;
   const voice = pickVoice(await loadVoices(), tag);
-  if (warm) {
+  // Google's speech engine (voice names like "cmn-cn-x-ccc-local") understands SSML, so the sentence can start
+  // with a short silence inside the same utterance: if the engine starts late, it cuts into the silence instead
+  // of the first sound. Other engines would read the tags aloud, so they get a silent warm-up utterance instead.
+  const google = !!voice && /-x-/.test(voice.identifier || '');
+  let say = text;
+  if (warm && google) {
+    const esc = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    say = `<speak><break time="400ms"/>${esc}</speak>`;
+  } else if (warm) {
     try {
       const lead = lang === 'zh' || lang === 'yue' || lang === 'ja' ? text.slice(0, 2) : text.split(/\s+/)[0] || text;
       Speech.speak(lead, { language: tag.split('-')[0], voice: voice?.identifier, rate: 1.5, volume: 0 }); // queued straight before the sentence
@@ -55,7 +63,7 @@ export async function speakText(text: string, lang: string, script: 'simplified'
   }
   return new Promise((resolve) => {
     try {
-      Speech.speak(text, {
+      Speech.speak(say, {
         language: tag.split('-')[0],
         voice: voice?.identifier,
         rate,
