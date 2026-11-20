@@ -80,6 +80,11 @@ export default function ListenScreen({ settings, words, setup, onDone }: Props) 
         if (run.current !== id) return;
         setRep(r);
         setPhase('play');
+        // a fresh start for the speech engine every time, as Next does: speaking straight after the last
+        // sentence finished gets the first sound cut off, stopping it first doesn't
+        stopSpeaking();
+        await wait(60);
+        if (run.current !== id) return;
         await speakText(items[k].example!.text, items[k].lang, settings.script, 0.9, true);
         if (run.current !== id) return;
         setPhase(r + 1 < REPEATS ? 'gap' : 'next');
