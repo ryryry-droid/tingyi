@@ -15,9 +15,9 @@ const REPEATS = 2;
 const GAP = 1200; // ms between the two plays
 const PAUSE = 3500; // ms before the next sentence
 const SHOW_KEY = 'chattalk.listenShow';
-// Silence played on a loop while listening: it keeps the phone's audio output awake between sentences,
+// A hiss far too quiet to hear (not pure silence, which some phones treat as nothing playing), looped while listening: it keeps the phone's audio output awake between sentences,
 // so the first syllable isn't lost while the speaker (or Bluetooth earbuds) wakes up.
-const SILENCE = require('../../assets/silence.mp3');
+const SILENCE = require('../../assets/silence.wav');
 
 const shuffle = <T,>(xs: T[]): T[] => {
   const a = xs.slice();
@@ -45,6 +45,7 @@ export default function ListenScreen({ settings, words, setup, onDone }: Props) 
   const [done, setDone] = useState(!items.length);
   const [show, setShow] = useState(true);
   const run = useRef(0); // bumps on every jump/pause, so an old sequence stops itself
+  const humRef = useRef<ReturnType<typeof createAudioPlayer> | null>(null);
 
   useEffect(() => {
     AsyncStorage.getItem(SHOW_KEY).then((v) => v === '0' && setShow(false)).catch(() => {});
@@ -56,6 +57,7 @@ export default function ListenScreen({ settings, words, setup, onDone }: Props) 
           hum = createAudioPlayer(SILENCE);
           hum.loop = true;
           hum.play();
+          humRef.current = hum;
         } catch {}
       });
     return () => {
@@ -83,6 +85,9 @@ export default function ListenScreen({ settings, words, setup, onDone }: Props) 
         // a fresh start for the speech engine every time, as Next does: speaking straight after the last
         // sentence finished gets the first sound cut off, stopping it first doesn't
         stopSpeaking();
+        try {
+          if (humRef.current && !humRef.current.playing) humRef.current.play(); // the speech can pause it
+        } catch {}
         await wait(60);
         if (run.current !== id) return;
         await speakText(items[k].example!.text, items[k].lang, settings.script, 0.9, true);
