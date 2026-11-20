@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { createAudioPlayer, setAudioModeAsync } from 'expo-audio';
 import { useKeepAwake } from 'expo-keep-awake';
 import { useEffect, useRef, useState } from 'react';
 import { Animated, Easing, Pressable, StyleSheet, Text, View } from 'react-native';
@@ -14,6 +15,9 @@ const REPEATS = 2;
 const GAP = 1200; // ms between the two plays
 const PAUSE = 3500; // ms before the next sentence
 const SHOW_KEY = 'chattalk.listenShow';
+// Silence played on a loop while listening: it keeps the phone's audio output awake between sentences,
+// so the first syllable isn't lost while the speaker (or Bluetooth earbuds) wakes up.
+const SILENCE = require('../../assets/silence.mp3');
 
 const shuffle = <T,>(xs: T[]): T[] => {
   const a = xs.slice();
@@ -44,9 +48,22 @@ export default function ListenScreen({ settings, words, setup, onDone }: Props) 
 
   useEffect(() => {
     AsyncStorage.getItem(SHOW_KEY).then((v) => v === '0' && setShow(false)).catch(() => {});
+    let hum: ReturnType<typeof createAudioPlayer> | null = null;
+    setAudioModeAsync({ interruptionMode: 'mixWithOthers', playsInSilentMode: true })
+      .catch(() => {})
+      .then(() => {
+        try {
+          hum = createAudioPlayer(SILENCE);
+          hum.loop = true;
+          hum.play();
+        } catch {}
+      });
     return () => {
       run.current++;
       stopSpeaking();
+      try {
+        hum?.remove();
+      } catch {}
     };
   }, []);
 
@@ -73,7 +90,9 @@ export default function ListenScreen({ settings, words, setup, onDone }: Props) 
   }
 
   useEffect(() => {
-    if (items.length) playFrom(0);
+    // a moment for the audio output to wake before the first sentence
+    const t = setTimeout(() => items.length && playFrom(0), 400);
+    return () => clearTimeout(t);
   }, []);
 
   function pause() {
