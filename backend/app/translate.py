@@ -539,21 +539,20 @@ def _json(text: str):
 
 
 def _vision(prompt: str, image_url: str) -> str:
-    """One request with an image: Groq's image model first, Gemini as the backup (when it's set up)."""
-    from openai import BadRequestError, OpenAI
+    """One request with an image: Groq's image model first, Gemini as the backup (when it's set up).
+    Each is retried once after a pause if it says it's busy (429). The error names every service that refused."""
+    from openai import BadRequestError, OpenAI, RateLimitError
 
     services = []
     if config.GROQ_API_KEY:
-        services.append(("groq", config.GROQ_BASE_URL, config.GROQ_API_KEY, config.GROQ_VISION_MODEL))
+        services.append(("Groq", config.GROQ_BASE_URL, config.GROQ_API_KEY, config.GROQ_VISION_MODEL))
     if config.GEMINI_API_KEY:
-        services.append(("gemini", config.GEMINI_BASE_URL, config.GEMINI_API_KEY, config.GEMINI_MODEL))
+        services.append(("Gemini", config.GEMINI_BASE_URL, config.GEMINI_API_KEY, config.GEMINI_MODEL))
     if not services:
         raise RuntimeError("Reading photos needs a Groq or Gemini key on the server")
-    available = [s for s in services if _resting.get(s[0] + "-vision", 0) <= time.time()] or services[-1:]
-    last: Exception | None = None
-    for i, (name, base_url, key, model) in enumerate(available):
-        has_backup = i < len(available) - 1
-        client = OpenAI(base_url=base_url, api_key=key, max_retries=1 if has_backup else 4)
+    problems: list[str] = []
+    for name, base_url, key, model in services:
+        client = OpenAI(base_url=base_url, api_key=key, max_retries=0, timeout=90)
         args: dict = dict(
             model=model,
             temperature=0,
@@ -564,21 +563,66 @@ def _vision(prompt: str, image_url: str) -> str:
             args["extra_body"] = {"reasoning_format": "hidden"}  # just the answer, not the model's thinking
         if "gemini" in model:
             args["reasoning_effort"] = "low"
-        try:
+        for attempt in range(2):
             try:
-                r = client.chat.completions.create(**args)
-            except BadRequestError:
-                args.pop("response_format", None)
-                args.pop("extra_body", None)
-                r = client.chat.completions.create(**args)
-            return r.choices[0].message.content or ""
-        except Exception as e:  # rate limit, model gone, image refused... try the next service
-            last = e
-            if "rate" in str(e).lower() or "429" in str(e):
-                _resting[name + "-vision"] = time.time() + 600
-            if not has_backup:
-                raise
-    raise last or RuntimeError("Couldn't read the photo")
+                try:
+                    r = client.chat.completions.create(**args)
+                except BadRequestError:
+                    args.pop("response_format", None)
+                    args.pop("extra_body", None)
+                    r = client.chat.completions.create(**args)
+                return r.choices[0].message.content or ""
+            except RateLimitError as e:
+                wait = _retry_after(e)
+                if attempt == 0 and wait <= 20:
+                    time.sleep(wait)
+                    continue
+                problems.append(f"{name} is busy ({_short(e)})")
+                break
+            except Exception as e:
+                problems.append(f"{name}: {_short(e)}")
+                break
+    raise RuntimeError("; ".join(problems))
+
+
+def _retry_after(e) -> float:
+    """Seconds the service asked us to wait (default 8)."""
+    try:
+        h = e.response.headers
+        return float(h.get("retry-after") or 8)
+    except Exception:
+        return 8.0
+
+
+def _short(e) -> str:
+    """The useful part of an API error, e.g. "Rate limit reached ... tokens per minute"."""
+    import re
+
+    msg = ""
+    try:
+        body = e.body if isinstance(e.body, dict) else {}
+        msg = (body.get("error") or body).get("message", "") if isinstance(body.get("error") or body, dict) else ""
+    except Exception:
+        pass
+    msg = msg or str(e)
+    msg = re.sub(r"Please try again in .*", "", msg).strip()
+    return msg[:160]
+
+
+def shrink_photo(data: bytes, longest: int = 1280) -> tuple[bytes, str]:
+    """A smaller JPEG for the image model: fewer tokens, so it stays inside the free limits."""
+    try:
+        from io import BytesIO
+
+        from PIL import Image, ImageOps
+
+        img = ImageOps.exif_transpose(Image.open(BytesIO(data))).convert("RGB")
+        img.thumbnail((longest, longest))
+        out = BytesIO()
+        img.save(out, "JPEG", quality=85)
+        return out.getvalue(), "image/jpeg"
+    except Exception:
+        return data, ""
 
 
 def read_image(data: bytes, mime: str, lang: str) -> list[str]:
@@ -586,6 +630,9 @@ def read_image(data: bytes, mime: str, lang: str) -> list[str]:
     import base64
     import re
 
+    small, small_mime = shrink_photo(data)
+    if small_mime:
+        data, mime = small, small_mime
     url = f"data:{mime or 'image/jpeg'};base64,{base64.b64encode(data).decode()}"
     language = LANG_NAMES.get(lang, lang)
     prompt = (

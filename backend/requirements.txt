@@ -7,5 +7,6 @@ opencc-python-reimplemented>=0.1.7
 pypinyin>=0.51
 python-dotenv>=1.0
 av>=12  # cuts single lines out of a recording for "Redo"
+pillow>=10  # makes photos smaller before the image model reads them
 # Optional, for ASR_PROVIDER=local (runs Whisper on your own machine, no audio leaves it):
 # faster-whisper>=1.0

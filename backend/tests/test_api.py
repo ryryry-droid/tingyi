@@ -781,3 +781,42 @@ def test_translate_photo(monkeypatch):
     monkeypatch.setattr(translate, "_vision", lambda p, u: '{"lines": []}')
     r = client.post("/api/photo", files={"file": ("p.jpg", b"x", "image/jpeg")}, data={"options": "{}"})
     assert r.status_code == 422 and "No text" in r.json()["detail"]
+
+
+def test_photo_shrunk_and_errors_named(monkeypatch):
+    from io import BytesIO
+
+    from PIL import Image
+
+    big = BytesIO()
+    Image.new("RGB", (4000, 3000), "white").save(big, "JPEG")
+    small, mime = translate.shrink_photo(big.getvalue())
+    assert mime == "image/jpeg" and max(Image.open(BytesIO(small)).size) == 1280
+    assert translate.shrink_photo(b"not an image") == (b"not an image", "")
+
+    class Busy(Exception):
+        pass
+
+    monkeypatch.setattr(translate.config, "GROQ_API_KEY", "k")
+    monkeypatch.setattr(translate.config, "GEMINI_API_KEY", "")
+    import openai
+
+    calls = []
+
+    class FakeCompletions:
+        def create(self, **kw):
+            calls.append(1)
+            resp = type("R", (), {"status_code": 429, "headers": {"retry-after": "0"}, "request": None})()
+            raise openai.RateLimitError("Error code: 429", response=resp, body={"error": {"message": "Rate limit reached for model qwen on tokens per minute (TPM): Limit 8000. Please try again in 9s."}})
+
+    class FakeClient:
+        def __init__(self, **kw):
+            self.chat = type("C", (), {"completions": FakeCompletions()})()
+
+    monkeypatch.setattr(openai, "OpenAI", FakeClient)
+    try:
+        translate._vision("read", "data:image/jpeg;base64,xx")
+        assert False
+    except RuntimeError as e:
+        assert "Groq is busy" in str(e) and "tokens per minute" in str(e) and "try again in" not in str(e)
+    assert len(calls) == 2  # tried again once after the pause
