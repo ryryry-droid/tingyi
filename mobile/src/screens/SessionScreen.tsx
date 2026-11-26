@@ -1,7 +1,7 @@
 import * as Clipboard from 'expo-clipboard';
 import { useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, FlatList, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert, FlatList, Image, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { File, Paths } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
@@ -135,6 +135,18 @@ export default function SessionScreen(p: Props) {
     }
   }
 
+  // a photo or pasted text: no audio, so no times or Redo; a photo shows at the top (tap for full size)
+  const noAudio = session.mode === 'photo' || session.mode === 'text';
+  const [photoBig, setPhotoBig] = useState(false);
+  const photoView = session.photoUri ? (
+    <Pressable onPress={() => setPhotoBig(!photoBig)} style={{ marginBottom: 8, marginHorizontal: noAudio && session.status === 'done' ? 0 : 16 }}>
+      <Image
+        source={{ uri: session.photoUri }}
+        style={{ width: '100%', height: photoBig ? 420 : 170, borderRadius: 14, backgroundColor: c.surface }}
+        resizeMode={photoBig ? 'contain' : 'cover'}
+      />
+    </Pressable>
+  ) : null;
   const transcript = () => session.segments.map((s) => `[${formatTime(s.start)}] ${s.text}\n${s.translation}`).join('\n\n');
 
   // ---------- word lookup ----------
@@ -362,6 +374,7 @@ export default function SessionScreen(p: Props) {
           {session.status === 'processing' ? 'Translating…' : session.status === 'error' ? 'Translation failed' : session.title}
         </Text>
         <Text style={[styles.meta, { color: c.muted }]}>
+          {session.mode === 'photo' ? 'Photo · ' : session.mode === 'text' ? 'Text · ' : ''}
           {session.mode === 'conversation'
             ? `Conversation · ${LANGS[session.source]} ⇄ ${LANGS[session.target]}`
             : `${LANGS[session.source]} → ${LANGS[session.target]}`}
@@ -372,9 +385,15 @@ export default function SessionScreen(p: Props) {
       </Pressable>
 
       {session.status === 'processing' ? (
-        <Working text={'Transcribing with Whisper, then translating.\nLonger recordings take a minute or two.'} />
+        <View>
+          {photoView}
+          <Working
+            text={session.mode === 'photo' ? 'Reading the photo, then translating.' : session.mode === 'text' ? 'Translating.' : 'Transcribing with Whisper, then translating.\nLonger recordings take a minute or two.'}
+          />
+        </View>
       ) : session.status === 'error' ? (
         <View style={{ paddingHorizontal: 16 }}>
+          {photoView}
           <Working text={session.error || 'Something went wrong.'} />
           <Btn title="Try again" kind="small" onPress={p.onRetry} />
           {deleteRow}
@@ -385,7 +404,9 @@ export default function SessionScreen(p: Props) {
           keyExtractor={(s) => String(s.id)}
           contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 24 }}
           ListHeaderComponent={
-            !lineCount ? (
+            <>
+            {photoView}
+            {!lineCount ? (
               <Text style={[styles.tip, { color: c.muted, fontSize: 15 }]}>No speech was found in this recording.</Text>
             ) : session.untranslated && missing.length ? (
               <View style={[styles.trFail, { backgroundColor: c.warnSoft }]}>
@@ -400,7 +421,8 @@ export default function SessionScreen(p: Props) {
                   onPress={translateMissing}
                 />
               </View>
-            ) : undefined
+            ) : null}
+            </>
           }
           ListFooterComponent={deleteRow}
           renderItem={({ item, index }) => {
@@ -411,12 +433,14 @@ export default function SessionScreen(p: Props) {
               lookup && lookup.i === index && lookup.side === side ? mainsFor(lookup.tokens, lookup.picks, lookup.a, lookup.b) : null;
             return (
               <View style={[styles.line, { borderBottomColor: c.line }, active && { backgroundColor: c.accentSoft, borderBottomColor: 'transparent', borderRadius: 16 }]}>
-                <Pressable onPress={() => playSegment(item)} style={styles.time} accessibilityLabel={`Play line ${index + 1}`}>
-                  <View style={[styles.play, { backgroundColor: active ? c.accent : c.surface2 }]}>
-                    <Text style={{ color: active ? '#fff' : c.accent, fontSize: 11 }}>{active ? '■' : '▶'}</Text>
-                  </View>
-                  <Text style={{ color: c.faint, fontSize: 11, fontVariant: ['tabular-nums'] }}>{formatTime(item.start)}</Text>
-                </Pressable>
+                {noAudio ? null : (
+                  <Pressable onPress={() => playSegment(item)} style={styles.time} accessibilityLabel={`Play line ${index + 1}`}>
+                    <View style={[styles.play, { backgroundColor: active ? c.accent : c.surface2 }]}>
+                      <Text style={{ color: active ? '#fff' : c.accent, fontSize: 11 }}>{active ? '■' : '▶'}</Text>
+                    </View>
+                    <Text style={{ color: c.faint, fontSize: 11, fontVariant: ['tabular-nums'] }}>{formatTime(item.start)}</Text>
+                  </Pressable>
+                )}
                 <View style={{ flex: 1 }}>
                   {session.mode === 'conversation' ? <Text style={[styles.tag, { color: c.faint }]}>{LANGS[src]?.toUpperCase()}</Text> : null}
                   <WordText
@@ -445,7 +469,7 @@ export default function SessionScreen(p: Props) {
                         setEditing(item);
                       }}
                     />
-                    <TextBtn title={redoing === item.id ? 'Listening again…' : '↻ Redo'} onPress={() => redo(item)} />
+                    {noAudio ? null : <TextBtn title={redoing === item.id ? 'Listening again…' : '↻ Redo'} onPress={() => redo(item)} />}
                   </View>
                 </View>
               </View>

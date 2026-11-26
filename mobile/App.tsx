@@ -4,7 +4,8 @@ import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, BackHandler, Image, ImageBackground, Pressable, StyleSheet, Text, Vibration, View } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 
-import { checkRegister, checkServer, checkTheme, convertScript, translateRecording } from './src/api';
+import { checkRegister, checkServer, checkTheme, convertScript, translateInput, translateRecording } from './src/api';
+import InputSheet, { InputKind } from './src/screens/InputSheet';
 import { bankWord, loadBank, loadBankProgress, saveBankResult } from './src/bank';
 import BankScreen from './src/screens/BankScreen';
 import { backUp, restore } from './src/backup';
@@ -251,7 +252,9 @@ export default function App() {
   async function process(session: Session) {
     updateSession(session.id, (s) => ({ ...s, status: 'processing', error: undefined }));
     try {
-      const result = await translateRecording(settingsRef.current, session);
+      const result = session.mode === 'photo' || session.mode === 'text'
+        ? await translateInput(settingsRef.current, session)
+        : await translateRecording(settingsRef.current, session);
       const first = result.segments[0]?.text;
       updateSession(session.id, (s) => ({
         ...s,
@@ -293,6 +296,30 @@ export default function App() {
     process(session);
   }
 
+  const [inputTab, setInputTab] = useState<InputKind | null>(null);
+  function onInput(kind: InputKind, value: { photoUri?: string; text?: string }) {
+    setInputTab(null);
+    const now = Date.now();
+    const s = settingsRef.current;
+    const session: Session = {
+      id: String(now),
+      title: kind === 'photo' ? 'Photo' : 'Text',
+      createdAt: now,
+      duration: 0,
+      audioUri: '',
+      source: s.source,
+      target: s.target,
+      script: s.script,
+      status: 'processing',
+      segments: [],
+      mode: kind,
+      ...(kind === 'photo' ? { photoUri: value.photoUri } : { input: value.text }),
+    };
+    setSessions((prev) => [session, ...prev]);
+    openSession(session.id);
+    process(session);
+  }
+
   function onStopped(reason: StopReason, duration: number) {
     buzz(reason === 'user' ? 'stopped' : 'alert');
     setTimeout(() => {
@@ -325,11 +352,13 @@ export default function App() {
     if (pendingDelete.current) {
       clearTimeout(pendingDelete.current.timer);
       deleteAudio(pendingDelete.current.s.audioUri);
+      if (pendingDelete.current.s.photoUri) deleteAudio(pendingDelete.current.s.photoUri);
     }
     pendingDelete.current = {
       s: removed,
       timer: setTimeout(() => {
         deleteAudio(removed.audioUri);
+        if (removed.photoUri) deleteAudio(removed.photoUri);
         pendingDelete.current = null;
       }, 6000),
     };
@@ -506,6 +535,7 @@ export default function App() {
           setNotice('');
           setRoute({ name: 'live', mode });
         }}
+        onInput={(kind) => setInputTab(kind)}
         onSettings={() => goTab('settings')}
       />
     );
@@ -542,6 +572,7 @@ export default function App() {
         </Pressable>
       ) : null}
       <View style={{ flex: 1 }}>{screen}</View>
+      {inputTab ? <InputSheet settings={settings} tab={inputTab} onClose={() => setInputTab(null)} onTranslate={onInput} /> : null}
       {toast ? (
         <View style={[styles.toast, { backgroundColor: c.ink }]} pointerEvents="box-none">
           <Text style={{ color: c.bg, fontSize: 14, fontWeight: '600' }}>{toast.msg}</Text>

@@ -74,7 +74,7 @@ async function postJson<T>(s: Settings, path: string, body: unknown): Promise<T>
 async function postFile<T>(s: Settings, path: string, fileUri: string, fields: Record<string, string>): Promise<T> {
   needServer(s);
   const audio = new File(fileUri);
-  if (!audio.exists) throw new ApiError('The audio for this recording is no longer on your phone.');
+  if (!audio.exists) throw new ApiError(path === '/api/photo' ? 'The photo is no longer on your phone.' : 'The audio for this recording is no longer on your phone.');
   const form = new FormData();
   // Expo's fetch reads the file itself when given an expo-file-system File (a Blob);
   // the older React Native {uri, name, type} object isn't supported by it.
@@ -107,6 +107,19 @@ export function translateRecording(
   return postFile(s, '/api/translate', session.audioUri, {
     options: JSON.stringify(options(s, session.source, session.target, session.script)),
   });
+}
+
+/** A photo or pasted text, translated line by line like a recording. */
+export function translateInput(
+  s: Settings,
+  session: Session,
+): Promise<{ duration: number; title: string; segments: Segment[]; translation_error?: string }> {
+  const opts = options(s, session.source, session.target, session.script);
+  if (session.mode === 'photo') {
+    if (!session.photoUri) return Promise.reject(new Error('The photo isn’t on this phone.'));
+    return postFile(s, '/api/photo', session.photoUri, { options: JSON.stringify(opts) });
+  }
+  return postJson(s, '/api/text', { text: session.input || '', options: opts });
 }
 
 /** Re-translate one line after the user corrects what was said. */

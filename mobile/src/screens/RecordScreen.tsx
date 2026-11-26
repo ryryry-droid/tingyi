@@ -52,10 +52,11 @@ type Props = {
   onStopped: (reason: StopReason, duration: number) => void;
   onBusy: (busy: boolean) => void;
   onStartLive: (mode: 'subtitles' | 'conversation') => void;
+  onInput: (kind: 'photo' | 'text') => void; // translate a photo or pasted text
   onSettings: () => void;
 };
 
-export default function RecordScreen({ settings, onLanguages, onRecorded, onStopped, onBusy, onStartLive, onSettings }: Props) {
+export default function RecordScreen({ settings, onLanguages, onRecorded, onStopped, onBusy, onStartLive, onInput, onSettings }: Props) {
   const c = useColors();
   const active = useRef(false); // we started a recording and haven't finished handling it
   const stopping = useRef(false);
@@ -285,6 +286,14 @@ export default function RecordScreen({ settings, onLanguages, onRecorded, onStop
               style={[styles.liveBtn, { borderColor: c.yellow, backgroundColor: c.yellowSoft }]}
             >
               <Text style={{ color: c.yellowText, fontWeight: '800', fontSize: 14 }}>⇄ Live conversation</Text>
+            </Pressable>
+          </View>
+          <View style={[styles.liveRow, { marginTop: 10 }]}>
+            <Pressable accessibilityRole="button" onPress={() => onInput('photo')} style={[styles.liveBtn, { borderColor: c.accent, backgroundColor: c.surface }]}>
+              <Text style={{ color: c.accent, fontWeight: '800', fontSize: 14 }}>📷 Photo</Text>
+            </Pressable>
+            <Pressable accessibilityRole="button" onPress={() => onInput('text')} style={[styles.liveBtn, { borderColor: c.accent, backgroundColor: c.surface }]}>
+              <Text style={{ color: c.accent, fontWeight: '800', fontSize: 14 }}>✎ Text</Text>
             </Pressable>
           </View>
         </>

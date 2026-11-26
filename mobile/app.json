@@ -36,6 +36,13 @@
           "enableBackgroundRecording": true,
           "enableBackgroundPlayback": false
         }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "ChatTalk opens a photo you choose so the text in it can be translated.",
+          "cameraPermission": "ChatTalk uses the camera to photograph text so it can be translated."
+        }
       ]
     ],
     "web": {

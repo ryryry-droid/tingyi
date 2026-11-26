@@ -70,7 +70,9 @@ export type Session = {
   status: SessionStatus;
   error?: string;
   segments: Segment[];
-  mode?: 'subtitles' | 'conversation'; // live sessions
+  mode?: 'subtitles' | 'conversation' | 'photo' | 'text'; // live sessions, or a photo / pasted text (no audio)
+  photoUri?: string; // photo: a smaller copy, in the app's own folder
+  input?: string; // text: what was pasted
   untranslated?: string; // translating failed but the transcript was kept: why, so lines can be translated later
 };
 

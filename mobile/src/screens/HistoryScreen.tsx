@@ -54,6 +54,7 @@ export default function HistoryScreen({ sessions, onOpen, onDelete }: Props) {
           >
             <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 12 }}>
               <Text style={[styles.title, { color: c.ink }, hasHan(item.title) && { fontFamily: HAN_FONT }]} numberOfLines={1}>
+                {item.mode === 'photo' ? '📷 ' : item.mode === 'text' ? '✎ ' : ''}
                 {item.title}
               </Text>
               <Text style={{ fontSize: 13, color: c.faint, fontVariant: ['tabular-nums'] }}>{formatDate(item.createdAt)}</Text>
