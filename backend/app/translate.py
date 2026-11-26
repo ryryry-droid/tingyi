@@ -536,3 +536,70 @@ def _json(text: str):
         return json.loads(match.group(0))
     except json.JSONDecodeError:
         return None
+
+
+def _vision(prompt: str, image_url: str) -> str:
+    """One request with an image: Groq's image model first, Gemini as the backup (when it's set up)."""
+    from openai import BadRequestError, OpenAI
+
+    services = []
+    if config.GROQ_API_KEY:
+        services.append(("groq", config.GROQ_BASE_URL, config.GROQ_API_KEY, config.GROQ_VISION_MODEL))
+    if config.GEMINI_API_KEY:
+        services.append(("gemini", config.GEMINI_BASE_URL, config.GEMINI_API_KEY, config.GEMINI_MODEL))
+    if not services:
+        raise RuntimeError("Reading photos needs a Groq or Gemini key on the server")
+    available = [s for s in services if _resting.get(s[0] + "-vision", 0) <= time.time()] or services[-1:]
+    last: Exception | None = None
+    for i, (name, base_url, key, model) in enumerate(available):
+        has_backup = i < len(available) - 1
+        client = OpenAI(base_url=base_url, api_key=key, max_retries=1 if has_backup else 4)
+        args: dict = dict(
+            model=model,
+            temperature=0,
+            response_format={"type": "json_object"},
+            messages=[{"role": "user", "content": [{"type": "text", "text": prompt}, {"type": "image_url", "image_url": {"url": image_url}}]}],
+        )
+        if "qwen" in model:
+            args["extra_body"] = {"reasoning_format": "hidden"}  # just the answer, not the model's thinking
+        if "gemini" in model:
+            args["reasoning_effort"] = "low"
+        try:
+            try:
+                r = client.chat.completions.create(**args)
+            except BadRequestError:
+                args.pop("response_format", None)
+                args.pop("extra_body", None)
+                r = client.chat.completions.create(**args)
+            return r.choices[0].message.content or ""
+        except Exception as e:  # rate limit, model gone, image refused... try the next service
+            last = e
+            if "rate" in str(e).lower() or "429" in str(e):
+                _resting[name + "-vision"] = time.time() + 600
+            if not has_backup:
+                raise
+    raise last or RuntimeError("Couldn't read the photo")
+
+
+def read_image(data: bytes, mime: str, lang: str) -> list[str]:
+    """The text in a photo (a sign, menu, page, screenshot...), as lines in reading order."""
+    import base64
+    import re
+
+    url = f"data:{mime or 'image/jpeg'};base64,{base64.b64encode(data).decode()}"
+    language = LANG_NAMES.get(lang, lang)
+    prompt = (
+        f"Read all the text in this photo. It is mostly in {language}.\n"
+        "Copy it exactly as written, in reading order (for vertical Chinese text: top to bottom, right to left).\n"
+        "Give one entry per line or sentence. Join a sentence that wraps onto the next line into one entry.\n"
+        "Leave out text that is unreadable, and anything that is just a logo, a number on its own or decoration.\n"
+        "Don't translate, explain or correct anything.\n"
+        'Answer with JSON only: {"lines": ["...", "..."]}. If there is no readable text: {"lines": []}.'
+    )
+    raw = _vision(prompt, url)
+    raw = re.sub(r"<think>.*?</think>", "", raw, flags=re.S).strip()
+    try:
+        lines = _json(raw).get("lines", [])
+    except Exception:
+        lines = [l for l in raw.splitlines() if l.strip()]
+    return [str(l).strip() for l in lines if str(l).strip()][:200]

@@ -326,3 +326,10 @@ class ConvertRequest(BaseModel):
 
 class ConvertResponse(BaseModel):
     texts: list[str]
+
+
+class TextRequest(BaseModel):
+    """Text pasted in to translate line by line, like a recording."""
+
+    text: str = Field(max_length=20000)
+    options: Options = Field(default_factory=Options)

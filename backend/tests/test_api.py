@@ -747,3 +747,37 @@ def test_convert_script(monkeypatch):
     assert r.json()["texts"] == ["自动贩卖机", "请把通知贴在公告栏上。", "hello", ""]
     r = client.post("/api/convert", json={"script": "traditional", "texts": ["自动贩卖机"]})
     assert r.json()["texts"] == ["自動販賣機"]
+
+
+def test_translate_text(monkeypatch):
+    setup(monkeypatch)
+    text = "請勿在店內吸煙。謝謝您的理解與支持！\n本店周一休息"
+    r = client.post("/api/text", json={"text": text, "options": {"script": "simplified"}})
+    assert r.status_code == 200, r.text
+    segs = r.json()["segments"]
+    assert [s["text"] for s in segs] == ["请勿在店内吸烟。谢谢您的理解与支持！", "本店周一休息"]  # short lines stay whole
+    assert segs[0]["pinyin"].startswith("qǐng") and segs[0]["start"] == 0
+    assert segs[1]["translation"] == "EN<本店周一休息>"
+    assert client.post("/api/text", json={"text": "  \n "}).status_code == 400
+
+
+def test_split_long_text():
+    from app.pipeline import split_text
+    long = "上海今天发布暴雨黄色预警，预计下午将有强降雨。市民出行请注意安全，尽量避免前往低洼地区。气象台表示，降雨将持续到明天早上，部分地区可能出现积水。"
+    assert split_text(long) == ["上海今天发布暴雨黄色预警，预计下午将有强降雨。", "市民出行请注意安全，尽量避免前往低洼地区。", "气象台表示，降雨将持续到明天早上，部分地区可能出现积水。"]
+
+
+def test_translate_photo(monkeypatch):
+    setup(monkeypatch)
+    seen = {}
+    def fake_vision(prompt, url):
+        seen["url"] = url[:30]
+        return '<think>hmm</think>{"lines": ["温馨提示", "请勿吸烟"]}'
+    monkeypatch.setattr(translate, "_vision", fake_vision)
+    r = client.post("/api/photo", files={"file": ("p.jpg", b"jpegdata", "image/jpeg")}, data={"options": json.dumps({"source": "zh"})})
+    assert r.status_code == 200, r.text
+    assert [s["text"] for s in r.json()["segments"]] == ["温馨提示", "请勿吸烟"]
+    assert seen["url"].startswith("data:image/jpeg;base64,")
+    monkeypatch.setattr(translate, "_vision", lambda p, u: '{"lines": []}')
+    r = client.post("/api/photo", files={"file": ("p.jpg", b"x", "image/jpeg")}, data={"options": "{}"})
+    assert r.status_code == 422 and "No text" in r.json()["detail"]

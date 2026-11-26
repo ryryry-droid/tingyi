@@ -34,9 +34,37 @@ def finish_translation(text: str, opts: Options) -> tuple[str, str | None]:
     return text, (to_pinyin(text) if opts.pinyin and not opts.source_is_chinese else None)
 
 
+def split_text(text: str, limit: int = 200) -> list[str]:
+    """Pasted text as lines: one per line, with long lines split into sentences."""
+    import re
+
+    out: list[str] = []
+    for para in text.replace("\r", "").split("\n"):
+        para = para.strip()
+        if not para:
+            continue
+        if len(para) <= 60:
+            out.append(para)
+            continue
+        # after 。！？!? or ". " (keeping the punctuation)
+        parts = re.split(r"(?<=[。！？!?；;])\s*|(?<=\.)\s+", para)
+        out.extend(p.strip() for p in parts if p and p.strip())
+    return out[:limit]
+
+
+def process_lines(lines: list[str], opts: Options) -> TranslateResponse:
+    """Text from a photo or pasted in, translated line by line like a recording (no audio, so no times)."""
+    segments = clean_segments([RawSegment(start=0, end=0, text=l) for l in lines], opts)
+    return _finish(segments, opts, 0)
+
+
 def process_recording(path: str, opts: Options) -> TranslateResponse:
     raw, duration = asr.transcribe(path, opts)
     segments = clean_segments(raw, opts)
+    return _finish(segments, opts, duration)
+
+
+def _finish(segments: list[Segment], opts: Options, duration: float) -> TranslateResponse:
     # The transcript is kept even if translating fails, so it isn't lost; untranslated lines can be retried
     error = translate.translate_all(segments, opts, keep_going=True)
     for seg in segments:

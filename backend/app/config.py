@@ -37,6 +37,7 @@ GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai/"
 GEMINI_MODEL = _env("GEMINI_MODEL", "gemini-3.8-flash")  # free on Google AI Studio's free tier
 GROQ_BASE_URL = "https://api.groq.com/openai/v1"
 GROQ_TRANSLATE_MODEL = _env("TRANSLATE_MODEL", "openai/gpt-oss-120b")
+GROQ_VISION_MODEL = _env("VISION_MODEL", "qwen/qwen3.8-27b")  # reads the text in photos (Groq's free image model)
 TRANSLATE_PROVIDER = _env(
     "TRANSLATE_PROVIDER", "anthropic" if _HAS_ANTHROPIC or not (_GROQ or GEMINI_API_KEY) else "openai"
 )

@@ -41,9 +41,10 @@ from .models import (
     RetranslateRequest,
     RetranslateResponse,
     Segment,
+    TextRequest,
     TranslateResponse,
 )
-from .pipeline import clean_segments, finish_translation, process_recording
+from .pipeline import clean_segments, finish_translation, process_lines, process_recording, split_text
 from . import asr
 from .textproc import to_pinyin, to_script
 
@@ -119,6 +120,42 @@ async def translate_recording(
         raise HTTPException(status_code=502, detail=f"Processing failed: {e}")
     finally:
         os.unlink(path)  # audio is not kept on the server
+
+
+@app.post("/api/text", response_model=TranslateResponse, dependencies=[Depends(check_token)])
+async def translate_text(req: TextRequest) -> TranslateResponse:
+    """Pasted text, split into lines and translated like a recording."""
+    lines = split_text(req.text)
+    if not lines:
+        raise HTTPException(status_code=400, detail="There's no text to translate")
+    try:
+        return await run_in_threadpool(process_lines, lines, req.options)
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Translation failed: {e}")
+
+
+@app.post("/api/photo", response_model=TranslateResponse, dependencies=[Depends(check_token)])
+async def translate_photo(file: UploadFile = File(...), options: str = Form("{}")) -> TranslateResponse:
+    """The text in a photo, read by an image model, then translated line by line. The photo isn't kept."""
+    try:
+        opts = Options(**json.loads(options or "{}"))
+    except Exception as e:
+        raise HTTPException(status_code=422, detail=f"Bad options: {e}")
+    data = await file.read()
+    if not data:
+        raise HTTPException(status_code=400, detail="Empty photo")
+    if len(data) > 15 * 1024 * 1024:
+        raise HTTPException(status_code=413, detail="That photo is over 15 MB")
+    try:
+        lines = await run_in_threadpool(translate.read_image, data, file.content_type or "image/jpeg", opts.source)
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Couldn't read the photo: {e}")
+    if not lines:
+        raise HTTPException(status_code=422, detail="No text was found in that photo. Try a closer, sharper picture.")
+    try:
+        return await run_in_threadpool(process_lines, lines, opts)
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Translation failed: {e}")
 
 
 @app.post("/api/retranslate", response_model=RetranslateResponse, dependencies=[Depends(check_token)])
